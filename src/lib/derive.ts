@@ -22,8 +22,11 @@ export const isDone = (s: Snapshot, t: Task) => {
   return p.total > 0 && p.done === p.total
 }
 
-/** Creative deadline = client delivery − 1 day (buffer for review). */
-export const dueDate = (t: Task): IsoDate => addIso(t.end, -1)
+/** Creative deadline = client delivery − 1 day (buffer for review), never before the start (same-day tasks). */
+export const dueDate = (t: Task): IsoDate => {
+  const d = addIso(t.end, -1)
+  return d < t.start ? t.start : d
+}
 
 export type Urgency = 'done' | 'late' | 'soon' | 'ok'
 export function urgency(s: Snapshot, t: Task, today = todayIso()): Urgency {

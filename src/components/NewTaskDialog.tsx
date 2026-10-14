@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { addIso, type IsoDate } from '@/lib/dates'
+import type { IsoDate } from '@/lib/dates'
 import { useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
@@ -26,7 +26,7 @@ export function NewTaskDialog({ day, clientId, onClose }: { day: IsoDate; client
   const [type, setType] = useState<TaskType>('static')
   const [owner, setOwner] = useState(me.id)
   const [start, setStart] = useState(day)
-  const [end, setEnd] = useState(addIso(day, 1))
+  const [end, setEnd] = useState(day)
   const [part, setPart] = useState('')
   const team = s.users.filter((u) => u.role !== 'client')
 
