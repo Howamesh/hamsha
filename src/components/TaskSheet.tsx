@@ -175,10 +175,27 @@ export function TaskSheet() {
                     className={cn('flex-1 min-w-0 bg-transparent text-[13px] font-semibold outline-none', p.done && 'line-through')}
                   />
                   {u && (
-                    <div className="hidden sm:flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <Avatar name={u.name} color={u.color} size={22} />
-                      <div className="min-w-0">
-                        <div className="text-[11.5px] font-semibold truncate">{u.name.split(' ')[0]}</div>
+                      <div className="min-w-0 hidden sm:block">
+                        {admin ? (
+                          <select
+                            value={p.assigneeId}
+                            onChange={(e) => void sess.upsertPart({ ...p, assigneeId: e.target.value })}
+                            title={lang === 'ar' ? 'مين عليه هذا الجزء' : 'Who does this part'}
+                            className="max-w-[120px] bg-transparent text-[11.5px] font-semibold outline-none cursor-pointer"
+                          >
+                            {s.users
+                              .filter((x) => x.role !== 'client')
+                              .map((x) => (
+                                <option key={x.id} value={x.id}>
+                                  {x.name}
+                                </option>
+                              ))}
+                          </select>
+                        ) : (
+                          <div className="text-[11.5px] font-semibold truncate">{u.name.split(' ')[0]}</div>
+                        )}
                         <div className="text-[9.5px] text-fg-muted truncate">{u.title}</div>
                       </div>
                     </div>
