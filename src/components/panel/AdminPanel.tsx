@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Bell, MessageCircle, PieChart, Settings, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { clientProgress, isDone, urgency, workload } from '@/lib/derive'
-import { useStr } from '@/lib/useStr'
+import { fmtDate, useStr } from '@/lib/useStr'
 import { useData, useSession } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
 import { Avatar, Bar, Button, Card, Input, SectionTitle, Segmented } from '../ui'
@@ -61,7 +61,8 @@ function Kpi({ n, label, tone }: { n: string | number; label: string; tone: 'gre
 }
 
 function Master() {
-  const { t } = useStr()
+  const { t, lang } = useStr()
+  const [openUser, setOpenUser] = useState<string | null>(null)
   const s = useData()
   const ui = useUi()
   const createClient = useSession((x) => x.createClient)
@@ -120,14 +121,65 @@ function Master() {
       </form>
 
       <SectionTitle>{t('teamWorkload')}</SectionTitle>
-      <div className="flex flex-col gap-2 -mt-2">
-        {wl.map(({ user, open }) => (
-          <div key={user.id} className="flex items-center gap-2.5">
-            <Avatar name={user.name} color={user.color} size={24} />
-            <Bar pct={(open / max) * 100} color={user.color} />
-            <span className="text-[12px] font-semibold tabular-nums w-5 text-end">{open}</span>
-          </div>
-        ))}
+      <div className="flex flex-col gap-1.5 -mt-2">
+        {wl.map(({ user, open }) => {
+          const expanded = openUser === user.id
+          const parts = s.parts
+            .filter((p) => p.assigneeId === user.id && !p.done)
+            .sort((a, b) => a.day.localeCompare(b.day) || (a.time ?? '').localeCompare(b.time ?? ''))
+          return (
+            <div key={user.id} className="flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => setOpenUser(expanded ? null : user.id)}
+                className={cn('flex items-center gap-2.5 rounded-md px-1.5 py-1.5 -mx-1.5 cursor-pointer hover:bg-muted-bg text-start', expanded && 'bg-muted-bg')}
+                title={user.name}
+              >
+                <Avatar name={user.name} color={user.color} size={24} />
+                <div className="flex-1 min-w-0">
+                  {expanded && <div className="text-[11.5px] font-semibold truncate mb-1">{user.name}</div>}
+                  <Bar pct={(open / max) * 100} color={user.color} />
+                </div>
+                <span className="text-[12px] font-semibold tabular-nums w-5 text-end">{open}</span>
+              </button>
+              {expanded && (
+                <div className="flex flex-col gap-1 ps-8 pb-1">
+                  {parts.map((p) => {
+                    const task = s.tasks.find((x) => x.id === p.taskId)
+                    const client = task && s.clients.find((c) => c.id === task.clientId)
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          if (task) {
+                            ui.setFocus(p.day)
+                            ui.openTask(task.id)
+                          }
+                        }}
+                        className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-start cursor-pointer hover:border-fg-faint"
+                        style={{ borderInlineStartColor: client?.color, borderInlineStartWidth: 3 }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div dir="auto" className="text-[12px] font-semibold truncate">
+                            {p.label}
+                          </div>
+                          <div dir="auto" className="text-[10.5px] text-fg-secondary truncate">
+                            {client?.name} · {task?.title}
+                          </div>
+                        </div>
+                        <span className="text-[10.5px] font-semibold text-fg-muted tabular-nums whitespace-nowrap" dir="ltr">
+                          {fmtDate(p.day, lang, { day: 'numeric', month: 'short' })}
+                          {p.time ? ` · ${p.time}` : ''}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </>
   )
