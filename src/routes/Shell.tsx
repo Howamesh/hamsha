@@ -172,8 +172,8 @@ function App() {
 
         <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-[var(--gap)]">
           {ui.view === 'month' && <MonthView tasks={tasks} onCreate={onCreate} emptyMsg={emptyMsg} hint={isAdmin && client ? t('hintAdmin') : isCreative ? t('hintCreative') : undefined} />}
-          {ui.view === 'week' && <WeekView tasks={tasks} />}
-          {ui.view === 'day' && <DayView tasks={tasks} />}
+          {ui.view === 'week' && <WeekView tasks={tasks} onCreate={onCreate} />}
+          {ui.view === 'day' && <DayView tasks={tasks} onCreate={onCreate} />}
         </main>
       </div>
 

@@ -12,7 +12,7 @@ import type { Task } from '@/types'
 
 const dot: Record<string, string> = { late: 'var(--accent)', soon: 'var(--warning)', done: 'var(--success)', ok: 'var(--fg-faint)' }
 
-export function WeekView({ tasks }: { tasks: Task[] }) {
+export function WeekView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: string) => void }) {
   const { days, lang, t } = useStr()
   const s = useData()
   const now = useNow()
@@ -67,7 +67,12 @@ export function WeekView({ tasks }: { tasks: Task[] }) {
                   </span>
                 </div>
               )}
-              <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-2 flex flex-col gap-1.5">
+              <div
+                className={cn('flex-1 min-h-0 overflow-y-auto no-scrollbar p-2 flex flex-col gap-1.5', onCreate && 'cursor-crosshair')}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) onCreate?.(iso)
+                }}
+              >
                 {list.length > 0 && <div className="text-[10px] font-bold tracking-[0.06em] uppercase text-fg-muted">{t('deliveries')}</div>}
                 {list.map((task) => {
                   const client = clientById(s, task.clientId)

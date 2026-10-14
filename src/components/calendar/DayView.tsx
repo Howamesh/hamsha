@@ -12,7 +12,7 @@ import { BrandTile } from '../BrandTile'
 import { PrayerChip, usePrayers } from './Prayer'
 import type { Task } from '@/types'
 
-export function DayView({ tasks }: { tasks: Task[] }) {
+export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: string) => void }) {
   const { lang, t } = useStr()
   const s = useData()
   const user = useUser()
@@ -75,7 +75,11 @@ export function DayView({ tasks }: { tasks: Task[] }) {
         {hours.map((h) => {
           const ps = isCreative ? prayers.filter((p) => p.hour === h) : []
           return (
-            <div key={h} className="relative flex min-h-[46px] border-b border-border-soft">
+            <div
+              key={h}
+              className={cn('relative flex min-h-[46px] border-b border-border-soft', onCreate && 'cursor-crosshair hover:bg-muted-bg/40')}
+              onClick={() => onCreate?.(focus)}
+            >
               {isCreative && (
                 <div className="absolute inset-y-0 start-0 w-[4px] bg-warning" style={{ opacity: energyAt(h, fajr.hour + fajr.minute / 60) }} />
               )}
