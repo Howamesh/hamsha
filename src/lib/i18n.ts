@@ -124,6 +124,36 @@ export const STR = {
   light: { en: 'Light', ar: 'فاتح' },
   dark: { en: 'Dark', ar: 'داكن' },
 
+  // Client setup
+  calendarName: { en: 'Calendar name', ar: 'اسم التقويم' },
+  projectOwner: { en: 'Project owner', ar: 'مسؤول المشروع' },
+  runsFromTo: { en: 'Runs from → to', ar: 'المدة من → إلى' },
+  projectsInside: { en: 'Projects inside', ar: 'المشاريع' },
+  newProjectPh: { en: 'New project name…', ar: 'اسم مشروع جديد…' },
+  add: { en: 'Add', ar: 'إضافة' },
+  lead: { en: 'Lead', ar: 'القائد' },
+  contract: { en: 'Contract', ar: 'العقد' },
+  contractDraft: { en: 'Draft', ar: 'مسودة' },
+  contractSent: { en: 'Sent', ar: 'مُرسل' },
+  contractSigned: { en: 'Signed', ar: 'موقّع' },
+  deleteClient: { en: 'Delete this client calendar', ar: 'حذف تقويم هذا العميل' },
+  confirmDeleteClient: { en: 'Delete this client and all its tasks?', ar: 'حذف هذا العميل وكل مهامه؟' },
+  confirmDeleteProject: { en: 'Delete this project and its tasks?', ar: 'حذف هذا المشروع ومهامه؟' },
+  howToAddTasks: { en: 'To add a task: click any day on the calendar.', ar: 'لإضافة مهمة: اضغط على أي يوم في التقويم.' },
+
+  // New task dialog
+  newTask: { en: 'New task', ar: 'مهمة جديدة' },
+  taskTitle: { en: 'Task title', ar: 'عنوان المهمة' },
+  client: { en: 'Client', ar: 'العميل' },
+  project: { en: 'Project', ar: 'المشروع' },
+  taskType: { en: 'Type of task', ar: 'نوع المهمة' },
+  ownerLabel: { en: 'Owner', ar: 'المسؤول' },
+  startDate: { en: 'Start', ar: 'البداية' },
+  deliveryDate: { en: 'Client delivery', ar: 'تسليم العميل' },
+  cancel: { en: 'Cancel', ar: 'إلغاء' },
+  createTask: { en: 'Create task', ar: 'إنشاء المهمة' },
+  firstPart: { en: 'First part (e.g. Design)', ar: 'الجزء الأول (مثلاً: التصميم)' },
+
   days: { en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], ar: ['اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت', 'أحد'] },
   daysLong: { en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], ar: ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'] },
 } as const

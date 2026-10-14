@@ -118,6 +118,43 @@ export function createMockRepo(): Repo {
       commit()
       return c
     },
+    async updateClient(id, patch) {
+      const cur = snap.clients.find((c) => c.id === id)
+      if (!cur) throw new Error('not found')
+      const next = { ...cur, ...patch, id }
+      snap.clients = snap.clients.map((c) => (c.id === id ? next : c))
+      commit()
+      return next
+    },
+    async deleteClient(id) {
+      snap.clients = snap.clients.filter((c) => c.id !== id)
+      snap.projects = snap.projects.filter((p) => p.clientId !== id)
+      const gone = new Set(snap.tasks.filter((t) => t.clientId === id).map((t) => t.id))
+      snap.tasks = snap.tasks.filter((t) => !gone.has(t.id))
+      snap.parts = snap.parts.filter((p) => !gone.has(p.taskId))
+      commit()
+    },
+    async createProject(input) {
+      const p: Project = { ...input, id: nid('p') }
+      snap.projects = [...snap.projects, p]
+      commit()
+      return p
+    },
+    async updateProject(id, patch) {
+      const cur = snap.projects.find((c) => c.id === id)
+      if (!cur) throw new Error('not found')
+      const next = { ...cur, ...patch, id }
+      snap.projects = snap.projects.map((c) => (c.id === id ? next : c))
+      commit()
+      return next
+    },
+    async deleteProject(id) {
+      snap.projects = snap.projects.filter((p) => p.id !== id)
+      const gone = new Set(snap.tasks.filter((t) => t.projectId === id).map((t) => t.id))
+      snap.tasks = snap.tasks.filter((t) => !gone.has(t.id))
+      snap.parts = snap.parts.filter((p) => !gone.has(p.taskId))
+      commit()
+    },
     async createTask(input) {
       const t: Task = { ...input, id: nid('k'), approval: 'draft', version: 1 }
       snap.tasks = [...snap.tasks, t]

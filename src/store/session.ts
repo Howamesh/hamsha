@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { repo } from '@/data'
 import type { Snapshot } from '@/data/repo'
-import type { ChannelId, Presence, Profile, Task, TaskPart, User } from '@/types'
+import type { ChannelId, Client, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
 
 interface SessionState {
   user: User | null
@@ -12,6 +12,11 @@ interface SessionState {
   signOut: () => Promise<void>
 
   createClient: (name: string) => Promise<void>
+  updateClient: (id: string, patch: Partial<Client>) => Promise<void>
+  deleteClient: (id: string) => Promise<void>
+  createProject: (input: Omit<Project, 'id'>) => Promise<void>
+  updateProject: (id: string, patch: Partial<Project>) => Promise<void>
+  deleteProject: (id: string) => Promise<void>
   createTask: (input: Omit<Task, 'id' | 'version' | 'approval'>) => Promise<Task>
   updateTask: (id: string, patch: Partial<Task>) => Promise<void>
   deleteTask: (id: string) => Promise<void>
@@ -48,6 +53,21 @@ export const useSession = create<SessionState>((set, get) => ({
     const u = get().user
     if (!u) return
     await repo.createClient(name, u.id)
+  },
+  async updateClient(id, patch) {
+    await repo.updateClient(id, patch)
+  },
+  async deleteClient(id) {
+    await repo.deleteClient(id)
+  },
+  async createProject(input) {
+    await repo.createProject(input)
+  },
+  async updateProject(id, patch) {
+    await repo.updateProject(id, patch)
+  },
+  async deleteProject(id) {
+    await repo.deleteProject(id)
   },
   async createTask(input) {
     return repo.createTask(input)

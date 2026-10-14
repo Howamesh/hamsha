@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Bell, Calendar, ChevronLeft, ChevronRight, LogOut, MessageCircle, PanelRightOpen, PieChart, Settings, User } from 'lucide-react'
 import { addDays, addMonths, addWeeks } from 'date-fns'
@@ -18,6 +18,7 @@ import { CreativePanel } from '@/components/panel/CreativePanel'
 import { ClientPanel } from '@/components/panel/ClientPanel'
 import { TaskSheet } from '@/components/TaskSheet'
 import { Checkin } from '@/components/Checkin'
+import { NewTaskDialog } from '@/components/NewTaskDialog'
 import { useAlerts } from '@/components/Alerts'
 import { BrandTile } from '@/components/BrandTile'
 
@@ -68,15 +69,8 @@ function App() {
   const badge = isAdmin ? (client ? t('badgeAdmin') : t('badgeMaster')) : isCreative ? t('badgeCreative') : t('badgeClient')
   const emptyMsg = isAdmin ? t('emptyMaster') : isCreative ? t('emptyCreative') : t('emptyClient')
 
-  const onCreate = isAdmin && client
-    ? (day: string) => {
-        const title = prompt(lang === 'ar' ? 'عنوان المهمة الجديدة:' : 'New task title:')
-        if (!title?.trim()) return
-        const project = s.projects.find((p) => p.clientId === client.id)
-        if (!project) return
-        void sess.createTask({ projectId: project.id, clientId: client.id, title: title.trim(), type: 'static', start: day, end: day, ownerId: me.id })
-      }
-    : undefined
+  const [newTaskDay, setNewTaskDay] = useState<string | null>(null)
+  const onCreate = isAdmin && s.clients.length > 0 ? (day: string) => setNewTaskDay(day) : undefined
 
   const Panel = isAdmin ? AdminPanel : isCreative ? CreativePanel : ClientPanel
   const railTabs: Array<{ id: PanelTab; icon: React.ReactNode; badge?: number }> = isCreative
@@ -205,6 +199,7 @@ function App() {
         </nav>
       )}
 
+      {newTaskDay && <NewTaskDialog day={newTaskDay} clientId={client?.id ?? null} onClose={() => setNewTaskDay(null)} />}
       <TaskSheet />
       <Checkin />
     </div>

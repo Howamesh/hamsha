@@ -25,6 +25,11 @@ export interface Repo {
   subscribe(cb: (s: Snapshot) => void): () => void
 
   createClient(name: string, ownerId: string): Promise<Client>
+  updateClient(id: string, patch: Partial<Client>): Promise<Client>
+  deleteClient(id: string): Promise<void>
+  createProject(input: Omit<Project, 'id'>): Promise<Project>
+  updateProject(id: string, patch: Partial<Project>): Promise<Project>
+  deleteProject(id: string): Promise<void>
   createTask(input: Omit<Task, 'id' | 'version' | 'approval'>): Promise<Task>
   updateTask(id: string, patch: Partial<Task>, version: number): Promise<Task>
   deleteTask(id: string): Promise<void>

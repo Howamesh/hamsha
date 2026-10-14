@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Bell, MessageCircle, PieChart, Settings, SlidersHorizontal, X } from 'lucide-react'
+import { Bell, MessageCircle, PieChart, Settings, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { clientProgress, isDone, urgency, workload } from '@/lib/derive'
 import { useStr } from '@/lib/useStr'
 import { useData, useSession } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
-import { Avatar, Bar, Button, Card, Input, SectionTitle } from '../ui'
+import { Avatar, Bar, Button, Card, Input, SectionTitle, Segmented } from '../ui'
 import { Chat } from '../Chat'
 import { AlertsList, useAlerts } from '../Alerts'
 import { SettingsPanel } from '../Settings'
@@ -134,57 +134,124 @@ function Master() {
 }
 
 function ClientSetup({ clientId }: { clientId: string }) {
-  const { lang } = useStr()
+  const { t } = useStr()
   const s = useData()
+  const ui = useUi()
+  const sess = useSession()
   const c = s.clients.find((x) => x.id === clientId)!
   const projects = s.projects.filter((p) => p.clientId === clientId)
+  const team = s.users.filter((u) => u.role !== 'client')
   const owner = s.users.find((u) => u.id === c.ownerId)
-  const contract = { draft: { en: 'Draft', ar: 'مسودة' }, sent: { en: 'Sent', ar: 'مُرسل' }, signed: { en: 'Signed', ar: 'موقّع' } }
+  const [newProject, setNewProject] = useState('')
+  const contractOpts: Array<{ value: typeof c.contract; label: string }> = [
+    { value: 'draft', label: t('contractDraft') },
+    { value: 'sent', label: t('contractSent') },
+    { value: 'signed', label: t('contractSigned') },
+  ]
   return (
     <>
-      <SectionTitle>{lang === 'ar' ? 'اسم التقويم' : 'Calendar name'}</SectionTitle>
-      <Input value={c.name} readOnly className="-mt-2 py-2.5" />
+      <SectionTitle>{t('calendarName')}</SectionTitle>
+      <Input
+        key={c.id}
+        defaultValue={c.name}
+        dir="auto"
+        onBlur={(e) => e.target.value.trim() && e.target.value !== c.name && void sess.updateClient(c.id, { name: e.target.value.trim() })}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        className="-mt-2 py-2.5"
+      />
+      <div className="-mt-2 text-[11.5px] text-fg-muted">{t('howToAddTasks')}</div>
+
       <SectionTitle>
-        {lang === 'ar' ? 'مسؤول المشروع' : 'Project owner'} · {owner?.name}
+        {t('projectOwner')} · {owner?.name}
       </SectionTitle>
       <div className="flex flex-wrap gap-2 -mt-2">
-        {s.users
-          .filter((u) => u.role !== 'client')
-          .map((u) => (
-            <Avatar key={u.id} name={u.name} color={u.color} size={32} className={cn(u.id === c.ownerId ? 'ring-2 ring-fg ring-offset-2 ring-offset-card' : 'opacity-60')} />
-          ))}
+        {team.map((u) => (
+          <button key={u.id} type="button" title={u.name} onClick={() => void sess.updateClient(c.id, { ownerId: u.id })} className="cursor-pointer">
+            <Avatar name={u.name} color={u.color} size={32} className={cn('transition-opacity', u.id === c.ownerId ? 'ring-2 ring-fg ring-offset-2 ring-offset-card' : 'opacity-50 hover:opacity-90')} />
+          </button>
+        ))}
       </div>
-      <SectionTitle>{lang === 'ar' ? 'المدة من → إلى' : 'Runs from → to'}</SectionTitle>
+
+      <SectionTitle>{t('runsFromTo')}</SectionTitle>
       <div className="grid grid-cols-2 gap-2 -mt-2" dir="ltr">
-        <Input type="date" value={c.start} readOnly className="py-2 text-[13px]" />
-        <Input type="date" value={c.end} readOnly className="py-2 text-[13px]" />
+        <Input type="date" value={c.start} onChange={(e) => void sess.updateClient(c.id, { start: e.target.value })} className="py-2 text-[13px]" />
+        <Input type="date" value={c.end} min={c.start} onChange={(e) => void sess.updateClient(c.id, { end: e.target.value })} className="py-2 text-[13px]" />
       </div>
-      <SectionTitle>{lang === 'ar' ? 'المشاريع' : 'Projects inside'}</SectionTitle>
+
+      <SectionTitle>{t('projectsInside')}</SectionTitle>
       <div className="flex flex-col gap-2 -mt-2">
         {projects.map((p) => {
-          const lead = s.users.find((u) => u.id === p.leadId)
           const tasks = s.tasks.filter((x) => x.projectId === p.id)
           const pct = tasks.length ? Math.round((tasks.filter((x) => isDone(s, x)).length / tasks.length) * 100) : 0
           return (
             <Card key={p.id} className="p-3 flex items-center gap-2.5">
-              <span className="w-[9px] h-[9px] rounded-sm" style={{ background: p.color }} />
-              <div className="min-w-0">
-                <div className="text-[13px] font-semibold">{p.name}</div>
-                <div className="text-[11px] text-fg-secondary">
-                  {lang === 'ar' ? 'القائد' : 'Lead'} · {lead?.name} · {pct}%
+              <span className="w-[9px] h-[9px] rounded-sm shrink-0" style={{ background: p.color }} />
+              <div className="min-w-0 flex-1">
+                <input
+                  defaultValue={p.name}
+                  dir="auto"
+                  onBlur={(e) => e.target.value.trim() && e.target.value !== p.name && void sess.updateProject(p.id, { name: e.target.value.trim() })}
+                  className="w-full bg-transparent text-[13px] font-semibold outline-none"
+                />
+                <div className="text-[11px] text-fg-secondary flex items-center gap-1">
+                  {t('lead')} ·
+                  <select value={p.leadId} onChange={(e) => void sess.updateProject(p.id, { leadId: e.target.value })} className="bg-transparent text-[11px] font-semibold outline-none cursor-pointer">
+                    {team.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </select>
+                  · {pct}%
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => confirm(t('confirmDeleteProject')) && void sess.deleteProject(p.id)}
+                className="text-fg-muted hover:text-accent cursor-pointer"
+                aria-label="remove"
+              >
+                <X size={14} />
+              </button>
             </Card>
           )
         })}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!newProject.trim()) return
+            const palette = ['#D9B600', '#9B7BF2', '#4CB782', '#F06FA7', '#4E9BFA', '#F2994A']
+            void sess.createProject({ clientId: c.id, name: newProject.trim(), leadId: c.ownerId, color: palette[projects.length % palette.length] })
+            setNewProject('')
+          }}
+          className="flex gap-2"
+        >
+          <Input value={newProject} onChange={(e) => setNewProject(e.target.value)} placeholder={t('newProjectPh')} dir="auto" className="py-2" />
+          <Button type="submit" variant="dark" disabled={!newProject.trim()}>
+            {t('add')}
+          </Button>
+        </form>
       </div>
-      <SectionTitle>{lang === 'ar' ? 'العقد' : 'Contract'}</SectionTitle>
-      <Card className="p-3 -mt-2 flex items-center justify-between">
-        <span className="text-[13px] font-semibold">{lang === 'ar' ? 'حالة العقد' : 'Status'}</span>
-        <span className={cn('text-[12px] font-bold rounded-md px-2.5 py-1', c.contract === 'signed' ? 'bg-success-tint text-success-dark' : 'bg-muted-bg text-fg-secondary')}>
-          {contract[c.contract][lang]}
-        </span>
+
+      <SectionTitle>{t('contract')}</SectionTitle>
+      <Card className="p-3 -mt-2 flex items-center justify-between gap-3">
+        <span className="text-[13px] font-semibold">{t('contract')}</span>
+        <Segmented size="sm" value={c.contract} options={contractOpts} onChange={(v) => void sess.updateClient(c.id, { contract: v })} className="min-w-[200px]" />
       </Card>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="self-start text-accent hover:text-accent mt-2"
+        onClick={() => {
+          if (confirm(t('confirmDeleteClient'))) {
+            void sess.deleteClient(c.id)
+            ui.setCalId(null)
+          }
+        }}
+      >
+        <Trash2 size={14} /> {t('deleteClient')}
+      </Button>
     </>
   )
 }
