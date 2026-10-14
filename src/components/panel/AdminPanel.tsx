@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Bell, MessageCircle, PieChart, Settings, SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { Bell, ChevronDown, MessageCircle, PieChart, Settings, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { clientProgress, isDone, urgency, workload } from '@/lib/derive'
+import { clientProgress, isDone, taskProgress, urgency, workload } from '@/lib/derive'
 import { fmtDate, useStr } from '@/lib/useStr'
 import { useData, useSession } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
@@ -63,6 +63,7 @@ function Kpi({ n, label, tone }: { n: string | number; label: string; tone: 'gre
 function Master() {
   const { t, lang } = useStr()
   const [openUser, setOpenUser] = useState<string | null>(null)
+  const [openClient, setOpenClient] = useState<string | null>(null)
   const s = useData()
   const ui = useUi()
   const createClient = useSession((x) => x.createClient)
@@ -87,20 +88,83 @@ function Master() {
         {s.clients.map((c) => {
           const p = clientProgress(s, c)
           const owner = s.users.find((u) => u.id === c.ownerId)
+          const expanded = openClient === c.id
+          const projects = s.projects.filter((x) => x.clientId === c.id)
+          const upcoming = s.tasks
+            .filter((x) => x.clientId === c.id && !isDone(s, x))
+            .sort((a, b) => a.end.localeCompare(b.end))
+            .slice(0, 5)
           return (
-            <button key={c.id} type="button" onClick={() => ui.setCalId(c.id)} className="text-start cursor-pointer">
-              <Card className="p-3 hover:border-fg-faint transition-colors">
-                <div className="flex items-center gap-2">
+            <Card key={c.id} className={cn('p-3 transition-colors', expanded && 'border-fg-faint')}>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => ui.setCalId(c.id)} className="flex items-center gap-2 min-w-0 flex-1 text-start cursor-pointer hover:opacity-80" title={lang === 'ar' ? 'افتح تقويم العميل' : 'Open client calendar'}>
                   <BrandTile client={c} size={22} />
-                  <span className="text-[13.5px] font-semibold">{c.name}</span>
-                  <span className="ms-auto text-[13px] font-bold tabular-nums">{p.pct}%</span>
+                  <span className="text-[13.5px] font-semibold truncate">{c.name}</span>
+                </button>
+                <span className="text-[13px] font-bold tabular-nums">{p.pct}%</span>
+                <button
+                  type="button"
+                  onClick={() => setOpenClient(expanded ? null : c.id)}
+                  className="w-6 h-6 grid place-items-center rounded-md text-fg-secondary hover:bg-muted-bg hover:text-fg cursor-pointer"
+                  aria-label="expand"
+                >
+                  <ChevronDown size={14} className={cn('transition-transform', expanded && 'rotate-180')} />
+                </button>
+              </div>
+              <Bar pct={p.pct} color={c.color} className="mt-2" />
+              <div className="text-[11.5px] text-fg-secondary mt-1.5">
+                {p.tasks} {t('tasks')} · {p.projects} {t('projects')} · {t('owner')} {owner?.name}
+              </div>
+              {expanded && (
+                <div className="mt-3 flex flex-col gap-2 anim-fade">
+                  <div className="flex flex-wrap gap-1.5">
+                    {projects.map((pr) => {
+                      const ts = s.tasks.filter((x) => x.projectId === pr.id)
+                      const pct = ts.length ? Math.round((ts.filter((x) => isDone(s, x)).length / ts.length) * 100) : 0
+                      return (
+                        <span key={pr.id} className="inline-flex items-center gap-1.5 rounded-md bg-muted-bg px-2 py-1 text-[11px] font-semibold">
+                          <span className="w-[7px] h-[7px] rounded-sm" style={{ background: pr.color }} />
+                          {pr.name} · {pct}%
+                        </span>
+                      )
+                    })}
+                  </div>
+                  {upcoming.length === 0 ? (
+                    <div className="text-[11.5px] text-fg-muted">{lang === 'ar' ? 'لا توجد مهام مفتوحة.' : 'No open tasks.'}</div>
+                  ) : (
+                    upcoming.map((task) => {
+                      const tp = taskProgress(s, task)
+                      const u = urgency(s, task)
+                      const who = s.users.find((x) => x.id === task.ownerId)
+                      return (
+                        <button
+                          key={task.id}
+                          type="button"
+                          onClick={() => {
+                            ui.setFocus(task.start)
+                            ui.openTask(task.id)
+                          }}
+                          className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-start cursor-pointer hover:border-fg-faint"
+                        >
+                          <span className="w-[6px] h-[6px] rounded-full shrink-0" style={{ background: u === 'late' ? 'var(--accent)' : u === 'soon' ? 'var(--warning)' : 'var(--fg-faint)' }} />
+                          <div className="min-w-0 flex-1">
+                            <div dir="auto" className="text-[12px] font-semibold truncate">
+                              {task.title}
+                            </div>
+                            <div className="text-[10.5px] text-fg-secondary truncate">
+                              {who?.name} · {tp.done}/{tp.total}
+                            </div>
+                          </div>
+                          <span className="text-[10.5px] font-semibold text-fg-muted whitespace-nowrap" dir="ltr">
+                            {fmtDate(task.end, lang, { day: 'numeric', month: 'short' })}
+                          </span>
+                        </button>
+                      )
+                    })
+                  )}
                 </div>
-                <Bar pct={p.pct} color={c.color} className="mt-2" />
-                <div className="text-[11.5px] text-fg-secondary mt-1.5">
-                  {p.tasks} {t('tasks')} · {p.projects} {t('projects')} · {t('owner')} {owner?.name}
-                </div>
-              </Card>
-            </button>
+              )}
+            </Card>
           )
         })}
       </div>
