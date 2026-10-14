@@ -14,7 +14,10 @@ export function ClientPanel() {
   const me = useUser()!
   const ui = useUi()
   const c = s.clients.find((x) => x.id === me.clientId)
-  if (!c) return null
+  if (!c)
+    return (
+      <div className="p-5 text-[13px] text-fg-secondary">{lang === 'ar' ? 'هذا الحساب غير مربوط بتقويم عميل بعد — المدير يربطه من إعداد التقويم.' : 'This account is not linked to a client calendar yet.'}</div>
+    )
   const p = clientProgress(s, c)
   const tasks = s.tasks.filter((x) => x.clientId === c.id)
   const delivered = tasks.filter((x) => isDone(s, x)).length
