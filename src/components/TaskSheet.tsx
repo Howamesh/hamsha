@@ -205,6 +205,15 @@ export function TaskSheet() {
                     <span className="text-[11px] text-fg-muted">h</span>
                   </div>
                   <input type="date" value={p.day} readOnly={!admin} onChange={(e) => void sess.upsertPart({ ...p, day: e.target.value })} className="hidden md:block rounded-md border border-border bg-bg px-1.5 py-1 text-[12px]" dir="ltr" />
+                  <input
+                    type="time"
+                    value={p.time ?? ''}
+                    readOnly={!admin}
+                    onChange={(e) => void sess.upsertPart({ ...p, time: e.target.value || undefined })}
+                    title={lang === 'ar' ? 'وقت التسليم داخل اليوم' : 'Hand-off time'}
+                    className="hidden md:block rounded-md border border-border bg-bg px-1.5 py-1 text-[12px] w-[88px]"
+                    dir="ltr"
+                  />
                   {admin && (
                     <button type="button" onClick={() => void sess.deletePart(p.id)} className="text-fg-muted hover:text-accent cursor-pointer" aria-label="remove">
                       <X size={14} />

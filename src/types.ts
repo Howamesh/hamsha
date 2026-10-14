@@ -67,6 +67,8 @@ export interface TaskPart {
   assigneeId: string
   hours: number
   day: IsoDate
+  /** Optional hand-off time within the day, 'HH:MM' (e.g. content by 14:00, design by 17:00) */
+  time?: string
   done: boolean
   order: number
 }

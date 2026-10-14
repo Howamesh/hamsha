@@ -4,6 +4,7 @@ import { fromIso, hhmm } from '@/lib/dates'
 import { hijriFull } from '@/lib/hijri'
 import { energyAt, pad2 } from '@/lib/prayer'
 import { clientById, tasksOnDay, taskProgress, urgency, userById } from '@/lib/derive'
+
 import { useStr, useNow } from '@/lib/useStr'
 import { useUi } from '@/store/ui'
 import { useData, useUser } from '@/store/session'
@@ -21,6 +22,8 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: s
   const openTask = useUi((u) => u.openTask)
   const d = fromIso(focus)
   const list = tasksOnDay(tasks, focus)
+  const taskIds = new Set(tasks.map((x) => x.id))
+  const partsToday = s.parts.filter((p) => p.day === focus && taskIds.has(p.taskId) && (user?.role !== 'creative' || p.assigneeId === user.id))
   const isCreative = user?.role === 'creative'
   const prayers = usePrayers()
   const fajr = prayers[0]
@@ -87,6 +90,34 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: s
                 {pad2(h)}:00
               </div>
               <div className="flex-1 p-1.5 flex flex-col gap-1">
+                {partsToday
+                  .filter((p) => p.time && Number(p.time.slice(0, 2)) === h)
+                  .map((p) => {
+                    const task = s.tasks.find((x) => x.id === p.taskId)
+                    const who = userById(s, p.assigneeId)
+                    const client = task && clientById(s, task.clientId)
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openTask(p.taskId)
+                        }}
+                        className={cn('max-w-[420px] flex items-center gap-2 rounded-md px-2.5 py-1.5 text-start cursor-pointer border border-transparent', p.done && 'opacity-60')}
+                        style={{ background: (client?.color ?? '#D9B600') + '22', borderInlineStartColor: client?.color ?? '#D9B600', borderInlineStartWidth: 3 }}
+                      >
+                        <span className="text-[11px] font-bold tabular-nums text-fg-secondary" dir="ltr">
+                          {p.time}
+                        </span>
+                        <span dir="auto" className={cn('text-[12.5px] font-semibold truncate', p.done && 'line-through')}>
+                          {p.label}
+                        </span>
+                        <span className="text-[10.5px] text-fg-muted truncate">· {task?.title}</span>
+                        {who && <Avatar name={who.name} color={who.color} size={18} className="ms-auto" />}
+                      </button>
+                    )
+                  })}
                 {ps.map((p) => (
                   <div key={p.name} className="max-w-[280px]">
                     <PrayerChip prayer={p} />
