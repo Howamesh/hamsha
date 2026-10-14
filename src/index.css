@@ -1,0 +1,171 @@
+@import 'tailwindcss';
+
+/* ---------- Design tokens (ported from the approved "Client Calendar Shadcn" prototype) ---------- */
+:root {
+  --bg: #fafafa;
+  --card: #ffffff;
+  --border: #e4e4e7;
+  --border-soft: #f1f1f3;
+  --muted-bg: #f4f4f5;
+  --fg: #09090b;
+  --fg-secondary: #71717a;
+  --fg-muted: #a1a1aa;
+  --fg-faint: #d4d4d8;
+
+  --accent: #dc2626;
+  --accent-hover: #b91c1c;
+  --accent-fg: #ffffff;
+
+  --success: #4cb782;
+  --success-dark: #227141;
+  --success-tint: #e1f3e8;
+  --warning: #f7c948;
+  --warning-dark: #8a6a10;
+  --warning-tint: #fff7e0;
+  --danger-tint: #fcebea;
+  --danger-dark: #8e2a2e;
+  --info: #20539c;
+  --info-tint: #e3ecfa;
+
+  --weekend: #fbfbfc;
+  --out-month: #f7f7f8;
+
+  --radius: 6px;
+  --radius-lg: 8px;
+  --gap: 10px;
+  --panel-w: 350px;
+  --rail-w: 54px;
+
+  --font-sans: 'Geist', 'Rubik', ui-sans-serif, system-ui, sans-serif;
+  --font-ar: 'Rubik', 'Geist', ui-sans-serif, system-ui, sans-serif;
+}
+
+:root[data-theme='dark'] {
+  --bg: #0b0b0d;
+  --card: #141417;
+  --border: #26262b;
+  --border-soft: #1d1d21;
+  --muted-bg: #1c1c20;
+  --fg: #f4f4f5;
+  --fg-secondary: #a1a1aa;
+  --fg-muted: #71717a;
+  --fg-faint: #3f3f46;
+  --success-tint: #12301f;
+  --warning-tint: #332a0d;
+  --danger-tint: #3a1516;
+  --info-tint: #0f1f3a;
+  --weekend: #111114;
+  --out-month: #0e0e11;
+  --accent-fg: #ffffff;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-muted-bg: var(--muted-bg);
+  --color-fg: var(--fg);
+  --color-fg-secondary: var(--fg-secondary);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-success: var(--success);
+  --color-success-dark: var(--success-dark);
+  --color-success-tint: var(--success-tint);
+  --color-warning: var(--warning);
+  --color-warning-dark: var(--warning-dark);
+  --color-warning-tint: var(--warning-tint);
+  --color-danger-tint: var(--danger-tint);
+  --color-danger-dark: var(--danger-dark);
+  --color-info: var(--info);
+  --color-info-tint: var(--info-tint);
+  --color-weekend: var(--weekend);
+  --color-out-month: var(--out-month);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
+  --font-sans: var(--font-sans);
+}
+
+/* ---------- Base (layered so utilities can override it) ---------- */
+@layer base {
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+:root[lang='ar'] body {
+  font-family: var(--font-ar);
+}
+* {
+  box-sizing: border-box;
+  border-color: var(--border);
+}
+input,
+select,
+button,
+textarea {
+  font-family: inherit;
+  color: inherit;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--fg-faint);
+  outline-offset: 0;
+}
+::placeholder {
+  color: var(--fg-muted);
+}
+
+/* Hide scrollbars but keep scrolling (director: "do not show the scroll") */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+}
+
+/* ---------- Motion ---------- */
+@keyframes sheetUp {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.anim-sheet {
+  animation: sheetUp 0.22s ease-out;
+}
+.anim-fade {
+  animation: fadeIn 0.25s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .anim-sheet,
+  .anim-fade {
+    animation: none;
+  }
+}
