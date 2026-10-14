@@ -134,7 +134,7 @@ function Master() {
 }
 
 function ClientSetup({ clientId }: { clientId: string }) {
-  const { t } = useStr()
+  const { t, lang } = useStr()
   const s = useData()
   const ui = useUi()
   const sess = useSession()
@@ -150,6 +150,9 @@ function ClientSetup({ clientId }: { clientId: string }) {
   ]
   return (
     <>
+      <Button size="sm" onClick={() => ui.setCalId(null)} className="self-start -mb-1">
+        {lang === 'ar' ? '→' : '←'} {t('allClients')}
+      </Button>
       <SectionTitle>{t('calendarName')}</SectionTitle>
       <Input
         key={c.id}

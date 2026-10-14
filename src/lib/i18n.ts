@@ -125,6 +125,7 @@ export const STR = {
   dark: { en: 'Dark', ar: 'داكن' },
 
   // Client setup
+  allClients: { en: 'All clients', ar: 'كل العملاء' },
   calendarName: { en: 'Calendar name', ar: 'اسم التقويم' },
   projectOwner: { en: 'Project owner', ar: 'مسؤول المشروع' },
   runsFromTo: { en: 'Runs from → to', ar: 'المدة من → إلى' },
