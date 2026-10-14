@@ -7,7 +7,7 @@ import type { Repo, Snapshot } from './repo'
 import type { ChannelId, Client, Message, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
 import { addIso, todayIso } from '@/lib/dates'
 
-const KEY = 'hamsha.mock.v1'
+const KEY = 'hamsha.mock.v2'
 const SESSION_KEY = 'hamsha.mock.session'
 
 const PALETTE = ['#D9B600', '#9B7BF2', '#4CB782', '#F06FA7', '#4E9BFA', '#F2994A', '#3B8EA5', '#7FA23B']
@@ -42,8 +42,8 @@ function seed(): Snapshot {
   const byName = (n: string) => users.find((u) => u.name === n)!.id
 
   const clients: Client[] = [
-    { id: 'directaid', name: 'DirectAid', color: '#D9B600', ownerId: byName('Ibrahim AlQifari'), start: near(-14), end: near(75), contract: 'signed' },
-    { id: 'jowan', name: 'Jowan Print', color: '#9B7BF2', ownerId: byName('Abdulaziz Husic'), start: near(-7), end: near(120), contract: 'sent' },
+    { id: 'directaid', name: 'DirectAid', color: '#D9B600', ownerId: byName('Ibrahim AlQifari'), logo: '/logos/directaid.svg', start: near(-14), end: near(75), contract: 'signed' },
+    { id: 'jowan', name: 'Jowan Print', color: '#9B7BF2', ownerId: byName('Abdulaziz Husic'), logo: '/logos/jowan.png', start: near(-7), end: near(120), contract: 'sent' },
   ]
   // A client-side login for DirectAid (phase 2 — exists in the model from day 1)
   users.push({ id: 'u90', name: 'DirectAid', email: 'team@directaid.org', role: 'client', color: '#D9B600', clientId: 'directaid' })

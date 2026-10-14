@@ -15,6 +15,17 @@ export default function Login() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const DEMO = import.meta.env.VITE_DEMO !== 'false'
+  async function demo(email: string) {
+    setBusy(true)
+    try {
+      await signIn(email, 'demo')
+      nav('/', { replace: true })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
@@ -77,6 +88,24 @@ export default function Login() {
             {t('forgot')}
           </button>
         </form>
+
+        {DEMO && (
+          <div className="rounded-md border border-dashed border-fg-faint bg-card/60 p-4 flex flex-col gap-2.5">
+            <div className="text-[12.5px] font-semibold text-fg-secondary">{t('demoTitle')}</div>
+            <div className="grid grid-cols-3 gap-2">
+              <Button variant="dark" disabled={busy} onClick={() => demo('ibrahim@hamsha.studio')}>
+                {t('demoAdmin')}
+              </Button>
+              <Button variant="dark" disabled={busy} onClick={() => demo('abdullah@hamsha.studio')}>
+                {t('demoCreative')}
+              </Button>
+              <Button variant="dark" disabled={busy} onClick={() => demo('team@directaid.org')}>
+                {t('demoClient')}
+              </Button>
+            </div>
+            <div className="text-[11px] text-fg-muted">{t('demoNote')}</div>
+          </div>
+        )}
       </div>
     </div>
   )

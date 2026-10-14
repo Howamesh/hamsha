@@ -23,6 +23,11 @@ export const STR = {
   loginSub: { en: 'Your studio calendar, tasks and team chat — in one place.', ar: 'تقويم الاستوديو ومهامك ومحادثة الفريق في مكان واحد.' },
   loginError: { en: 'Wrong email or password.', ar: 'البريد أو كلمة المرور غير صحيحة.' },
   forgot: { en: 'Forgot password?', ar: 'نسيت كلمة المرور؟' },
+  demoTitle: { en: 'Try it without an account', ar: 'جرّبه بدون حساب' },
+  demoAdmin: { en: 'Enter as admin', ar: 'ادخل كمدير' },
+  demoCreative: { en: 'Enter as creative', ar: 'ادخل كمبدع' },
+  demoClient: { en: 'Enter as client', ar: 'ادخل كعميل' },
+  demoNote: { en: 'Demo mode — removed when real accounts arrive.', ar: 'وضع التجربة — يُزال عند تفعيل الحسابات الحقيقية.' },
 
   // Roles / badges
   roleAdmin: { en: 'Admin', ar: 'مدير' },

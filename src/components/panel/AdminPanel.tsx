@@ -9,6 +9,7 @@ import { Avatar, Bar, Button, Card, Input, SectionTitle } from '../ui'
 import { Chat } from '../Chat'
 import { AlertsList, useAlerts } from '../Alerts'
 import { SettingsPanel } from '../Settings'
+import { BrandTile } from '../BrandTile'
 import { PanelTabs } from './PanelTabs'
 
 export function AdminPanel() {
@@ -89,7 +90,7 @@ function Master() {
             <button key={c.id} type="button" onClick={() => ui.setCalId(c.id)} className="text-start cursor-pointer">
               <Card className="p-3 hover:border-fg-faint transition-colors">
                 <div className="flex items-center gap-2">
-                  <span className="w-[9px] h-[9px] rounded-sm" style={{ background: c.color }} />
+                  <BrandTile client={c} size={22} />
                   <span className="text-[13.5px] font-semibold">{c.name}</span>
                   <span className="ms-auto text-[13px] font-bold tabular-nums">{p.pct}%</span>
                 </div>

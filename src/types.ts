@@ -24,6 +24,8 @@ export interface Client {
   color: string
   /** Project owner (the producer in charge) */
   ownerId: string
+  /** Path/URL of the client's logo (shown on calendar cards) */
+  logo?: string
   start: IsoDate
   end: IsoDate
   contract: 'draft' | 'sent' | 'signed'

@@ -5,9 +5,9 @@ import { hijriCell } from '@/lib/hijri'
 import { clientById, tasksOnDay, taskProgress, urgency, userById } from '@/lib/derive'
 import { useStr, useNow } from '@/lib/useStr'
 import { useUi } from '@/store/ui'
-import { useData, useUser } from '@/store/session'
+import { useData } from '@/store/session'
 import { Avatar } from '../ui'
-import { PrayerChip, usePrayers } from './Prayer'
+import { BrandTile } from '../BrandTile'
 import type { Task } from '@/types'
 
 const dot: Record<string, string> = { late: 'var(--accent)', soon: 'var(--warning)', done: 'var(--success)', ok: 'var(--fg-faint)' }
@@ -15,7 +15,6 @@ const dot: Record<string, string> = { late: 'var(--accent)', soon: 'var(--warnin
 export function WeekView({ tasks }: { tasks: Task[] }) {
   const { days, lang, t } = useStr()
   const s = useData()
-  const user = useUser()
   const now = useNow()
   const focus = useUi((u) => u.focus)
   const weekStart = useUi((u) => u.weekStart)
@@ -23,8 +22,6 @@ export function WeekView({ tasks }: { tasks: Task[] }) {
   const setFocus = useUi((u) => u.setFocus)
   const setView = useUi((u) => u.setView)
   const week = weekDays(fromIso(focus), weekStart)
-  const isCreative = user?.role === 'creative'
-  const prayers = usePrayers()
   const minutes = now.getHours() * 60 + now.getMinutes()
 
   return (
@@ -87,7 +84,8 @@ export function WeekView({ tasks }: { tasks: Task[] }) {
                       style={{ background: color + '22', borderInlineStartColor: color, borderInlineStartWidth: 3 }}
                     >
                       <div className="flex items-start gap-1.5">
-                        <span className="w-[6px] h-[6px] rounded-full mt-[6px] shrink-0" style={{ background: dot[u] }} />
+                        <BrandTile client={client} size={18} className="mt-[1px]" />
+                        <span className="w-[6px] h-[6px] rounded-full mt-[6px] shrink-0 order-last" style={{ background: dot[u] }} />
                         <span dir="auto" className={cn('text-[12.5px] font-semibold leading-snug', u === 'done' && 'line-through opacity-70')}>
                           {client?.name} · {task.title}
                         </span>
@@ -101,10 +99,6 @@ export function WeekView({ tasks }: { tasks: Task[] }) {
                     </button>
                   )
                 })}
-                {isCreative &&
-                  prayers.map((p) => (
-                    <PrayerChip key={p.name} prayer={p} />
-                  ))}
               </div>
             </div>
           )

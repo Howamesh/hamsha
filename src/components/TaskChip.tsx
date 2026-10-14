@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react'
-import { cn, initials, prefix } from '@/lib/utils'
+import { cn, prefix } from '@/lib/utils'
+import { BrandTile } from './BrandTile'
 import { clientById, projectById, taskProgress, urgency } from '@/lib/derive'
 import { useData } from '@/store/session'
 import { useUi } from '@/store/ui'
@@ -35,12 +36,7 @@ export function TaskChip({ task, compact = false }: { task: Task; compact?: bool
       title={task.title}
     >
       <div className={cn('flex items-center gap-1.5 px-1.5', compact ? 'py-[3px]' : 'pt-1')}>
-        <span
-          className="grid place-items-center rounded-[4px] text-[9px] font-bold text-white shrink-0"
-          style={{ width: 16, height: 16, background: client?.color ?? color }}
-        >
-          {initials(client?.name ?? '?', 1)}
-        </span>
+        <BrandTile client={client} size={16} />
         {!compact && project && (
           <span className="text-[9px] font-bold px-1 rounded bg-card/70 text-fg-secondary shrink-0">{prefix(project.name)}</span>
         )}

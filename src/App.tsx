@@ -28,15 +28,11 @@ export default function App() {
     document.querySelector('meta[name=theme-color]')?.setAttribute('content', theme === 'dark' ? '#0b0b0d' : '#FAFAFA')
   }, [theme])
 
-  // Creative check-in on sign-in and when coming back to the tab
+  // Creative check-in popup is switched OFF for now (Yousef, 2026-10-14) — the
+  // component stays in the code; set `checkinOpen` to bring it back.
   useEffect(() => {
-    if (user?.role === 'creative') setCheckin(true)
-    const onVis = () => {
-      if (document.visibilityState === 'visible' && useSession.getState().user?.role === 'creative') setCheckin(true)
-    }
-    document.addEventListener('visibilitychange', onVis)
-    return () => document.removeEventListener('visibilitychange', onVis)
-  }, [user?.id, user?.role, setCheckin])
+    setCheckin(false)
+  }, [user?.id, setCheckin])
 
   if (!booted) return <div className="h-dvh grid place-items-center text-fg-muted text-sm">…</div>
 

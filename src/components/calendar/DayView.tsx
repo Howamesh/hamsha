@@ -8,6 +8,7 @@ import { useStr, useNow } from '@/lib/useStr'
 import { useUi } from '@/store/ui'
 import { useData, useUser } from '@/store/session'
 import { Avatar } from '../ui'
+import { BrandTile } from '../BrandTile'
 import { PrayerChip, usePrayers } from './Prayer'
 import type { Task } from '@/types'
 
@@ -56,6 +57,7 @@ export function DayView({ tasks }: { tasks: Task[] }) {
                 className="flex items-center gap-3 rounded-md px-3 py-2 text-start cursor-pointer hover:opacity-90 border border-transparent"
                 style={{ background: color + '22', borderInlineStartColor: color, borderInlineStartWidth: 3 }}
               >
+                <BrandTile client={client} size={20} />
                 <span dir="auto" className={cn('text-[13px] font-semibold flex-1 min-w-0 truncate', u === 'done' && 'line-through opacity-70')}>
                   {client?.name} · {task.title}
                 </span>

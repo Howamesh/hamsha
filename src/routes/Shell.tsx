@@ -19,6 +19,7 @@ import { ClientPanel } from '@/components/panel/ClientPanel'
 import { TaskSheet } from '@/components/TaskSheet'
 import { Checkin } from '@/components/Checkin'
 import { useAlerts } from '@/components/Alerts'
+import { BrandTile } from '@/components/BrandTile'
 
 export default function Shell() {
   const me = useUser()
@@ -93,9 +94,7 @@ function App() {
         )}
         <div className="flex items-center gap-2.5 min-w-0">
           {client ? (
-            <span className="grid place-items-center w-7 h-7 rounded-md text-[12px] font-semibold text-white" style={{ background: client.color }}>
-              {client.name[0]}
-            </span>
+            <BrandTile client={client} size={28} />
           ) : isAdmin ? (
             <Logo size={28} />
           ) : (
