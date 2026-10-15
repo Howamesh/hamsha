@@ -67,7 +67,7 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: s
                   {client?.name} · {task.title}
                 </span>
                 <span className="text-[11px] font-semibold text-fg-secondary tabular-nums">
-                  {pr.done}/{pr.total} · {pr.hours}h
+                  {pr.done}/{pr.total} · {pr.hours}{t('hourShort')}
                 </span>
                 {owner && <Avatar name={owner.name} color={owner.color} size={20} />}
               </button>

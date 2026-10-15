@@ -9,7 +9,7 @@ import { TaskChip } from '../TaskChip'
 import type { Task } from '@/types'
 
 export function MonthView({ tasks, onCreate, emptyMsg, hint }: { tasks: Task[]; onCreate?: (day: string) => void; emptyMsg: string; hint?: string }) {
-  const { days, lang } = useStr()
+  const { days, lang, t } = useStr()
   const narrow = useNarrow()
   const now = useNow()
   const focus = useUi((s) => s.focus)
@@ -54,10 +54,6 @@ export function MonthView({ tasks, onCreate, emptyMsg, hint }: { tasks: Task[]; 
                   setView('day')
                 } else onCreate?.(iso)
               }}
-              onDoubleClick={() => {
-                setFocus(iso)
-                setView('day')
-              }}
               className={cn(
                 'relative border-b border-e border-border-soft p-1.5 flex flex-col gap-1 min-h-0 overflow-hidden',
                 !inMonth && 'bg-out-month',
@@ -67,14 +63,21 @@ export function MonthView({ tasks, onCreate, emptyMsg, hint }: { tasks: Task[]; 
             >
               <div className="flex items-start justify-between gap-1">
                 <span className={cn('text-[10px] font-medium text-fg-muted truncate', !inMonth && 'opacity-60')}>{hijriCell(d, lang)}</span>
-                <span
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setFocus(iso)
+                    setView('day')
+                  }}
+                  title={lang === 'ar' ? 'افتح اليوم' : 'Open day'}
                   className={cn(
-                    'grid place-items-center min-w-[22px] h-[22px] px-1 rounded-full text-[12.5px] font-bold tabular-nums',
+                    'grid place-items-center min-w-[22px] h-[22px] px-1 rounded-full text-[12.5px] font-bold tabular-nums cursor-pointer hover:ring-2 hover:ring-fg-faint',
                     today ? 'bg-accent text-accent-fg' : inMonth ? 'text-fg' : 'text-fg-muted',
                   )}
                 >
                   {d.getDate()}
-                </span>
+                </button>
               </div>
               {today && (
                 <div className="absolute inset-x-0 h-[2px] bg-accent z-[2] pointer-events-none" style={{ top: `${dayFraction(now) * 100}%` }}>
@@ -95,7 +98,7 @@ export function MonthView({ tasks, onCreate, emptyMsg, hint }: { tasks: Task[]; 
                     }}
                     className="text-[10.5px] font-semibold text-fg-secondary hover:text-fg text-start cursor-pointer"
                   >
-                    {lang === 'ar' ? `+${extra} أخرى` : `+${extra} more`}
+                    {t('more', { n: extra })}
                   </button>
                 )}
               </div>

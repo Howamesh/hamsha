@@ -39,11 +39,10 @@ export function NewTaskDialog({ day, clientId, onClose }: { day: IsoDate; client
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (!title.trim() || !client || !project) return
-    const task = await sess.createTask({ projectId: project, clientId: client, title: title.trim(), type, start, end: end < start ? start : end, ownerId: owner })
-    if (part.trim()) {
-      const p = s.parts.find((x) => x.taskId === task.id)
-      if (p) await sess.upsertPart({ ...p, label: part.trim(), assigneeId: owner })
-    }
+    const task = await sess.createTask(
+      { projectId: project, clientId: client, title: title.trim(), type, start, end: end < start ? start : end, ownerId: owner },
+      part.trim() || t('defaultPart'),
+    )
     onClose()
     openTask(task.id)
   }

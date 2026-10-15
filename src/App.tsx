@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import Login from './routes/Login'
 import Shell from './routes/Shell'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { useSession } from './store/session'
 import { useUi } from './store/ui'
 
@@ -37,11 +38,13 @@ export default function App() {
   if (!booted) return <div className="h-dvh grid place-items-center text-fg-muted text-sm">…</div>
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/*" element={<Shell />} />
-      </Routes>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/*" element={<Shell />} />
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }

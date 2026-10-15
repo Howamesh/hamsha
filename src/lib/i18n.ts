@@ -157,6 +157,19 @@ export const STR = {
   createTask: { en: 'Create task', ar: 'إنشاء المهمة' },
   firstPart: { en: 'First part (e.g. Design)', ar: 'الجزء الأول (مثلاً: التصميم)' },
 
+  // Misc UI
+  hourShort: { en: 'h', ar: 'س' },
+  back: { en: 'Back', ar: 'رجوع' },
+  prev: { en: 'Previous', ar: 'السابق' },
+  next: { en: 'Next', ar: 'التالي' },
+  expand: { en: 'Expand', ar: 'توسيع' },
+  remove: { en: 'Remove', ar: 'حذف' },
+  done: { en: 'Done', ar: 'تم' },
+  generalProject: { en: 'General', ar: 'عام' },
+  defaultPart: { en: 'Design', ar: 'التصميم' },
+  lastPartHint: { en: 'A task needs at least one part', ar: 'المهمة تحتاج جزءاً واحداً على الأقل' },
+  saveFailed: { en: 'Could not save — please try again.', ar: 'تعذّر الحفظ — حاول مرة أخرى.' },
+
   days: { en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], ar: ['اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت', 'أحد'] },
   daysLong: { en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], ar: ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'] },
 } as const

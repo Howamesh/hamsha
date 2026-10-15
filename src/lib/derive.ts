@@ -19,7 +19,8 @@ export function progressOf(parts: TaskPart[]): TaskProgress {
 export const taskProgress = (s: Snapshot, t: Task) => progressOf(partsOf(s, t.id))
 export const isDone = (s: Snapshot, t: Task) => {
   const p = taskProgress(s, t)
-  return p.total > 0 && p.done === p.total
+  if (p.total === 0) return t.approval === 'approved'
+  return p.done === p.total
 }
 
 /** Creative deadline = client delivery − 1 day (buffer for review), never before the start (same-day tasks). */

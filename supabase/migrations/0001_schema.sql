@@ -30,18 +30,23 @@ create table profiles (
   title      text,                      -- job title shown under a creative's name
   color      text not null default '#4E9BFA',
   client_id  uuid,                      -- for role = 'client' (FK added below)
+  presence   presence_state not null default 'away',
+  last_seen  timestamptz,
+  created_at timestamptz not null default now()
+);
+create index on profiles (org_id);
+
+-- ---------- private per-user settings (only the user can read/write) ----------
+create table user_settings (
+  user_id    uuid primary key references profiles(id) on delete cascade,
   city       text not null default 'riyadh',
   wh_start   smallint not null default 9,
   wh_end     smallint not null default 17,
   notes      text not null default '',
   theme      text not null default 'light',
   lang       text not null default 'ar',
-  week_start text not null default 'monday',
-  presence   presence_state not null default 'away',
-  last_seen  timestamptz,
-  created_at timestamptz not null default now()
+  week_start text not null default 'monday'
 );
-create index on profiles (org_id);
 
 -- ---------- clients (each client = one calendar) ----------
 create table clients (
@@ -234,13 +239,16 @@ create trigger projects_consistency before insert or update on projects
   for each row execute function projects_consistency();
 
 create or replace function task_parts_consistency() returns trigger
-language plpgsql as $$
+language plpgsql security definer set search_path = public as $$
 declare t record;
 begin
   select org_id, start_date, end_date into t from tasks where id = new.task_id;
   if t is null then raise exception 'unknown task'; end if;
   if t.org_id <> new.org_id then raise exception 'organization mismatch'; end if;
-  if new.day < t.start_date or new.day > t.end_date then raise exception 'part day outside task range'; end if;
+  if (tg_op = 'INSERT' or new.day is distinct from old.day)
+     and (new.day < t.start_date or new.day > t.end_date) then
+    raise exception 'part day outside task range';
+  end if;
   if new.assignee_id is not null and not exists (select 1 from profiles where id = new.assignee_id and org_id = new.org_id) then
     raise exception 'assignee outside organization';
   end if;
@@ -248,6 +256,35 @@ begin
 end $$;
 create trigger task_parts_consistency before insert or update on task_parts
   for each row execute function task_parts_consistency();
+
+-- When a task's dates change, keep its parts inside the new range (mirrors the app)
+create or replace function tasks_clamp_parts() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.start_date is distinct from old.start_date or new.end_date is distinct from old.end_date then
+    update task_parts set day = greatest(new.start_date, least(new.end_date, day))
+      where task_id = new.id and (day < new.start_date or day > new.end_date);
+  end if;
+  return new;
+end $$;
+create trigger tasks_clamp_parts after update on tasks
+  for each row execute function tasks_clamp_parts();
+
+-- Task visibility in ONE security-definer helper (used by every policy → no RLS recursion)
+create or replace function can_read_task(tid uuid) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare t record; r user_role := current_role_();
+begin
+  select org_id, client_id, owner_id into t from tasks where id = tid;
+  if t is null or t.org_id is distinct from current_org() then return false; end if;
+  if r = 'admin' then return true; end if;
+  if r = 'client' then return t.client_id = current_client(); end if;
+  if r = 'creative' then
+    return t.owner_id = auth.uid()
+        or exists (select 1 from task_parts p where p.task_id = tid and p.assignee_id = auth.uid());
+  end if;
+  return false;
+end $$;
 
 -- generic audit trigger
 create or replace function audit() returns trigger

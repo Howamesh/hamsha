@@ -82,7 +82,7 @@ function App() {
       {/* Top bar */}
       <header className="flex items-center gap-2 flex-wrap rounded-md border border-border bg-card px-3 py-2 shrink-0 z-30">
         {isAdmin && client && (
-          <Button size="icon" onClick={() => ui.setCalId(null)} aria-label="back">
+          <Button size="icon" onClick={() => ui.setCalId(null)} aria-label={t('back')}>
             {lang === 'ar' ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </Button>
         )}
@@ -99,14 +99,14 @@ function App() {
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-1.5">
-          <Button size="icon" className="h-8 w-8" onClick={() => shift(-1)} aria-label="prev">
+          <Button size="icon" className="h-8 w-8" onClick={() => shift(-1)} aria-label={t('prev')}>
             {lang === 'ar' ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
           </Button>
           <div className="min-w-[120px] text-center">
             <div className="text-[14.5px] font-semibold leading-tight">{gLabel}</div>
             <div className="text-[10px] font-semibold text-fg-secondary leading-tight">{hLabel}</div>
           </div>
-          <Button size="icon" className="h-8 w-8" onClick={() => shift(1)} aria-label="next">
+          <Button size="icon" className="h-8 w-8" onClick={() => shift(1)} aria-label={t('next')}>
             {lang === 'ar' ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
           </Button>
           <Button size="sm" onClick={() => ui.setFocus(todayIso())}>

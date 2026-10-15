@@ -106,7 +106,7 @@ function Master() {
                   type="button"
                   onClick={() => setOpenClient(expanded ? null : c.id)}
                   className="w-6 h-6 grid place-items-center rounded-md text-fg-secondary hover:bg-muted-bg hover:text-fg cursor-pointer"
-                  aria-label="expand"
+                  aria-label={t('expand')}
                 >
                   <ChevronDown size={14} className={cn('transition-transform', expanded && 'rotate-180')} />
                 </button>
@@ -173,7 +173,7 @@ function Master() {
         onSubmit={(e) => {
           e.preventDefault()
           if (!name.trim()) return
-          void createClient(name.trim())
+          void createClient(name.trim(), t('generalProject'))
           setName('')
         }}
         className="flex gap-2"
@@ -293,8 +293,8 @@ function ClientSetup({ clientId }: { clientId: string }) {
 
       <SectionTitle>{t('runsFromTo')}</SectionTitle>
       <div className="grid grid-cols-2 gap-2 -mt-2" dir="ltr">
-        <Input type="date" value={c.start} onChange={(e) => void sess.updateClient(c.id, { start: e.target.value })} className="py-2 text-[13px]" />
-        <Input type="date" value={c.end} min={c.start} onChange={(e) => void sess.updateClient(c.id, { end: e.target.value })} className="py-2 text-[13px]" />
+        <Input type="date" value={c.start} onChange={(e) => e.target.value && void sess.updateClient(c.id, { start: e.target.value, end: e.target.value > c.end ? e.target.value : c.end })} className="py-2 text-[13px]" />
+        <Input type="date" value={c.end} min={c.start} onChange={(e) => e.target.value && void sess.updateClient(c.id, { end: e.target.value < c.start ? c.start : e.target.value })} className="py-2 text-[13px]" />
       </div>
 
       <SectionTitle>{t('projectsInside')}</SectionTitle>
@@ -328,7 +328,7 @@ function ClientSetup({ clientId }: { clientId: string }) {
                 type="button"
                 onClick={() => confirm(t('confirmDeleteProject')) && void sess.deleteProject(p.id)}
                 className="text-fg-muted hover:text-accent cursor-pointer"
-                aria-label="remove"
+                aria-label={t('remove')}
               >
                 <X size={14} />
               </button>

@@ -98,7 +98,7 @@ export function WeekView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: 
                       <div className="flex items-center gap-1.5 mt-2">
                         {owner && <Avatar name={owner.name} color={owner.color} size={18} />}
                         <span className="text-[10.5px] font-semibold text-fg-secondary">
-                          {pr.done}/{pr.total} · {pr.hours}h
+                          {pr.done}/{pr.total} · {pr.hours}{t('hourShort')}
                         </span>
                       </div>
                     </button>

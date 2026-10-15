@@ -8,6 +8,7 @@ import { useData, useSession, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
 import { TASK_TYPES, type TaskType } from '@/types'
 import { Avatar, Button, Input, SectionTitle } from './ui'
+import { DraftInput } from './DraftInput'
 
 export function TaskSheet() {
   const { t, lang } = useStr()
@@ -50,10 +51,12 @@ export function TaskSheet() {
     >
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
         <span className="w-[10px] h-[10px] rounded-full shrink-0" style={{ background: color }} />
-        <input
+        <DraftInput
+          key={task.id}
           value={task.title}
           readOnly={!admin}
-          onChange={(e) => void sess.updateTask(task.id, { title: e.target.value })}
+          dir="auto"
+          onCommit={(v) => void sess.updateTask(task.id, { title: v })}
           className="flex-1 min-w-0 bg-transparent text-[16px] font-semibold outline-none"
         />
         <span className="hidden sm:inline text-[11px] font-bold rounded-md px-2 py-1 bg-muted-bg text-fg-secondary">{TASK_TYPES[task.type][lang]}</span>
@@ -121,11 +124,11 @@ export function TaskSheet() {
             <div className="grid grid-cols-2 gap-2" dir="ltr">
               <label className="text-[10.5px] font-bold text-fg-secondary">
                 {lang === 'ar' ? 'البداية' : 'Start'}
-                <Input type="date" value={task.start} readOnly={!admin} onChange={(e) => void sess.updateTask(task.id, { start: e.target.value, end: e.target.value > task.end ? e.target.value : task.end })} className="py-1.5 text-[12.5px] mt-1" />
+                <Input type="date" value={task.start} readOnly={!admin} onChange={(e) => e.target.value && void sess.updateTask(task.id, { start: e.target.value, end: e.target.value > task.end ? e.target.value : task.end })} className="py-1.5 text-[12.5px] mt-1" />
               </label>
               <label className="text-[10.5px] font-bold text-fg-secondary">
                 {lang === 'ar' ? 'تسليم العميل' : 'Client delivery'}
-                <Input type="date" value={task.end} readOnly={!admin} onChange={(e) => void sess.updateTask(task.id, { end: e.target.value < task.start ? task.start : e.target.value })} className="py-1.5 text-[12.5px] mt-1" />
+                <Input type="date" value={task.end} readOnly={!admin} onChange={(e) => e.target.value && void sess.updateTask(task.id, { end: e.target.value < task.start ? task.start : e.target.value })} className="py-1.5 text-[12.5px] mt-1" />
               </label>
             </div>
             {!admin && <div className="text-[11px] text-fg-muted">{lang === 'ar' ? 'المواعيد مقفلة — تواصل مع المسؤول لتغييرها.' : 'Dates are locked — message the owner to change them.'}</div>}
@@ -168,15 +171,16 @@ export function TaskSheet() {
                     disabled={!canToggle(p.assigneeId)}
                     onClick={() => void sess.upsertPart({ ...p, done: !p.done })}
                     className={cn('w-[20px] h-[20px] rounded-[5px] border-2 grid place-items-center cursor-pointer shrink-0 disabled:cursor-default', p.done ? 'bg-accent border-accent text-white' : 'border-fg-faint')}
-                    aria-label={lang === 'ar' ? 'تم' : 'Done'}
+                    aria-label={t('done')}
                   >
                     {p.done && <Check size={13} />}
                   </button>
                   <span className="w-[20px] h-[20px] rounded-[5px] bg-muted-bg grid place-items-center text-[10.5px] font-bold text-fg-secondary shrink-0">{i + 1}</span>
-                  <input
+                  <DraftInput
                     value={p.label}
                     readOnly={!admin}
-                    onChange={(e) => void sess.upsertPart({ ...p, label: e.target.value })}
+                    dir="auto"
+                    onCommit={(v) => void sess.upsertPart({ ...p, label: v })}
                     className={cn('flex-1 min-w-0 bg-transparent text-[13px] font-semibold outline-none', p.done && 'line-through')}
                   />
                   {u && (
@@ -206,10 +210,10 @@ export function TaskSheet() {
                     </div>
                   )}
                   <div className="flex items-center gap-1" dir="ltr">
-                    <input type="number" min={0.5} step={0.5} value={p.hours} readOnly={!admin} onChange={(e) => void sess.upsertPart({ ...p, hours: Number(e.target.value) })} className="w-[46px] rounded-md border border-border bg-bg px-1.5 py-1 text-[12px] text-center" />
-                    <span className="text-[11px] text-fg-muted">h</span>
+                    <input type="number" min={0.5} step={0.5} value={p.hours} readOnly={!admin} onChange={(e) => Number(e.target.value) >= 0.5 && void sess.upsertPart({ ...p, hours: Number(e.target.value) })} className="w-[46px] rounded-md border border-border bg-bg px-1.5 py-1 text-[12px] text-center" />
+                    <span className="text-[11px] text-fg-muted">{t('hourShort')}</span>
                   </div>
-                  <input type="date" value={p.day} readOnly={!admin} onChange={(e) => void sess.upsertPart({ ...p, day: e.target.value })} className="hidden md:block rounded-md border border-border bg-bg px-1.5 py-1 text-[12px]" dir="ltr" />
+                  <input type="date" value={p.day} readOnly={!admin} onChange={(e) => e.target.value && void sess.upsertPart({ ...p, day: e.target.value })} min={task.start} max={task.end} className="hidden md:block rounded-md border border-border bg-bg px-1.5 py-1 text-[12px]" dir="ltr" />
                   <input
                     type="time"
                     value={p.time ?? ''}
@@ -220,7 +224,14 @@ export function TaskSheet() {
                     dir="ltr"
                   />
                   {admin && (
-                    <button type="button" onClick={() => void sess.deletePart(p.id)} className="text-fg-muted hover:text-accent cursor-pointer" aria-label={lang === 'ar' ? 'حذف' : 'Remove'}>
+                    <button
+                      type="button"
+                      disabled={parts.length <= 1}
+                      title={parts.length <= 1 ? t('lastPartHint') : undefined}
+                      onClick={() => void sess.deletePart(p.id)}
+                      className="text-fg-muted hover:text-accent cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label={t('remove')}
+                    >
                       <X size={14} />
                     </button>
                   )}

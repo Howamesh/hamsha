@@ -6,6 +6,7 @@
 import type { Repo, Snapshot } from './repo'
 import type { ChannelId, Client, Message, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
 import { addIso, todayIso } from '@/lib/dates'
+import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
 const KEY = 'hamsha.mock.v4'
 const SESSION_KEY = 'hamsha.mock.session'
@@ -56,7 +57,11 @@ function seed(): Snapshot {
 function read(): Snapshot {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw) as Snapshot
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<Snapshot>
+      const ok = ['users', 'clients', 'projects', 'tasks', 'parts', 'messages'].every((k) => Array.isArray((parsed as Record<string, unknown>)[k]))
+      if (ok && parsed.profiles && parsed.presence) return parsed as Snapshot
+    }
   } catch {
     /* ignore */
   }
@@ -123,17 +128,18 @@ export function createMockRepo(): Repo {
       return () => subs.delete(cb)
     },
 
-    async createClient(name, ownerId) {
+    async createClient(name, ownerId, defaultProjectName) {
       const T = todayIso()
       const c: Client = { id: nid('c'), name, color: PALETTE[snap.clients.length % PALETTE.length], ownerId, start: T, end: addIso(T, 60), contract: 'draft' }
       snap.clients = [...snap.clients, c]
-      snap.projects = [...snap.projects, { id: nid('p'), clientId: c.id, name: 'General', leadId: ownerId, color: c.color }]
+      snap.projects = [...snap.projects, { id: nid('p'), clientId: c.id, name: defaultProjectName, leadId: ownerId, color: c.color }]
       commit()
       return c
     },
     async updateClient(id, patch) {
       const cur = snap.clients.find((c) => c.id === id)
       if (!cur) throw new Error('not found')
+      validateClientPatch(patch, cur)
       const next = { ...cur, ...patch, id }
       snap.clients = snap.clients.map((c) => (c.id === id ? next : c))
       commit()
@@ -171,10 +177,11 @@ export function createMockRepo(): Repo {
       snap.parts = snap.parts.filter((p) => !gone.has(p.taskId))
       commit()
     },
-    async createTask(input) {
+    async createTask(input, firstPartLabel) {
+      validateNewTask(input)
       const t: Task = { ...input, id: nid('k'), approval: 'draft', version: 1 }
       snap.tasks = [...snap.tasks, t]
-      snap.parts = [...snap.parts, { id: nid('p'), taskId: t.id, label: 'Design', assigneeId: t.ownerId, hours: 4, day: t.start, done: false, order: 0 }]
+      snap.parts = [...snap.parts, { id: nid('p'), taskId: t.id, label: firstPartLabel, assigneeId: t.ownerId, hours: 4, day: t.start, done: false, order: 0 }]
       commit()
       return t
     },
@@ -182,6 +189,7 @@ export function createMockRepo(): Repo {
       const cur = snap.tasks.find((t) => t.id === id)
       if (!cur) throw new Error('not found')
       if (cur.version !== version) throw new Error('stale')
+      validateTaskPatch(patch, cur)
       const next = { ...cur, ...patch, version: cur.version + 1 }
       snap.tasks = snap.tasks.map((t) => (t.id === id ? next : t))
       // parts always stay inside the task's date range
@@ -196,6 +204,7 @@ export function createMockRepo(): Repo {
       commit()
     },
     async upsertPart(part) {
+      validatePart(part, snap.tasks.find((t) => t.id === part.taskId))
       const p: TaskPart = { ...part, id: part.id ?? nid('p') }
       const exists = snap.parts.some((x) => x.id === p.id)
       snap.parts = exists ? snap.parts.map((x) => (x.id === p.id ? p : x)) : [...snap.parts, p]

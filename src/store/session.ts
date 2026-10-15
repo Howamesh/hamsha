@@ -12,13 +12,13 @@ interface SessionState {
   signIn: (email: string, pw: string) => Promise<void>
   signOut: () => Promise<void>
 
-  createClient: (name: string) => Promise<void>
+  createClient: (name: string, defaultProjectName: string) => Promise<void>
   updateClient: (id: string, patch: Partial<Client>) => Promise<void>
   deleteClient: (id: string) => Promise<void>
   createProject: (input: Omit<Project, 'id'>) => Promise<void>
   updateProject: (id: string, patch: Partial<Project>) => Promise<void>
   deleteProject: (id: string) => Promise<void>
-  createTask: (input: Omit<Task, 'id' | 'version' | 'approval'>) => Promise<Task>
+  createTask: (input: Omit<Task, 'id' | 'version' | 'approval'>, firstPartLabel: string) => Promise<Task>
   updateTask: (id: string, patch: Partial<Task>) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   upsertPart: (part: Omit<TaskPart, 'id'> & { id?: string }) => Promise<void>
@@ -36,6 +36,8 @@ function adminOnly(get: () => SessionState): User {
   return u
 }
 
+let booting = false
+
 const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], presence: {}, profiles: {} }
 
 export const useSession = create<SessionState>((set, get) => ({
@@ -44,6 +46,8 @@ export const useSession = create<SessionState>((set, get) => ({
   data: null,
 
   async boot() {
+    if (booting) return
+    booting = true
     const user = await repo.restoreSession()
     const data = await repo.load()
     repo.subscribe((data) => set({ data }))
@@ -59,9 +63,9 @@ export const useSession = create<SessionState>((set, get) => ({
     useUi.getState().resetForUser()
   },
 
-  async createClient(name) {
+  async createClient(name, defaultProjectName) {
     const u = adminOnly(get)
-    await repo.createClient(name, u.id)
+    await repo.createClient(name, u.id, defaultProjectName)
   },
   async updateClient(id, patch) {
     adminOnly(get)
@@ -83,9 +87,9 @@ export const useSession = create<SessionState>((set, get) => ({
     adminOnly(get)
     await repo.deleteProject(id)
   },
-  async createTask(input) {
+  async createTask(input, firstPartLabel) {
     adminOnly(get)
-    return repo.createTask(input)
+    return repo.createTask(input, firstPartLabel)
   },
   async updateTask(id, patch) {
     const u = get().user
@@ -146,4 +150,4 @@ export const useSession = create<SessionState>((set, get) => ({
 }))
 
 export const useData = () => useSession((s) => s.data ?? EMPTY)
-export const useUser = () => useSession((s) => s.user)
+export const useUser = () => useSession((s) => (s.user && s.data?.users.find((u) => u.id === s.user!.id)) ?? s.user)

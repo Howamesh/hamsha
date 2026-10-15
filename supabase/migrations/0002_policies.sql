@@ -10,6 +10,7 @@
 
 alter table organizations enable row level security;
 alter table profiles      enable row level security;
+alter table user_settings enable row level security;
 alter table clients       enable row level security;
 alter table projects      enable row level security;
 alter table tasks         enable row level security;
@@ -28,6 +29,11 @@ create policy profiles_read on profiles for select
 create policy profiles_self_update on profiles for update
   using (id = auth.uid())
   with check (id = auth.uid() and org_id = current_org() and role = current_role_() and client_id is not distinct from current_client());
+
+-- ---------- user_settings (private) ----------
+create policy settings_self on user_settings for all
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 create policy profiles_admin_update on profiles for update
   using (org_id = current_org() and current_role_() = 'admin')
   with check (org_id = current_org());
@@ -57,17 +63,7 @@ create policy projects_admin_write on projects for all
 
 -- ---------- tasks ----------
 create policy tasks_read on tasks for select
-  using (
-    org_id = current_org()
-    and (
-      current_role_() = 'admin'
-      or (current_role_() = 'creative' and (
-            owner_id = auth.uid()
-            or exists (select 1 from task_parts p where p.task_id = tasks.id and p.assignee_id = auth.uid())
-          ))
-      or (current_role_() = 'client' and client_id = current_client())
-    )
-  );
+  using (can_read_task(id));
 create policy tasks_admin_write on tasks for all
   using (org_id = current_org() and current_role_() = 'admin')
   with check (org_id = current_org() and current_role_() = 'admin');
@@ -104,10 +100,7 @@ create trigger tasks_creative_guard before update on tasks
 
 -- ---------- task_parts ----------
 create policy parts_read on task_parts for select
-  using (
-    org_id = current_org()
-    and exists (select 1 from tasks t where t.id = task_parts.task_id)   -- task visibility applies
-  );
+  using (can_read_task(task_id));
 create policy parts_admin_write on task_parts for all
   using (org_id = current_org() and current_role_() = 'admin')
   with check (org_id = current_org() and current_role_() = 'admin');
@@ -118,10 +111,10 @@ create policy parts_creative_update on task_parts for update
 
 -- ---------- attachments ----------
 create policy attachments_read on attachments for select
-  using (org_id = current_org() and exists (select 1 from tasks t where t.id = attachments.task_id));
+  using (can_read_task(task_id));
 create policy attachments_team_insert on attachments for insert
   with check (org_id = current_org() and current_role_() in ('admin', 'creative') and created_by = auth.uid()
-              and exists (select 1 from tasks t where t.id = attachments.task_id));
+              and can_read_task(task_id));
 create policy attachments_delete on attachments for delete
   using (org_id = current_org() and (current_role_() = 'admin' or created_by = auth.uid()));
 
@@ -136,7 +129,7 @@ begin
     return r = 'admin' or (r = 'client' and current_client()::text = substring(ch from 8));
   end if;
   if ch like 'task:%' then
-    return exists (select 1 from tasks t where t.id::text = substring(ch from 6));
+    return can_read_task(substring(ch from 6)::uuid);
   end if;
   return false;
 end $$;
@@ -155,3 +148,4 @@ create policy audit_admin_read on audit_events for select
 -- ---------- realtime ----------
 -- Realtime respects RLS for postgres_changes; publish the tables the app subscribes to.
 alter publication supabase_realtime add table messages, tasks, task_parts, profiles, clients, projects;
+-- user_settings is private and never published.
