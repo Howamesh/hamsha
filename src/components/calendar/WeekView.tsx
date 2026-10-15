@@ -60,19 +60,19 @@ export function WeekView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: 
                 </span>
                 <span className="text-[10px] text-fg-muted truncate ms-auto">{hijriCell(d, lang)}</span>
               </button>
-              {today && (
-                <div className="absolute inset-x-0 h-[2px] bg-accent z-[3] pointer-events-none" style={{ top: `${44 + (minutes / 1440) * 100}%` }}>
-                  <span className="absolute -top-[9px] end-1 rounded bg-accent text-accent-fg text-[10px] font-bold px-1.5 py-[2px]" dir="ltr">
-                    {hhmm(now)}
-                  </span>
-                </div>
-              )}
               <div
-                className={cn('flex-1 min-h-0 overflow-y-auto no-scrollbar p-2 flex flex-col gap-1.5', onCreate && 'cursor-crosshair')}
+                className={cn('relative flex-1 min-h-0 overflow-y-auto no-scrollbar p-2 flex flex-col gap-1.5', onCreate && 'cursor-crosshair')}
                 onClick={(e) => {
                   if (e.target === e.currentTarget) onCreate?.(iso)
                 }}
               >
+                {today && (
+                  <div className="absolute inset-x-0 h-[2px] bg-accent z-[3] pointer-events-none" style={{ top: `${(minutes / 1440) * 100}%` }}>
+                    <span className="absolute -top-[9px] end-1 rounded bg-accent text-accent-fg text-[10px] font-bold px-1.5 py-[2px]" dir="ltr">
+                      {hhmm(now)}
+                    </span>
+                  </div>
+                )}
                 {list.length > 0 && <div className="text-[10px] font-bold tracking-[0.06em] uppercase text-fg-muted">{t('deliveries')}</div>}
                 {list.map((task) => {
                   const client = clientById(s, task.clientId)

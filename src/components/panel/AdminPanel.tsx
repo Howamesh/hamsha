@@ -352,6 +352,29 @@ function ClientSetup({ clientId }: { clientId: string }) {
         </form>
       </div>
 
+      <SectionTitle>{t('clientAccount')}</SectionTitle>
+      <Card className="p-3 -mt-2 flex items-center justify-between gap-3">
+        <span className="text-[12.5px] text-fg-secondary">{t('clientAccountHint')}</span>
+        <select
+          value={s.users.find((u) => u.role === 'client' && u.clientId === c.id)?.id ?? ''}
+          onChange={(e) => {
+            const prev = s.users.find((u) => u.role === 'client' && u.clientId === c.id)
+            if (prev && prev.id !== e.target.value) void sess.updateUser(prev.id, { clientId: undefined })
+            if (e.target.value) void sess.updateUser(e.target.value, { clientId: c.id })
+          }}
+          className="rounded-md border border-border bg-bg px-2.5 py-1.5 text-[12.5px] font-semibold max-w-[170px]"
+        >
+          <option value="">—</option>
+          {s.users
+            .filter((u) => u.role === 'client' && (!u.clientId || u.clientId === c.id))
+            .map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name} · {u.email}
+              </option>
+            ))}
+        </select>
+      </Card>
+
       <SectionTitle>{t('contract')}</SectionTitle>
       <Card className="p-3 -mt-2 flex items-center justify-between gap-3">
         <span className="text-[13px] font-semibold">{t('contract')}</span>

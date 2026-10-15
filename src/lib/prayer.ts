@@ -57,7 +57,7 @@ const isRamadan = (d: Date): boolean => {
   return m === '9'
 }
 
-function wallClock(d: Date, tz: string): { hour: number; minute: number } {
+export function wallClock(d: Date, tz: string): { hour: number; minute: number } {
   const p = new Intl.DateTimeFormat('en-GB', {
     timeZone: tz,
     hour: 'numeric',

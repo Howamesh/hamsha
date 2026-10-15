@@ -39,4 +39,5 @@ export interface Repo {
   sendMessage(channel: ChannelId, senderId: string, body: string): Promise<Message>
   setPresence(userId: string, p: Presence): Promise<void>
   updateProfile(userId: string, patch: Partial<Profile>): Promise<Profile>
+  updateUser(id: string, patch: Partial<User>): Promise<User>
 }

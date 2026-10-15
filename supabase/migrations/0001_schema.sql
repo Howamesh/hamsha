@@ -105,6 +105,7 @@ create table task_parts (
   assignee_id uuid references profiles(id) on delete set null,
   hours       numeric(5,1) not null default 4,
   day         date not null,
+  hand_off    time,                   -- optional hand-off time within the day
   done        boolean not null default false,
   done_at     timestamptz,
   position    integer not null default 0
@@ -180,12 +181,19 @@ create trigger tasks_touch before update on tasks
 create or replace function task_parts_guard() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
+  if new.id is distinct from old.id or new.task_id is distinct from old.task_id or new.org_id is distinct from old.org_id then
+    raise exception 'part identity cannot change';
+  end if;
   if current_role_() = 'creative' then
-    if old.assignee_id <> auth.uid() then
+    if old.assignee_id is distinct from auth.uid() then
       raise exception 'not your part';
     end if;
-    if new.label <> old.label or new.assignee_id <> old.assignee_id
-       or new.hours <> old.hours or new.day <> old.day or new.position <> old.position then
+    if new.label       is distinct from old.label
+    or new.assignee_id is distinct from old.assignee_id
+    or new.hours       is distinct from old.hours
+    or new.day         is distinct from old.day
+    or new.hand_off    is distinct from old.hand_off
+    or new.position    is distinct from old.position then
       raise exception 'creatives can only mark parts done';
     end if;
   end if;
@@ -195,6 +203,51 @@ begin
 end $$;
 create trigger task_parts_guard before update on task_parts
   for each row execute function task_parts_guard();
+
+-- Referential consistency across the hierarchy (org ↔ client ↔ project ↔ task ↔ part)
+create or replace function tasks_consistency() returns trigger
+language plpgsql as $$
+declare p record; c record;
+begin
+  select org_id, client_id into p from projects where id = new.project_id;
+  select org_id into c from clients where id = new.client_id;
+  if p is null or c is null then raise exception 'unknown project or client'; end if;
+  if p.client_id <> new.client_id then raise exception 'project belongs to another client'; end if;
+  if p.org_id <> new.org_id or c.org_id <> new.org_id then raise exception 'organization mismatch'; end if;
+  if new.owner_id is not null and not exists (select 1 from profiles where id = new.owner_id and org_id = new.org_id) then
+    raise exception 'owner outside organization';
+  end if;
+  return new;
+end $$;
+create trigger tasks_consistency before insert or update on tasks
+  for each row execute function tasks_consistency();
+
+create or replace function projects_consistency() returns trigger
+language plpgsql as $$
+begin
+  if not exists (select 1 from clients where id = new.client_id and org_id = new.org_id) then
+    raise exception 'client outside organization';
+  end if;
+  return new;
+end $$;
+create trigger projects_consistency before insert or update on projects
+  for each row execute function projects_consistency();
+
+create or replace function task_parts_consistency() returns trigger
+language plpgsql as $$
+declare t record;
+begin
+  select org_id, start_date, end_date into t from tasks where id = new.task_id;
+  if t is null then raise exception 'unknown task'; end if;
+  if t.org_id <> new.org_id then raise exception 'organization mismatch'; end if;
+  if new.day < t.start_date or new.day > t.end_date then raise exception 'part day outside task range'; end if;
+  if new.assignee_id is not null and not exists (select 1 from profiles where id = new.assignee_id and org_id = new.org_id) then
+    raise exception 'assignee outside organization';
+  end if;
+  return new;
+end $$;
+create trigger task_parts_consistency before insert or update on task_parts
+  for each row execute function task_parts_consistency();
 
 -- generic audit trigger
 create or replace function audit() returns trigger

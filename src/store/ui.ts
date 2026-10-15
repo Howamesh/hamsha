@@ -31,6 +31,8 @@ interface UiState {
   setPanelTab: (t: PanelTab) => void
   openTask: (id: string | null) => void
   setCheckin: (open: boolean) => void
+  /** Clear everything tied to the signed-in user (on sign-out / user switch) */
+  resetForUser: () => void
 }
 
 export const useUi = create<UiState>()(
@@ -57,6 +59,7 @@ export const useUi = create<UiState>()(
       setPanelTab: (panelTab) => set({ panelTab, panelOpen: true }),
       openTask: (taskId) => set({ taskId }),
       setCheckin: (checkinOpen) => set({ checkinOpen }),
+      resetForUser: () => set({ calId: null, taskId: null, panelTab: 'main', checkinOpen: false }),
     }),
     {
       name: 'hamsha.ui',

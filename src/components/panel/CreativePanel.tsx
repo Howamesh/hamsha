@@ -2,7 +2,7 @@ import { Bell, Home, MessageCircle, Settings, User, X } from 'lucide-react'
 import { clientProgress, isDone, partsOf, urgency, visibleTasks } from '@/lib/derive'
 import { CITIES } from '@/lib/prayer'
 import { QUOTES } from '@/lib/i18n'
-import { useStr } from '@/lib/useStr'
+import { useNow, useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
 import { Avatar, Bar, Button, Card, SectionTitle } from '../ui'
@@ -55,6 +55,7 @@ function Donut({ pct, color }: { pct: number; color: string }) {
 
 function HomeTab() {
   const { t, lang } = useStr()
+  const today = useNow(60_000)
   const s = useData()
   const me = useUser()!
   const updateProfile = useSession((x) => x.updateProfile)
@@ -66,7 +67,7 @@ function HomeTab() {
   const open = mine.filter((x) => !isDone(s, x))
   const soon = open.filter((x) => urgency(s, x) === 'soon').length
   const late = open.filter((x) => urgency(s, x) === 'late').length
-  const quote = QUOTES[lang][new Date().getDate() % QUOTES[lang].length]
+  const quote = QUOTES[lang][today.getDate() % QUOTES[lang].length]
   const clients = s.clients.filter((c) => mine.some((x) => x.clientId === c.id))
 
   return (

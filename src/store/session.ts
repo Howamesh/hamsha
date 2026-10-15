@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useUi } from './ui'
 import { repo } from '@/data'
 import type { Snapshot } from '@/data/repo'
 import type { ChannelId, Client, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
@@ -25,6 +26,14 @@ interface SessionState {
   sendMessage: (channel: ChannelId, body: string) => Promise<void>
   setPresence: (p: Presence) => Promise<void>
   updateProfile: (patch: Partial<Profile>) => Promise<void>
+  updateUser: (id: string, patch: Partial<User>) => Promise<void>
+}
+
+/** UI-level permission boundary (the database enforces the same rules with RLS). */
+function adminOnly(get: () => SessionState): User {
+  const u = get().user
+  if (!u || u.role !== 'admin') throw new Error('forbidden')
+  return u
 }
 
 const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], presence: {}, profiles: {} }
@@ -47,54 +56,87 @@ export const useSession = create<SessionState>((set, get) => ({
   async signOut() {
     await repo.signOut()
     set({ user: null })
+    useUi.getState().resetForUser()
   },
 
   async createClient(name) {
-    const u = get().user
-    if (!u) return
+    const u = adminOnly(get)
     await repo.createClient(name, u.id)
   },
   async updateClient(id, patch) {
+    adminOnly(get)
     await repo.updateClient(id, patch)
   },
   async deleteClient(id) {
+    adminOnly(get)
     await repo.deleteClient(id)
   },
   async createProject(input) {
+    adminOnly(get)
     await repo.createProject(input)
   },
   async updateProject(id, patch) {
+    adminOnly(get)
     await repo.updateProject(id, patch)
   },
   async deleteProject(id) {
+    adminOnly(get)
     await repo.deleteProject(id)
   },
   async createTask(input) {
+    adminOnly(get)
     return repo.createTask(input)
   },
   async updateTask(id, patch) {
+    const u = get().user
     const cur = (get().data ?? EMPTY).tasks.find((t) => t.id === id)
-    if (!cur) return
+    if (!u || !cur) return
+    if (u.role === 'client') throw new Error('forbidden')
+    if (u.role === 'creative') {
+      // Creatives may only send a draft for approval — same rule the database enforces
+      const keys = Object.keys(patch)
+      const ok = keys.length === 1 && keys[0] === 'approval' && cur.approval === 'draft' && patch.approval === 'pending'
+      if (!ok) throw new Error('forbidden')
+    }
     await repo.updateTask(id, patch, cur.version)
   },
   async deleteTask(id) {
+    adminOnly(get)
     await repo.deleteTask(id)
   },
   async upsertPart(part) {
+    const u = get().user
+    if (!u) return
+    if (u.role === 'client') throw new Error('forbidden')
+    if (u.role === 'creative') {
+      const cur = part.id ? (get().data ?? EMPTY).parts.find((p) => p.id === part.id) : undefined
+      // Creatives: only toggling `done` on their own existing part
+      if (!cur || cur.assigneeId !== u.id) throw new Error('forbidden')
+      const same = cur.label === part.label && cur.assigneeId === part.assigneeId && cur.hours === part.hours && cur.day === part.day && (cur.time ?? '') === (part.time ?? '') && cur.order === part.order
+      if (!same) throw new Error('forbidden')
+    }
     await repo.upsertPart(part)
   },
   async deletePart(id) {
+    adminOnly(get)
     await repo.deletePart(id)
   },
   async sendMessage(channel, body) {
     const u = get().user
     if (!u || !body.trim()) return
+    const allowed =
+      channel === 'team' ? u.role !== 'client' : channel.startsWith('client:') ? u.role === 'admin' || (u.role === 'client' && channel === `client:${u.clientId}`) : true
+    if (!allowed) throw new Error('forbidden')
     await repo.sendMessage(channel, u.id, body.trim())
   },
   async setPresence(p) {
     const u = get().user
     if (!u) return
     await repo.setPresence(u.id, p)
+  },
+  async updateUser(id, patch) {
+    adminOnly(get)
+    await repo.updateUser(id, patch)
   },
   async updateProfile(patch) {
     const u = get().user

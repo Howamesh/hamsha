@@ -133,6 +133,8 @@ export const STR = {
   newProjectPh: { en: 'New project name…', ar: 'اسم مشروع جديد…' },
   add: { en: 'Add', ar: 'إضافة' },
   lead: { en: 'Lead', ar: 'القائد' },
+  clientAccount: { en: 'Client account', ar: 'حساب العميل' },
+  clientAccountHint: { en: 'Who signs in as this client', ar: 'من يدخل بصفة هذا العميل' },
   contract: { en: 'Contract', ar: 'العقد' },
   contractDraft: { en: 'Draft', ar: 'مسودة' },
   contractSent: { en: 'Sent', ar: 'مُرسل' },

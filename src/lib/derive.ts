@@ -79,7 +79,8 @@ export function alerts(s: Snapshot, tasks: Task[]): Alert[] {
 
 /** The creative's "focus on this first": late first, then nearest deadline. */
 export function focusTask(s: Snapshot, user: User): Task | null {
-  const mine = visibleTasks(s, user, null).filter((t) => !isDone(s, t))
+  const myOpen = new Set(s.parts.filter((p) => p.assigneeId === user.id && !p.done).map((p) => p.taskId))
+  const mine = visibleTasks(s, user, null).filter((t) => !isDone(s, t) && (myOpen.size === 0 || myOpen.has(t.id)))
   if (!mine.length) return null
   return [...mine].sort((a, b) => {
     const ua = urgency(s, a) === 'late' ? 0 : 1

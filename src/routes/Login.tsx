@@ -93,10 +93,10 @@ export default function Login() {
           <div className="rounded-md border border-dashed border-fg-faint bg-card/60 p-4 flex flex-col gap-2.5">
             <div className="text-[12.5px] font-semibold text-fg-secondary">{t('demoTitle')}</div>
             <div className="grid grid-cols-3 gap-2">
-              <Button variant="dark" disabled={busy} onClick={() => demo('ibrahim@hamsha.studio')}>
+              <Button variant="dark" disabled={busy} onClick={() => demo('ibrahim.alqifari@hamsha.studio')}>
                 {t('demoAdmin')}
               </Button>
-              <Button variant="dark" disabled={busy} onClick={() => demo('abdullah@hamsha.studio')}>
+              <Button variant="dark" disabled={busy} onClick={() => demo('abdullah.aboalhossain@hamsha.studio')}>
                 {t('demoCreative')}
               </Button>
               <Button variant="dark" disabled={busy} onClick={() => demo('team@directaid.org')}>

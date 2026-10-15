@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { IsoDate } from '@/lib/dates'
@@ -20,20 +20,21 @@ export function NewTaskDialog({ day, clientId, onClose }: { day: IsoDate; client
   const openTask = useUi((u) => u.openTask)
 
   const [title, setTitle] = useState('')
-  const [client, setClient] = useState(clientId ?? s.clients[0]?.id ?? '')
+  const [client, setClientState] = useState(clientId ?? s.clients[0]?.id ?? '')
   const projects = s.projects.filter((p) => p.clientId === client)
-  const [project, setProject] = useState(projects[0]?.id ?? '')
+  const [projectChoice, setProject] = useState<string | null>(null)
+  // Fall back to the client's first project whenever the chosen one no longer belongs to it
+  const project = projectChoice && projects.some((p) => p.id === projectChoice) ? projectChoice : (projects[0]?.id ?? '')
+  const setClient = (id: string) => {
+    setClientState(id)
+    setProject(null)
+  }
   const [type, setType] = useState<TaskType>('static')
   const [owner, setOwner] = useState(me.id)
   const [start, setStart] = useState(day)
   const [end, setEnd] = useState(day)
   const [part, setPart] = useState('')
   const team = s.users.filter((u) => u.role !== 'client')
-
-  useEffect(() => {
-    const first = s.projects.find((p) => p.clientId === client)
-    setProject(first?.id ?? '')
-  }, [client, s.projects])
 
   async function submit(e: FormEvent) {
     e.preventDefault()

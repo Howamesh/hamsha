@@ -16,8 +16,8 @@ npm run dev
 ثم افتح http://localhost:5173
 
 حسابات التجربة (المخزن المؤقت — أي كلمة مرور تعمل):
-- مدير: `ibrahim@hamsha.studio`
-- مبدع: `abdullah@hamsha.studio`
+- مدير: `ibrahim.alqifari@hamsha.studio`
+- مبدع: `abdullah.aboalhossain@hamsha.studio`
 - عميل: `team@directaid.org`
 
 ## أوامر

@@ -1,8 +1,8 @@
 import { isToday } from 'date-fns'
 import { cn } from '@/lib/utils'
-import { fromIso, hhmm } from '@/lib/dates'
+import { fromIso } from '@/lib/dates'
 import { hijriFull } from '@/lib/hijri'
-import { energyAt, pad2 } from '@/lib/prayer'
+import { cityById, energyAt, pad2, wallClock } from '@/lib/prayer'
 import { clientById, tasksOnDay, taskProgress, urgency, userById } from '@/lib/derive'
 
 import { useStr, useNow } from '@/lib/useStr'
@@ -31,7 +31,9 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: s
   const H1 = 22
   const hours = Array.from({ length: H1 - H0 + 1 }, (_, i) => H0 + i)
   const today = isToday(d)
-  const minutes = now.getHours() * 60 + now.getMinutes()
+  const cityId = (user && s.profiles[user.id]?.city) || 'riyadh'
+  const wc = wallClock(now, cityById(cityId).tz)
+  const nowLabel = `${pad2(wc.hour)}:${pad2(wc.minute)}`
 
   return (
     <div className="flex-1 min-h-0 rounded-md border border-border bg-card flex flex-col overflow-hidden">
@@ -86,6 +88,13 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: s
               {isCreative && (
                 <div className="absolute inset-y-0 start-0 w-[4px] bg-warning" style={{ opacity: energyAt(h, fajr.hour + fajr.minute / 60) }} />
               )}
+              {today && wc.hour === h && (
+                <div className="absolute inset-x-0 h-[2px] bg-accent z-[3] pointer-events-none" style={{ top: `${(wc.minute / 60) * 100}%` }}>
+                  <span className="absolute -top-[9px] start-2 rounded bg-accent text-accent-fg text-[10px] font-bold px-1.5 py-[2px]" dir="ltr">
+                    {nowLabel}
+                  </span>
+                </div>
+              )}
               <div className="w-[56px] shrink-0 ps-3 pt-1.5 text-[11px] font-semibold text-fg-muted tabular-nums" dir="ltr">
                 {pad2(h)}:00
               </div>
@@ -127,13 +136,6 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: s
             </div>
           )
         })}
-        {today && minutes >= H0 * 60 && minutes <= (H1 + 1) * 60 && (
-          <div className="absolute inset-x-0 h-[2px] bg-accent z-[3] pointer-events-none" style={{ top: ((minutes - H0 * 60) / 60) * 46 }}>
-            <span className="absolute -top-[9px] start-2 rounded bg-accent text-accent-fg text-[10px] font-bold px-1.5 py-[2px]" dir="ltr">
-              {hhmm(now)}
-            </span>
-          </div>
-        )}
       </div>
     </div>
   )

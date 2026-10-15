@@ -44,7 +44,7 @@ export function Chat({ channel, className }: { channel: ChannelId; className?: s
                     mine ? 'bg-fg text-bg rounded-ee-[3px]' : 'bg-muted-bg text-fg rounded-es-[3px]',
                   )}
                 >
-                  {m.body}
+                  <span dir="auto">{m.body}</span>
                 </div>
                 <div className={cn('text-[9.5px] text-fg-muted mt-0.5', mine && 'text-end')}>{fmtTime(m.at, lang)}</div>
               </div>

@@ -7,7 +7,7 @@ import type { Repo, Snapshot } from './repo'
 import type { ChannelId, Client, Message, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
 import { addIso, todayIso } from '@/lib/dates'
 
-const KEY = 'hamsha.mock.v3'
+const KEY = 'hamsha.mock.v4'
 const SESSION_KEY = 'hamsha.mock.session'
 
 const PALETTE = ['#D9B600', '#9B7BF2', '#4CB782', '#F06FA7', '#4E9BFA', '#F2994A', '#3B8EA5', '#7FA23B']
@@ -32,7 +32,7 @@ function seed(): Snapshot {
   const users: User[] = TEAM.map(([name, title, role], i) => ({
     id: 'u' + (i + 1),
     name,
-    email: slug(name.split(' ')[0]) + '@hamsha.studio',
+    email: slug(name) + '@hamsha.studio',
     role,
     title,
     color: PALETTE[i % PALETTE.length],
@@ -82,6 +82,19 @@ export function createMockRepo(): Repo {
     write(snap)
     subs.forEach((cb) => cb(snap))
   }
+  // Another tab wrote → adopt its snapshot so we never overwrite it with a stale copy
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (e) => {
+      if (e.key === KEY && e.newValue) {
+        try {
+          snap = JSON.parse(e.newValue) as Snapshot
+          subs.forEach((cb) => cb(snap))
+        } catch {
+          /* ignore */
+        }
+      }
+    })
+  }
   let seq = 1000
   const nid = (p: string) => p + seq++ + Math.random().toString(36).slice(2, 6)
 
@@ -127,9 +140,11 @@ export function createMockRepo(): Repo {
       return next
     },
     async deleteClient(id) {
+      snap.messages = snap.messages.filter((m) => m.channel !== `client:${id}`)
       snap.clients = snap.clients.filter((c) => c.id !== id)
       snap.projects = snap.projects.filter((p) => p.clientId !== id)
       const gone = new Set(snap.tasks.filter((t) => t.clientId === id).map((t) => t.id))
+      snap.messages = snap.messages.filter((m) => !(m.channel.startsWith('task:') && gone.has(m.channel.slice(5))))
       snap.tasks = snap.tasks.filter((t) => !gone.has(t.id))
       snap.parts = snap.parts.filter((p) => !gone.has(p.taskId))
       commit()
@@ -151,6 +166,7 @@ export function createMockRepo(): Repo {
     async deleteProject(id) {
       snap.projects = snap.projects.filter((p) => p.id !== id)
       const gone = new Set(snap.tasks.filter((t) => t.projectId === id).map((t) => t.id))
+      snap.messages = snap.messages.filter((m) => !(m.channel.startsWith('task:') && gone.has(m.channel.slice(5))))
       snap.tasks = snap.tasks.filter((t) => !gone.has(t.id))
       snap.parts = snap.parts.filter((p) => !gone.has(p.taskId))
       commit()
@@ -168,10 +184,13 @@ export function createMockRepo(): Repo {
       if (cur.version !== version) throw new Error('stale')
       const next = { ...cur, ...patch, version: cur.version + 1 }
       snap.tasks = snap.tasks.map((t) => (t.id === id ? next : t))
+      // parts always stay inside the task's date range
+      snap.parts = snap.parts.map((p) => (p.taskId === id ? { ...p, day: p.day < next.start ? next.start : p.day > next.end ? next.end : p.day } : p))
       commit()
       return next
     },
     async deleteTask(id) {
+      snap.messages = snap.messages.filter((m) => m.channel !== `task:${id}`)
       snap.tasks = snap.tasks.filter((t) => t.id !== id)
       snap.parts = snap.parts.filter((p) => p.taskId !== id)
       commit()
@@ -197,6 +216,14 @@ export function createMockRepo(): Repo {
     async setPresence(userId, p: Presence) {
       snap.presence = { ...snap.presence, [userId]: p }
       commit()
+    },
+    async updateUser(id, patch) {
+      const cur = snap.users.find((u) => u.id === id)
+      if (!cur) throw new Error('not found')
+      const next = { ...cur, ...patch, id }
+      snap.users = snap.users.map((u) => (u.id === id ? next : u))
+      commit()
+      return next
     },
     async updateProfile(userId, patch) {
       const next = { ...snap.profiles[userId], ...patch, userId }

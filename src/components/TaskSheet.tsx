@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Check, Plus, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { addIso } from '@/lib/dates'
-import { clientById, dueDate, partsOf, progressOf, projectById, userById } from '@/lib/derive'
+import { clientById, dueDate, partsOf, progressOf, projectById, userById, visibleTasks } from '@/lib/derive'
 import { fmtDate, useNarrow, useNow, useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
@@ -18,8 +18,9 @@ export function TaskSheet() {
   const now = useNow(1000)
   const sess = useSession()
   const task = s.tasks.find((x) => x.id === ui.taskId)
+  const visible = task && me ? visibleTasks(s, me, null).some((x) => x.id === task.id) : false
   const [newPart, setNewPart] = useState('')
-  if (!task || !me) return null
+  if (!task || !me || !visible) return null
 
   const admin = me.role === 'admin'
   const client = clientById(s, task.clientId)
@@ -30,9 +31,11 @@ export function TaskSheet() {
   const due = new Date(dueDate(task) + 'T18:00:00')
   const ms = due.getTime() - now.getTime()
   const h = Math.floor(Math.abs(ms) / 36e5)
-  const countdown = `${Math.floor(h / 24)}d ${h % 24}h ${Math.floor((Math.abs(ms) % 36e5) / 6e4)}m`
+  const mm = Math.floor((Math.abs(ms) % 36e5) / 6e4)
+  const countdown = lang === 'ar' ? `${Math.floor(h / 24)}ي ${h % 24}س ${mm}د` : `${Math.floor(h / 24)}d ${h % 24}h ${mm}m`
   const cdTone = pr.total && pr.done === pr.total ? 'bg-success-tint text-success-dark' : ms < 0 ? 'bg-danger-tint text-danger-dark' : ms < 864e5 ? 'bg-warning-tint text-warning-dark' : 'bg-success-tint text-success-dark'
-  const canToggle = (assigneeId: string) => admin || assigneeId === me.id
+  const isClient = me.role === 'client'
+  const canToggle = (assigneeId: string) => !isClient && (admin || assigneeId === me.id)
   const color = client?.color ?? '#D9B600'
   const approval = { draft: { en: 'Draft', ar: 'مسودة' }, pending: { en: 'Pending', ar: 'بانتظار الاعتماد' }, approved: { en: 'Approved', ar: 'معتمد' } }
 
@@ -61,7 +64,7 @@ export function TaskSheet() {
           {ms < 0 ? '−' : '⏳ '}
           {countdown}
         </span>
-        <Button size="icon" variant="ghost" onClick={() => ui.openTask(null)} aria-label="close">
+        <Button size="icon" variant="ghost" onClick={() => ui.openTask(null)} aria-label={t('cancel')}>
           <X size={16} />
         </Button>
       </div>
@@ -85,6 +88,7 @@ export function TaskSheet() {
           </div>
           <SectionTitle>{lang === 'ar' ? 'الوصف' : 'Description'}</SectionTitle>
           <textarea
+            key={task.id + ':d'}
             defaultValue={task.description ?? ''}
             readOnly={!admin}
             onBlur={(e) => admin && void sess.updateTask(task.id, { description: e.target.value })}
@@ -94,6 +98,7 @@ export function TaskSheet() {
           />
           <SectionTitle>{lang === 'ar' ? 'مرجع · النتيجة المطلوبة' : 'Reference · desired result'}</SectionTitle>
           <Input
+            key={task.id + ':r'}
             defaultValue={task.reference ?? ''}
             readOnly={!admin}
             onBlur={(e) => admin && void sess.updateTask(task.id, { reference: e.target.value })}
@@ -132,7 +137,7 @@ export function TaskSheet() {
                 {approval[task.approval][lang]}
               </span>
             </div>
-            {task.approval === 'draft' && (
+            {task.approval === 'draft' && !isClient && (
               <Button size="sm" onClick={() => void sess.updateTask(task.id, { approval: 'pending' })}>
                 {lang === 'ar' ? 'إرسال للاعتماد' : 'Send for approval'}
               </Button>
@@ -163,7 +168,7 @@ export function TaskSheet() {
                     disabled={!canToggle(p.assigneeId)}
                     onClick={() => void sess.upsertPart({ ...p, done: !p.done })}
                     className={cn('w-[20px] h-[20px] rounded-[5px] border-2 grid place-items-center cursor-pointer shrink-0 disabled:cursor-default', p.done ? 'bg-accent border-accent text-white' : 'border-fg-faint')}
-                    aria-label="toggle"
+                    aria-label={lang === 'ar' ? 'تم' : 'Done'}
                   >
                     {p.done && <Check size={13} />}
                   </button>
@@ -215,7 +220,7 @@ export function TaskSheet() {
                     dir="ltr"
                   />
                   {admin && (
-                    <button type="button" onClick={() => void sess.deletePart(p.id)} className="text-fg-muted hover:text-accent cursor-pointer" aria-label="remove">
+                    <button type="button" onClick={() => void sess.deletePart(p.id)} className="text-fg-muted hover:text-accent cursor-pointer" aria-label={lang === 'ar' ? 'حذف' : 'Remove'}>
                       <X size={14} />
                     </button>
                   )}
@@ -228,7 +233,7 @@ export function TaskSheet() {
               onSubmit={(e) => {
                 e.preventDefault()
                 if (!newPart.trim()) return
-                void sess.upsertPart({ taskId: task.id, label: newPart.trim(), assigneeId: task.ownerId, hours: 4, day: addIso(task.start, Math.min(parts.length, 6)), done: false, order: parts.length })
+                void sess.upsertPart({ taskId: task.id, label: newPart.trim(), assigneeId: task.ownerId, hours: 4, day: (() => { const d = addIso(task.start, parts.length); return d > task.end ? task.end : d })(), done: false, order: parts.length })
                 setNewPart('')
               }}
               className="flex gap-2"
