@@ -8,6 +8,7 @@ import { useUi } from './store/ui'
 
 export default function App() {
   const booted = useSession((s) => s.booted)
+  const bootError = useSession((s) => s.bootError)
   const boot = useSession((s) => s.boot)
   const user = useSession((s) => s.user)
   const lang = useUi((s) => s.lang)
@@ -42,6 +43,18 @@ export default function App() {
   }, [user?.id, setCheckin])
 
   if (!booted) return <div className="h-dvh grid place-items-center text-fg-muted text-sm">…</div>
+  if (bootError)
+    return (
+      <div className="min-h-dvh grid place-items-center p-6 bg-bg">
+        <div className="w-[min(460px,94vw)] rounded-md border border-border bg-card p-6 flex flex-col gap-3 text-center">
+          <div className="text-[16px] font-semibold">{lang === 'ar' ? 'تعذّر تحميل البيانات' : 'Could not load data'}</div>
+          <div className="text-[12.5px] text-fg-secondary break-words" dir="ltr">{bootError}</div>
+          <button type="button" onClick={() => void boot()} className="h-[34px] px-4 rounded-md bg-fg text-bg text-[13px] font-semibold cursor-pointer self-center">
+            {lang === 'ar' ? 'إعادة المحاولة' : 'Retry'}
+          </button>
+        </div>
+      </div>
+    )
 
   return (
     <ErrorBoundary>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Plus, Trash2, X } from 'lucide-react'
+import { Check, Hourglass, Plus, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { addIso } from '@/lib/dates'
 import { clientById, dueDate, partsOf, progressOf, projectById, userById, visibleTasks } from '@/lib/derive'
@@ -49,7 +49,7 @@ export function TaskSheet() {
         'fixed z-[70] bg-card border border-border rounded-md shadow-[0_24px_60px_rgba(0,0,0,0.18)] flex flex-col anim-sheet overflow-hidden',
         narrow ? 'inset-x-0 bottom-0 top-[8%] rounded-b-none' : 'bottom-[10px] inset-x-[10px] max-h-[78vh]',
       )}
-      style={!narrow && ui.panelOpen ? { [lang === 'ar' ? 'right' : 'left']: 'calc(var(--panel-w) + 20px)' } : undefined}
+      style={!narrow && ui.panelOpen ? { [(lang === 'ar' ? 'right' : 'left')]: 'calc(var(--panel-w) + 20px)' } : undefined}
       role="dialog"
     >
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
@@ -67,8 +67,7 @@ export function TaskSheet() {
           {client?.name}
         </span>
         <span className={cn('text-[11px] font-bold rounded-md px-2 py-1 tabular-nums', cdTone)} dir="ltr">
-          {ms < 0 ? '−' : '⏳ '}
-          {countdown}
+          {ms < 0 ? <span>−</span> : <Hourglass size={11} className="inline -mt-0.5" />} {countdown}
         </span>
         <Button size="icon" variant="ghost" onClick={() => ui.openTask(null)} aria-label={t('cancel')}>
           <X size={16} />
@@ -78,7 +77,7 @@ export function TaskSheet() {
       <div className={cn('flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 grid gap-4', narrow ? 'grid-cols-1' : 'grid-cols-[330px_1fr]')}>
         {/* Brief */}
         <div className="flex flex-col gap-3">
-          <SectionTitle>{lang === 'ar' ? 'نوع المهمة' : 'Type of task'}</SectionTitle>
+          <SectionTitle>{t('taskType')}</SectionTitle>
           <div className="flex flex-wrap gap-1.5 -mt-1">
             {(Object.keys(TASK_TYPES) as TaskType[]).map((k) => (
               <button
@@ -92,52 +91,52 @@ export function TaskSheet() {
               </button>
             ))}
           </div>
-          <SectionTitle>{lang === 'ar' ? 'الوصف' : 'Description'}</SectionTitle>
+          <SectionTitle>{t('description')}</SectionTitle>
           <textarea
             key={task.id + ':d'}
             defaultValue={task.description ?? ''}
             readOnly={!admin}
             onBlur={(e) => admin && void sess.updateTask(task.id, { description: e.target.value })}
             rows={4}
-            placeholder={lang === 'ar' ? 'ماذا نريد بالضبط؟' : 'What exactly do we want?'}
+            placeholder={t('whatExactlyDoWe')}
             className="-mt-1 w-full rounded-md border border-border bg-bg p-3 text-[13px] resize-y"
           />
-          <SectionTitle>{lang === 'ar' ? 'مرجع · النتيجة المطلوبة' : 'Reference · desired result'}</SectionTitle>
+          <SectionTitle>{t('referenceDesiredResult')}</SectionTitle>
           <Input
             key={task.id + ':r'}
             defaultValue={task.reference ?? ''}
             readOnly={!admin}
             onBlur={(e) => admin && void sess.updateTask(task.id, { reference: e.target.value })}
-            placeholder={lang === 'ar' ? 'رابط أو وصف المرجع…' : 'Link or description…'}
+            placeholder={t('linkOrDescription')}
             className="-mt-1 py-2.5 text-[13px]"
             dir="auto"
           />
 
-          <SectionTitle>{lang === 'ar' ? 'الجدولة والاعتماد' : 'Schedule & approval'}</SectionTitle>
+          <SectionTitle>{t('scheduleApproval')}</SectionTitle>
           <div className="-mt-1 rounded-md border border-border p-3 flex flex-col gap-2.5">
             <div className="flex items-center gap-2">
               {owner && <Avatar name={owner.name} color={owner.color} size={26} />}
               <div className="min-w-0">
                 <div className="text-[12.5px] font-semibold truncate">{owner?.name}</div>
                 <div className="text-[10.5px] text-fg-secondary">
-                  {project?.name} · {lang === 'ar' ? 'المسؤول' : 'Owner'}
+                  {project?.name} · {t('ownerLabel')}
                 </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2" dir="ltr">
               <label className="text-[10.5px] font-bold text-fg-secondary">
-                {lang === 'ar' ? 'البداية' : 'Start'}
+                {t('startDate')}
                 <Input type="date" value={task.start} readOnly={!admin} onChange={(e) => e.target.value && void sess.updateTask(task.id, { start: e.target.value, end: e.target.value > task.end ? e.target.value : task.end })} className="py-1.5 text-[12.5px] mt-1" />
               </label>
               <label className="text-[10.5px] font-bold text-fg-secondary">
-                {lang === 'ar' ? 'تسليم العميل' : 'Client delivery'}
+                {t('deliveryDate')}
                 <Input type="date" value={task.end} readOnly={!admin} onChange={(e) => e.target.value && void sess.updateTask(task.id, { end: e.target.value < task.start ? task.start : e.target.value })} className="py-1.5 text-[12.5px] mt-1" />
               </label>
             </div>
-            {!admin && <div className="text-[11px] text-fg-muted">{lang === 'ar' ? 'المواعيد مقفلة — تواصل مع المسؤول لتغييرها.' : 'Dates are locked — message the owner to change them.'}</div>}
+            {!admin && <div className="text-[11px] text-fg-muted">{t('datesAreLockedMessage')}</div>}
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11.5px] font-semibold text-fg-secondary">
-                {lang === 'ar' ? 'موعد المبدع' : 'Creative deadline'} · {fmtDate(dueDate(task), lang)}
+                {t('creativeDeadline')} · {fmtDate(dueDate(task), lang)}
               </span>
               <span className={cn('text-[11px] font-bold rounded-md px-2 py-1', task.approval === 'approved' ? 'bg-success-tint text-success-dark' : task.approval === 'pending' ? 'bg-warning-tint text-warning-dark' : 'bg-muted-bg text-fg-secondary')}>
                 {approval[task.approval][lang]}
@@ -145,12 +144,12 @@ export function TaskSheet() {
             </div>
             {task.approval === 'draft' && !isClient && (
               <Button size="sm" onClick={() => void sess.updateTask(task.id, { approval: 'pending' })}>
-                {lang === 'ar' ? 'إرسال للاعتماد' : 'Send for approval'}
+                {t('sendForApproval')}
               </Button>
             )}
             {task.approval === 'pending' && admin && (
               <Button size="sm" variant="dark" onClick={() => void sess.updateTask(task.id, { approval: 'approved' })}>
-                <Check size={14} /> {lang === 'ar' ? 'اعتماد (المدير)' : 'Approve (admin)'}
+                <Check size={14} /> {t('approveAdmin')}
               </Button>
             )}
           </div>
@@ -159,7 +158,7 @@ export function TaskSheet() {
         {/* Parts */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <SectionTitle>{lang === 'ar' ? 'أجزاء المهمة' : 'Parts of the task'}</SectionTitle>
+            <SectionTitle>{t('partsOfTheTask')}</SectionTitle>
             <span className="text-[11.5px] font-semibold text-fg-secondary tabular-nums">
               {pr.done} {t('of')} {pr.total} · {pr.hours}h
             </span>
@@ -168,7 +167,7 @@ export function TaskSheet() {
             {parts.map((p, i) => {
               const u = userById(s, p.assigneeId)
               return (
-                <div key={p.id} className={cn('flex items-center gap-2.5 rounded-md border border-border p-2.5', p.done && 'opacity-70')}>
+                <div key={p.id} className={cn('flex flex-wrap items-center gap-x-2.5 gap-y-2 rounded-md border border-border p-2.5', p.done && 'opacity-70')}>
                   <button
                     type="button"
                     disabled={!canToggle(p.assigneeId)}
@@ -189,12 +188,12 @@ export function TaskSheet() {
                   {u && (
                     <div className="flex items-center gap-1.5 min-w-0">
                       <Avatar name={u.name} color={u.color} size={22} />
-                      <div className="min-w-0 hidden sm:block">
+                      <div className="min-w-0">
                         {admin ? (
                           <select
                             value={p.assigneeId}
                             onChange={(e) => void sess.upsertPart({ ...p, assigneeId: e.target.value })}
-                            title={lang === 'ar' ? 'مين عليه هذا الجزء' : 'Who does this part'}
+                            title={t('whoDoesThisPart')}
                             className="max-w-[120px] bg-transparent text-[11.5px] font-semibold outline-none cursor-pointer"
                           >
                             {s.users
@@ -220,7 +219,7 @@ export function TaskSheet() {
                         className="text-[10px] font-bold rounded-md px-1.5 py-0.5 bg-warning-tint text-warning-dark whitespace-nowrap"
                         title={lang === 'ar' ? `${u?.name.split(' ')[0] ?? ''} عليه ${dayTotal} ساعة في ${fmtDate(p.day, lang)} — أكثر من ${limit}` : `${u?.name.split(' ')[0] ?? ''} has ${dayTotal}h on ${fmtDate(p.day, lang)} — over ${limit}`}
                       >
-                        {dayTotal}{t('hourShort')} {lang === 'ar' ? 'في اليوم' : 'that day'} ⚠
+                        {dayTotal}{t('hourShort')} {t('thatDay')} ⚠
                       </span>
                     ) : null
                   })()}
@@ -228,14 +227,14 @@ export function TaskSheet() {
                     <input type="number" min={0.5} step={0.5} value={p.hours} readOnly={!admin} onChange={(e) => Number(e.target.value) >= 0.5 && void sess.upsertPart({ ...p, hours: Number(e.target.value) })} className="w-[46px] rounded-md border border-border bg-bg px-1.5 py-1 text-[12px] text-center" />
                     <span className="text-[11px] text-fg-muted">{t('hourShort')}</span>
                   </div>
-                  <input type="date" value={p.day} readOnly={!admin} onChange={(e) => e.target.value && void sess.upsertPart({ ...p, day: e.target.value })} min={task.start} max={task.end} className="hidden md:block rounded-md border border-border bg-bg px-1.5 py-1 text-[12px]" dir="ltr" />
+                  <input type="date" value={p.day} readOnly={!admin} onChange={(e) => e.target.value && void sess.upsertPart({ ...p, day: e.target.value })} min={task.start} max={task.end} className="rounded-md border border-border bg-bg px-1.5 py-1 text-[12px]" dir="ltr" />
                   <input
                     type="time"
                     value={p.time ?? ''}
                     readOnly={!admin}
                     onChange={(e) => void sess.upsertPart({ ...p, time: e.target.value || undefined })}
-                    title={lang === 'ar' ? 'وقت التسليم داخل اليوم' : 'Hand-off time'}
-                    className="hidden md:block rounded-md border border-border bg-bg px-1.5 py-1 text-[12px] w-[88px]"
+                    title={t('handOffTime')}
+                    className="rounded-md border border-border bg-bg px-1.5 py-1 text-[12px] w-[88px]"
                     dir="ltr"
                   />
                   {admin && (
@@ -264,7 +263,7 @@ export function TaskSheet() {
               }}
               className="flex gap-2"
             >
-              <Input value={newPart} onChange={(e) => setNewPart(e.target.value)} placeholder={lang === 'ar' ? 'جزء جديد (تسليم لشخص)…' : 'Add a part (hand-off to someone)…'} className="py-2 text-[13px]" />
+              <Input value={newPart} onChange={(e) => setNewPart(e.target.value)} placeholder={t('addAPartHand')} className="py-2 text-[13px]" />
               <Button type="submit" variant="dark" disabled={!newPart.trim()}>
                 <Plus size={14} />
               </Button>
@@ -276,13 +275,13 @@ export function TaskSheet() {
               size="sm"
               className="self-start text-accent hover:text-accent"
               onClick={() => {
-                if (confirm(lang === 'ar' ? 'حذف هذه المهمة؟' : 'Delete this task?')) {
+                if (confirm(t('deleteThisTask'))) {
                   void sess.deleteTask(task.id)
                   ui.openTask(null)
                 }
               }}
             >
-              <Trash2 size={14} /> {lang === 'ar' ? 'حذف المهمة' : 'Delete task'}
+              <Trash2 size={14} /> {t('deleteTask')}
             </Button>
           )}
         </div>

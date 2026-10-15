@@ -24,8 +24,16 @@ create policy org_read on organizations for select
   using (id = current_org());
 
 -- ---------- profiles ----------
+-- team sees the whole org; a client sees only admins (their contacts) and users of their own client
 create policy profiles_read on profiles for select
-  using (org_id = current_org());
+  using (
+    org_id = current_org()
+    and (
+      current_role_() in ('admin', 'creative')
+      or role = 'admin'
+      or client_id = current_client()
+    )
+  );
 create policy profiles_self_update on profiles for update
   using (id = auth.uid())
   with check (id = auth.uid() and org_id = current_org() and role = current_role_() and client_id is not distinct from current_client());

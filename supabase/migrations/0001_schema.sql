@@ -40,12 +40,12 @@ create index on profiles (org_id);
 create table user_settings (
   user_id    uuid primary key references profiles(id) on delete cascade,
   city       text not null default 'riyadh',
-  wh_start   smallint not null default 9,
-  wh_end     smallint not null default 17,
-  notes      text not null default '',
-  theme      text not null default 'light',
-  lang       text not null default 'ar',
-  week_start text not null default 'monday'
+  wh_start   smallint not null default 9  check (wh_start between 0 and 23),
+  wh_end     smallint not null default 17 check (wh_end between 1 and 24),
+  notes      text not null default '' check (length(notes) <= 4000),
+  theme      text not null default 'light' check (theme in ('light','dark')),
+  lang       text not null default 'ar' check (lang in ('ar','en')),
+  week_start text not null default 'monday' check (week_start in ('monday','sunday'))
 );
 
 -- ---------- clients (each client = one calendar) ----------
@@ -59,6 +59,7 @@ create table clients (
   start_date date not null default current_date,
   end_date   date not null default current_date + 60,
   contract   contract_status not null default 'draft',
+  check (end_date >= start_date),
   created_at timestamptz not null default now()
 );
 create index on clients (org_id);
@@ -108,7 +109,7 @@ create table task_parts (
   task_id     uuid not null references tasks(id) on delete cascade,
   label       text not null,
   assignee_id uuid references profiles(id) on delete set null,
-  hours       numeric(5,1) not null default 4,
+  hours       numeric(5,1) not null default 4 check (hours >= 0.5 and hours <= 999),
   day         date not null,
   hand_off    time,                   -- optional hand-off time within the day
   done        boolean not null default false,

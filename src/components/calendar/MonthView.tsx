@@ -24,7 +24,7 @@ export function MonthView({ tasks, onCreate, emptyMsg, hint }: { tasks: Task[]; 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative rounded-md border border-border bg-card overflow-hidden">
       {tasks.length === 0 && (
-        <div className="absolute inset-0 grid place-items-center z-[1] pointer-events-none">
+        <div className="absolute inset-0 grid place-items-center z-[3] pointer-events-none">
           <div className="bg-bg border border-dashed border-fg-faint rounded-lg px-5 py-3.5 text-[13.5px] font-semibold text-fg-secondary max-w-[340px] text-center">
             {emptyMsg}
           </div>
@@ -70,7 +70,7 @@ export function MonthView({ tasks, onCreate, emptyMsg, hint }: { tasks: Task[]; 
                     setFocus(iso)
                     setView('day')
                   }}
-                  title={lang === 'ar' ? 'افتح اليوم' : 'Open day'}
+                  title={t('openDay')}
                   className={cn(
                     'grid place-items-center min-w-[22px] h-[22px] px-1 rounded-full text-[12.5px] font-bold tabular-nums cursor-pointer hover:ring-2 hover:ring-fg-faint',
                     today ? 'bg-accent text-accent-fg' : inMonth ? 'text-fg' : 'text-fg-muted',

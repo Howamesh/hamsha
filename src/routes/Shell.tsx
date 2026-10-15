@@ -56,14 +56,14 @@ function App() {
   }
   const gLabel =
     ui.view === 'month'
-      ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en', { month: 'long', year: 'numeric' }).format(f)
+      ? new Intl.DateTimeFormat((lang === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en'), { month: 'long', year: 'numeric' }).format(f)
       : ui.view === 'week'
         ? (() => {
             const w = weekDays(f, ui.weekStart)
-            const fmt = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en', { month: 'short', day: 'numeric' })
+            const fmt = new Intl.DateTimeFormat((lang === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en'), { month: 'short', day: 'numeric' })
             return `${fmt.format(w[0])} – ${fmt.format(w[6])}`
           })()
-        : new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en', { weekday: 'short', day: 'numeric', month: 'short' }).format(f)
+        : new Intl.DateTimeFormat((lang === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en'), { weekday: 'short', day: 'numeric', month: 'short' }).format(f)
   const hLabel = ui.view === 'month' ? hijriRange(new Date(f.getFullYear(), f.getMonth(), 1), new Date(f.getFullYear(), f.getMonth() + 1, 0), lang) : ui.view === 'week' ? hijriRange(weekDays(f, ui.weekStart)[0], weekDays(f, ui.weekStart)[6], lang) : hijriRange(f, f, lang)
 
   const headName = client ? client.name : isAdmin ? t('master') : me.name
@@ -171,7 +171,7 @@ function App() {
           </aside>
         )}
 
-        <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-[var(--gap)]">
+        <main className={cn('flex-1 min-w-0 min-h-0 flex flex-col gap-[var(--gap)]', narrow && 'pb-[calc(64px+env(safe-area-inset-bottom,0px))]')}>
           {ui.view === 'month' && <MonthView tasks={tasks} onCreate={onCreate} emptyMsg={emptyMsg} hint={isAdmin && client ? t('hintAdmin') : isCreative ? t('hintCreative') : undefined} />}
           {ui.view === 'week' && <WeekView tasks={tasks} onCreate={onCreate} />}
           {ui.view === 'day' && <DayView tasks={tasks} onCreate={onCreate} />}

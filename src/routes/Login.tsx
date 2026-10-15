@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Input, Logo } from '@/components/ui'
 import { useStr } from '@/lib/useStr'
 import { useSession } from '@/store/session'
+import { IS_DEMO } from '@/data'
 import { useUi } from '@/store/ui'
 
 export default function Login() {
@@ -15,7 +16,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const DEMO = import.meta.env.VITE_DEMO !== 'false'
+  const DEMO = IS_DEMO
   async function demo(email: string) {
     setBusy(true)
     try {

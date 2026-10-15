@@ -16,7 +16,7 @@ export function ClientPanel() {
   const c = s.clients.find((x) => x.id === me.clientId)
   if (!c)
     return (
-      <div className="p-5 text-[13px] text-fg-secondary">{lang === 'ar' ? 'هذا الحساب غير مربوط بتقويم عميل بعد — المدير يربطه من إعداد التقويم.' : 'This account is not linked to a client calendar yet.'}</div>
+      <div className="p-5 text-[13px] text-fg-secondary">{t('thisAccountIsNot')}</div>
     )
   const p = clientProgress(s, c)
   const tasks = s.tasks.filter((x) => x.clientId === c.id)
@@ -24,10 +24,10 @@ export function ClientPanel() {
   const projects = s.projects.filter((x) => x.clientId === c.id)
   const tab = ui.panelTab === 'settings' ? 'settings' : 'main'
   const stages = [
-    { l: lang === 'ar' ? 'العقد' : 'Contract', sub: c.contract === 'signed' ? (lang === 'ar' ? 'موقّع' : 'Signed') : lang === 'ar' ? 'بانتظار التوقيع' : 'Awaiting signature', on: c.contract === 'signed' },
-    { l: lang === 'ar' ? 'الانطلاق' : 'Kickoff', sub: fmtDate(c.start, lang), on: true },
-    { l: lang === 'ar' ? 'الإنتاج' : 'Production', sub: `${p.done} ${t('of')} ${p.total} ${t('partsDone')}`, on: p.done > 0 },
-    { l: lang === 'ar' ? 'الختام' : 'Wrap', sub: fmtDate(c.end, lang), on: false },
+    { l: t('contract'), sub: c.contract === 'signed' ? (t('contractSigned')) : t('awaitingSignature'), on: c.contract === 'signed' },
+    { l: t('kickoff'), sub: fmtDate(c.start, lang), on: true },
+    { l: t('production'), sub: `${p.done} ${t('of')} ${p.total} ${t('partsDone')}`, on: p.done > 0 },
+    { l: t('wrap'), sub: fmtDate(c.end, lang), on: false },
   ]
   return (
     <>
@@ -55,16 +55,16 @@ export function ClientPanel() {
             <div className="grid grid-cols-2 gap-2.5">
               <div className="rounded-md p-3.5 bg-success-tint text-success-dark">
                 <div className="text-[22px] font-bold leading-none tabular-nums">{p.pct}%</div>
-                <div className="text-[11.5px] font-semibold mt-1.5">{lang === 'ar' ? 'التقدم الكلي' : 'Overall progress'}</div>
+                <div className="text-[11.5px] font-semibold mt-1.5">{t('overallProgress')}</div>
               </div>
               <div className="rounded-md p-3.5 bg-info-tint text-info">
                 <div className="text-[22px] font-bold leading-none tabular-nums">
                   {delivered}/{tasks.length}
                 </div>
-                <div className="text-[11.5px] font-semibold mt-1.5">{lang === 'ar' ? 'مهام مُسلّمة' : 'Delivered tasks'}</div>
+                <div className="text-[11.5px] font-semibold mt-1.5">{t('deliveredTasks')}</div>
               </div>
             </div>
-            <SectionTitle>{lang === 'ar' ? 'تقدم المشاريع' : 'Project progress'}</SectionTitle>
+            <SectionTitle>{t('projectProgress')}</SectionTitle>
             <div className="flex flex-col gap-2.5 -mt-2">
               {projects.map((pr) => {
                 const ts = tasks.filter((x) => x.projectId === pr.id)
@@ -81,7 +81,7 @@ export function ClientPanel() {
                 )
               })}
             </div>
-            <SectionTitle>{lang === 'ar' ? 'المراحل' : 'Stages'}</SectionTitle>
+            <SectionTitle>{t('stages')}</SectionTitle>
             <div className="flex flex-col -mt-2">
               {stages.map((st, i) => (
                 <div key={st.l} className="flex gap-3">

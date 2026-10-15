@@ -97,7 +97,7 @@ function HomeTab() {
         <div className="min-w-0">
           <div className="text-[15px] font-semibold truncate">{me.name}</div>
           <div className="text-[12px] text-fg-secondary">
-            {open.length} {t('tasks')} · {done} {t('of')} {partsCount(myParts.length, lang)} {lang === 'ar' ? 'منجزة' : 'done'}
+            {open.length} {t('tasks')} · {done} {t('of')} {partsCount(myParts.length, lang)} {t('done2')}
           </div>
         </div>
       </div>
@@ -141,7 +141,7 @@ function HomeTab() {
 }
 
 function ProfileTab() {
-  const { t, lang } = useStr()
+  const { t } = useStr()
   const s = useData()
   const me = useUser()!
   const updateProfile = useSession((x) => x.updateProfile)
@@ -165,7 +165,7 @@ function ProfileTab() {
         </div>
       </div>
 
-      <SectionTitle>{lang === 'ar' ? 'ساعات العمل' : 'Working hours'}</SectionTitle>
+      <SectionTitle>{t('workingHours')}</SectionTitle>
       <Card className="p-3 -mt-2 flex items-center gap-2" dir="ltr">
         <select value={whStart} onChange={(e) => void updateProfile({ whStart: Number(e.target.value) })} className="rounded-md bg-muted-bg px-2 py-1.5 text-[12.5px] font-semibold">
           {hours.map((h) => (
@@ -183,16 +183,16 @@ function ProfileTab() {
           ))}
         </select>
         <span className="ms-auto text-[12px] font-semibold text-fg-secondary">
-          {Math.max(0, whEnd - whStart)} h/{lang === 'ar' ? 'يوم' : 'day'}
+          {Math.max(0, whEnd - whStart)} h/{t('day2')}
         </span>
       </Card>
 
-      <SectionTitle>{lang === 'ar' ? 'ملاحظاتي' : 'Notes'}</SectionTitle>
+      <SectionTitle>{t('notes')}</SectionTitle>
       <textarea
         defaultValue={profile?.notes ?? ''}
         onBlur={(e) => void updateProfile({ notes: e.target.value })}
         rows={5}
-        placeholder={lang === 'ar' ? 'ملاحظات خاصة بك…' : 'Private notes…'}
+        placeholder={t('privateNotes')}
         className="-mt-2 w-full rounded-md border border-border bg-bg p-3 text-[13px] resize-y"
       />
     </>

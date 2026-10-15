@@ -97,7 +97,7 @@ function Master() {
           return (
             <Card key={c.id} className={cn('p-3 transition-colors', expanded && 'border-fg-faint')}>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => ui.setCalId(c.id)} className="flex items-center gap-2 min-w-0 flex-1 text-start cursor-pointer hover:opacity-80" title={lang === 'ar' ? 'افتح تقويم العميل' : 'Open client calendar'}>
+                <button type="button" onClick={() => ui.setCalId(c.id)} className="flex items-center gap-2 min-w-0 flex-1 text-start cursor-pointer hover:opacity-80" title={t('openClientCalendar')}>
                   <BrandTile client={c} size={22} />
                   <span className="text-[13.5px] font-semibold truncate">{c.name}</span>
                 </button>
@@ -130,7 +130,7 @@ function Master() {
                     })}
                   </div>
                   {upcoming.length === 0 ? (
-                    <div className="text-[11.5px] text-fg-muted">{lang === 'ar' ? 'لا توجد مهام مفتوحة.' : 'No open tasks.'}</div>
+                    <div className="text-[11.5px] text-fg-muted">{t('noOpenTasks')}</div>
                   ) : (
                     upcoming.map((task) => {
                       const tp = taskProgress(s, task)
@@ -250,7 +250,7 @@ function Master() {
 }
 
 function ClientSetup({ clientId }: { clientId: string }) {
-  const { t, lang } = useStr()
+  const { t } = useStr()
   const s = useData()
   const ui = useUi()
   const sess = useSession()
@@ -267,7 +267,7 @@ function ClientSetup({ clientId }: { clientId: string }) {
   return (
     <>
       <Button size="sm" onClick={() => ui.setCalId(null)} className="self-start -mb-1">
-        {lang === 'ar' ? '→' : '←'} {t('allClients')}
+        {t('txt')} {t('allClients')}
       </Button>
       <SectionTitle>{t('calendarName')}</SectionTitle>
       <Input

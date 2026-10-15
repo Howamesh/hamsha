@@ -10,6 +10,7 @@ import type { ChannelId, Client, Presence, Profile, Project, Task, TaskPart, Use
 interface SessionState {
   user: User | null
   booted: boolean
+  bootError: string | null
   data: Snapshot | null
   boot: () => Promise<void>
   signIn: (email: string, pw: string) => Promise<void>
@@ -40,6 +41,7 @@ function adminOnly(get: () => SessionState): User {
 }
 
 let booting = false
+let unsubscribe: (() => void) | null = null
 
 const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], presence: {}, profiles: {} }
 
@@ -55,15 +57,22 @@ const guard = <T,>(p: Promise<T>): Promise<T> => p.catch(report)
 export const useSession = create<SessionState>((set, get) => ({
   user: null,
   booted: false,
+  bootError: null,
   data: null,
 
   async boot() {
     if (booting) return
     booting = true
-    const user = await repo.restoreSession()
-    const data = await repo.load()
-    repo.subscribe((data) => set({ data }))
-    set({ user, data, booted: true })
+    try {
+      const user = await repo.restoreSession()
+      const data = await repo.load()
+      if (!unsubscribe) unsubscribe = repo.subscribe((data) => set({ data }))
+      set({ user, data, booted: true, bootError: null })
+    } catch (e) {
+      set({ booted: true, bootError: e instanceof Error ? e.message : String(e) })
+    } finally {
+      booting = false
+    }
   },
   async signIn(email, pw) {
     const user = await repo.signIn(email, pw)
