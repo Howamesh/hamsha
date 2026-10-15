@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { useUi } from './ui'
+import { errorMessage } from '@/lib/errors'
 import { repo } from '@/data'
 import type { Snapshot } from '@/data/repo'
 import type { ChannelId, Client, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
@@ -40,6 +41,15 @@ let booting = false
 
 const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], presence: {}, profiles: {} }
 
+/** Surface repository errors to the user — event handlers and async calls never reach the ErrorBoundary. */
+function report(e: unknown): never {
+  const ui = useUi.getState()
+  ui.setToast(errorMessage(e, ui.lang))
+  if (e instanceof Error) (e as Error & { reported?: boolean }).reported = true
+  throw e
+}
+const guard = <T,>(p: Promise<T>): Promise<T> => p.catch(report)
+
 export const useSession = create<SessionState>((set, get) => ({
   user: null,
   booted: false,
@@ -65,31 +75,31 @@ export const useSession = create<SessionState>((set, get) => ({
 
   async createClient(name, defaultProjectName) {
     const u = adminOnly(get)
-    await repo.createClient(name, u.id, defaultProjectName)
+    await guard(repo.createClient(name, u.id, defaultProjectName))
   },
   async updateClient(id, patch) {
     adminOnly(get)
-    await repo.updateClient(id, patch)
+    await guard(repo.updateClient(id, patch))
   },
   async deleteClient(id) {
     adminOnly(get)
-    await repo.deleteClient(id)
+    await guard(repo.deleteClient(id))
   },
   async createProject(input) {
     adminOnly(get)
-    await repo.createProject(input)
+    await guard(repo.createProject(input))
   },
   async updateProject(id, patch) {
     adminOnly(get)
-    await repo.updateProject(id, patch)
+    await guard(repo.updateProject(id, patch))
   },
   async deleteProject(id) {
     adminOnly(get)
-    await repo.deleteProject(id)
+    await guard(repo.deleteProject(id))
   },
   async createTask(input, firstPartLabel) {
     adminOnly(get)
-    return repo.createTask(input, firstPartLabel)
+    return guard(repo.createTask(input, firstPartLabel))
   },
   async updateTask(id, patch) {
     const u = get().user
@@ -102,11 +112,11 @@ export const useSession = create<SessionState>((set, get) => ({
       const ok = keys.length === 1 && keys[0] === 'approval' && cur.approval === 'draft' && patch.approval === 'pending'
       if (!ok) throw new Error('forbidden')
     }
-    await repo.updateTask(id, patch, cur.version)
+    await guard(repo.updateTask(id, patch, cur.version))
   },
   async deleteTask(id) {
     adminOnly(get)
-    await repo.deleteTask(id)
+    await guard(repo.deleteTask(id))
   },
   async upsertPart(part) {
     const u = get().user
@@ -119,11 +129,11 @@ export const useSession = create<SessionState>((set, get) => ({
       const same = cur.label === part.label && cur.assigneeId === part.assigneeId && cur.hours === part.hours && cur.day === part.day && (cur.time ?? '') === (part.time ?? '') && cur.order === part.order
       if (!same) throw new Error('forbidden')
     }
-    await repo.upsertPart(part)
+    await guard(repo.upsertPart(part))
   },
   async deletePart(id) {
     adminOnly(get)
-    await repo.deletePart(id)
+    await guard(repo.deletePart(id))
   },
   async sendMessage(channel, body) {
     const u = get().user
@@ -131,21 +141,21 @@ export const useSession = create<SessionState>((set, get) => ({
     const allowed =
       channel === 'team' ? u.role !== 'client' : channel.startsWith('client:') ? u.role === 'admin' || (u.role === 'client' && channel === `client:${u.clientId}`) : true
     if (!allowed) throw new Error('forbidden')
-    await repo.sendMessage(channel, u.id, body.trim())
+    await guard(repo.sendMessage(channel, u.id, body.trim()))
   },
   async setPresence(p) {
     const u = get().user
     if (!u) return
-    await repo.setPresence(u.id, p)
+    await guard(repo.setPresence(u.id, p))
   },
   async updateUser(id, patch) {
     adminOnly(get)
-    await repo.updateUser(id, patch)
+    await guard(repo.updateUser(id, patch))
   },
   async updateProfile(patch) {
     const u = get().user
     if (!u) return
-    await repo.updateProfile(u.id, patch)
+    await guard(repo.updateProfile(u.id, patch))
   },
 }))
 

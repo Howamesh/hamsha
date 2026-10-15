@@ -19,6 +19,7 @@ import { ClientPanel } from '@/components/panel/ClientPanel'
 import { TaskSheet } from '@/components/TaskSheet'
 import { Checkin } from '@/components/Checkin'
 import { NewTaskDialog } from '@/components/NewTaskDialog'
+import { Toast } from '@/components/Toast'
 import { useAlerts } from '@/components/Alerts'
 import { BrandTile } from '@/components/BrandTile'
 
@@ -202,6 +203,7 @@ function App() {
       {newTaskDay && <NewTaskDialog day={newTaskDay} clientId={client?.id ?? null} onClose={() => setNewTaskDay(null)} />}
       <TaskSheet />
       <Checkin />
+      <Toast />
     </div>
   )
 }

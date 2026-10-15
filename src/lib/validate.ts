@@ -7,7 +7,13 @@ import type { Client, Task, TaskPart } from '@/types'
 const ISO = /^\d{4}-\d{2}-\d{2}$/
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 
-export const isIsoDate = (v: unknown): v is string => typeof v === 'string' && ISO.test(v) && !Number.isNaN(Date.parse(v + 'T00:00:00'))
+/** Strict YYYY-MM-DD that exists on the calendar (rejects 2026-02-30 — Chrome's Date.parse would roll it to March). */
+export const isIsoDate = (v: unknown): v is string => {
+  if (typeof v !== 'string' || !ISO.test(v)) return false
+  const [y, m, d] = v.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+}
 
 export function assertIsoDate(v: unknown, field: string): asserts v is string {
   if (!isIsoDate(v)) throw new Error(`invalid date for ${field}`)

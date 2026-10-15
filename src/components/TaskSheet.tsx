@@ -56,7 +56,7 @@ export function TaskSheet() {
           value={task.title}
           readOnly={!admin}
           dir="auto"
-          onCommit={(v) => void sess.updateTask(task.id, { title: v })}
+          onCommit={(v) => sess.updateTask(task.id, { title: v })}
           className="flex-1 min-w-0 bg-transparent text-[16px] font-semibold outline-none"
         />
         <span className="hidden sm:inline text-[11px] font-bold rounded-md px-2 py-1 bg-muted-bg text-fg-secondary">{TASK_TYPES[task.type][lang]}</span>
@@ -180,7 +180,7 @@ export function TaskSheet() {
                     value={p.label}
                     readOnly={!admin}
                     dir="auto"
-                    onCommit={(v) => void sess.upsertPart({ ...p, label: v })}
+                    onCommit={(v) => sess.upsertPart({ ...p, label: v })}
                     className={cn('flex-1 min-w-0 bg-transparent text-[13px] font-semibold outline-none', p.done && 'line-through')}
                   />
                   {u && (

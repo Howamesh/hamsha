@@ -16,6 +16,12 @@ export default function App() {
 
   useEffect(() => {
     void boot()
+    // Errors already shown as a toast must not also spam the console as "unhandled"
+    const onRej = (e: PromiseRejectionEvent) => {
+      if ((e.reason as { reported?: boolean } | undefined)?.reported) e.preventDefault()
+    }
+    window.addEventListener('unhandledrejection', onRej)
+    return () => window.removeEventListener('unhandledrejection', onRej)
   }, [boot])
 
   // Language + theme on the <html> element (RTL flips the whole layout)
