@@ -1,7 +1,7 @@
 import { Bell, Home, MessageCircle, Settings, User, X } from 'lucide-react'
 import { clientProgress, isDone, partsOf, urgency, visibleTasks } from '@/lib/derive'
 import { CITIES } from '@/lib/prayer'
-import { QUOTES } from '@/lib/i18n'
+import { QUOTES, partsCount } from '@/lib/i18n'
 import { useNow, useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
@@ -97,7 +97,7 @@ function HomeTab() {
         <div className="min-w-0">
           <div className="text-[15px] font-semibold truncate">{me.name}</div>
           <div className="text-[12px] text-fg-secondary">
-            {open.length} {t('tasks')} · {done} {t('of')} {myParts.length} {t('partsDone')}
+            {open.length} {t('tasks')} · {done} {t('of')} {partsCount(myParts.length, lang)} {lang === 'ar' ? 'منجزة' : 'done'}
           </div>
         </div>
       </div>

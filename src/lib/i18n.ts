@@ -193,6 +193,27 @@ export const QUOTES = {
   ],
 }
 
+/**
+ * Arabic count phrase for "part": جزء واحد / جزأين / 3 أجزاء / 11 جزءاً.
+ * English falls back to the simple "1 part / N parts".
+ */
+export function partsCount(n: number, lang: Lang): string {
+  if (lang === 'en') return n === 1 ? '1 part' : `${n} parts`
+  if (n === 0) return 'لا أجزاء'
+  if (n === 1) return 'جزء واحد'
+  if (n === 2) return 'جزأين'
+  if (n >= 3 && n <= 10) return `${n} أجزاء`
+  return `${n} جزءاً`
+}
+
+/** Generic Arabic plural: forms = [one, two, few (3–10), many (11+)] already including the number where needed. */
+export function pluralAr(n: number, forms: { one: string; two: string; few: string; many: string }): string {
+  if (n === 1) return forms.one
+  if (n === 2) return forms.two
+  if (n >= 3 && n <= 10) return forms.few.replace('{n}', String(n))
+  return forms.many.replace('{n}', String(n))
+}
+
 export function interpolate(s: string, vars?: Record<string, string | number>): string {
   if (!vars) return s
   return s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''))

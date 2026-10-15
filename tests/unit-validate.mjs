@@ -22,3 +22,9 @@ assert.deepEqual(MOCK_KEYS, ['hamsha.mock.v4'], 'reset must only touch the demo 
 
 console.log(`unit-validate: ${cases.length + 8} assertions passed`)
 console.log('isIsoDate:', Object.fromEntries(cases.slice(0, 3).map(([v]) => [v, isIsoDate(v)])))
+
+// Arabic plural forms
+import { partsCount } from '../src/lib/i18n.ts'
+const plural = [[1, 'جزء واحد'], [2, 'جزأين'], [3, '3 أجزاء'], [10, '10 أجزاء'], [11, '11 جزءاً'], [25, '25 جزءاً']]
+for (const [n, expected] of plural) assert.equal(partsCount(n, 'ar'), expected)
+console.log('partsCount:', plural.map(([n]) => partsCount(n, 'ar')).join(' / '))

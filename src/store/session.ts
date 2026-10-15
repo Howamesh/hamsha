@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { useUi } from './ui'
 import { errorMessage } from '@/lib/errors'
 import { fmtDate } from '@/lib/useStr'
+import { partsCount } from '@/lib/i18n'
 import { repo } from '@/data'
 import type { Snapshot } from '@/data/repo'
 import type { ChannelId, Client, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
@@ -122,7 +123,7 @@ export const useSession = create<SessionState>((set, get) => ({
       const ui = useUi.getState()
       const day = fmtDate(moved[0].day, ui.lang)
       ui.setToast(
-        ui.lang === 'ar' ? `تم نقل ${moved.length} ${moved.length === 1 ? 'جزء' : 'أجزاء'} إلى ${day} لأن مدة المهمة تغيّرت — راجع توزيع الأيام والساعات.` : `${moved.length} part(s) moved to ${day} because the task dates changed — review days and hours.`,
+        ui.lang === 'ar' ? `تم نقل ${partsCount(moved.length, 'ar')} إلى ${day} لأن مدة المهمة تغيّرت — راجع توزيع الأيام والساعات.` : `${partsCount(moved.length, 'en')} moved to ${day} because the task dates changed — review days and hours.`,
         'info',
       )
     }

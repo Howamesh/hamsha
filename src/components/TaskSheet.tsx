@@ -10,6 +10,9 @@ import { TASK_TYPES, type TaskType } from '@/types'
 import { Avatar, Button, Input, SectionTitle } from './ui'
 import { DraftInput } from './DraftInput'
 
+/** Soft limit: a member's open parts on one day beyond this show a warning (never blocks saving). */
+const DAY_HOURS_LIMIT = 8
+
 export function TaskSheet() {
   const { t, lang } = useStr()
   const s = useData()
@@ -209,6 +212,18 @@ export function TaskSheet() {
                       </div>
                     </div>
                   )}
+                  {(() => {
+                    const dayTotal = s.parts.filter((x) => x.assigneeId === p.assigneeId && x.day === p.day && !x.done).reduce((a, x) => a + (x.hours || 0), 0)
+                    const limit = DAY_HOURS_LIMIT
+                    return dayTotal > limit ? (
+                      <span
+                        className="text-[10px] font-bold rounded-md px-1.5 py-0.5 bg-warning-tint text-warning-dark whitespace-nowrap"
+                        title={lang === 'ar' ? `${u?.name.split(' ')[0] ?? ''} عليه ${dayTotal} ساعة في ${fmtDate(p.day, lang)} — أكثر من ${limit}` : `${u?.name.split(' ')[0] ?? ''} has ${dayTotal}h on ${fmtDate(p.day, lang)} — over ${limit}`}
+                      >
+                        {dayTotal}{t('hourShort')} {lang === 'ar' ? 'في اليوم' : 'that day'} ⚠
+                      </span>
+                    ) : null
+                  })()}
                   <div className="flex items-center gap-1" dir="ltr">
                     <input type="number" min={0.5} step={0.5} value={p.hours} readOnly={!admin} onChange={(e) => Number(e.target.value) >= 0.5 && void sess.upsertPart({ ...p, hours: Number(e.target.value) })} className="w-[46px] rounded-md border border-border bg-bg px-1.5 py-1 text-[12px] text-center" />
                     <span className="text-[11px] text-fg-muted">{t('hourShort')}</span>
