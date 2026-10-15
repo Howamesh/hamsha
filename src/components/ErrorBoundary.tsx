@@ -1,6 +1,6 @@
 import { Component, type ReactNode } from 'react'
 import { IS_DEMO } from '@/data'
-import { MOCK_KEYS } from '@/data/mock'
+import { MOCK_KEYS } from '@/data/mockKeys'
 
 interface State {
   error: Error | null

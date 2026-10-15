@@ -50,6 +50,8 @@ out.partDayBefore = await ev(`JSON.parse(localStorage.getItem('hamsha.mock.v4'))
 await setInput(END, '2026-10-20', 'change'); await sleep(400);
 const snap = await ev(`(()=>{const s=JSON.parse(localStorage.getItem('hamsha.mock.v4'));const t=s.tasks.at(-1);const p=s.parts.filter(x=>x.taskId===t.id);return {start:t.start,end:t.end,parts:p.map(x=>x.day)}})()`);
 out.afterShorten = snap;
+out.movedNotice = await ev(`document.querySelector('[role=alert]')?.textContent || null`);
+await sleep(6500);
 // --- 4) a validation error that the browser cannot pre-filter: part day outside the task → toast, nothing saved
 await setInput(PARTDAY, '2026-01-01', 'change'); await sleep(600);
 out.toastOnBadPart = await ev(`document.querySelector('[role=alert]')?.textContent || null`);

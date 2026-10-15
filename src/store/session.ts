@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useUi } from './ui'
 import { errorMessage } from '@/lib/errors'
+import { fmtDate } from '@/lib/useStr'
 import { repo } from '@/data'
 import type { Snapshot } from '@/data/repo'
 import type { ChannelId, Client, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
@@ -112,7 +113,19 @@ export const useSession = create<SessionState>((set, get) => ({
       const ok = keys.length === 1 && keys[0] === 'approval' && cur.approval === 'draft' && patch.approval === 'pending'
       if (!ok) throw new Error('forbidden')
     }
+    const before = (get().data ?? EMPTY).parts.filter((p) => p.taskId === id)
     await guard(repo.updateTask(id, patch, cur.version))
+    // Parts pulled inside the new date range are announced, never moved silently
+    const after = (get().data ?? EMPTY).parts.filter((p) => p.taskId === id)
+    const moved = after.filter((p) => before.find((b) => b.id === p.id)?.day !== p.day)
+    if (moved.length) {
+      const ui = useUi.getState()
+      const day = fmtDate(moved[0].day, ui.lang)
+      ui.setToast(
+        ui.lang === 'ar' ? `تم نقل ${moved.length} ${moved.length === 1 ? 'جزء' : 'أجزاء'} إلى ${day} لأن مدة المهمة تغيّرت — راجع توزيع الأيام والساعات.` : `${moved.length} part(s) moved to ${day} because the task dates changed — review days and hours.`,
+        'info',
+      )
+    }
   },
   async deleteTask(id) {
     adminOnly(get)
