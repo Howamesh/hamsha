@@ -10,6 +10,8 @@ import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch }
 
 const KEY = 'hamsha.mock.v4'
 const SESSION_KEY = 'hamsha.mock.session'
+/** Only these keys belong to the demo store — a reset must never touch anything else. */
+export const MOCK_KEYS = [KEY, SESSION_KEY]
 
 const PALETTE = ['#D9B600', '#9B7BF2', '#4CB782', '#F06FA7', '#4E9BFA', '#F2994A', '#3B8EA5', '#7FA23B']
 
