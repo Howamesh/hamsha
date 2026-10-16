@@ -23,7 +23,7 @@ out.adminLogin = await click('ادخل كمدير'); await waitFor(`[...document
 out.createClient = await setInput(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل'))`, 'العون المباشر');
 await ev(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل')).form.requestSubmit()`); await sleep(500);
 out.openClient = await click('العون المباشر'); await sleep(500);
-out.clickDay = await ev(`(()=>{const c=[...document.querySelectorAll('main .cursor-crosshair')][18];c.click();return 'ok'})()`); await waitFor(`!!document.querySelector('[role=dialog]')`);
+out.clickDay = await ev(`(()=>{const c=[...document.querySelectorAll('main .cursor-crosshair')][18];c.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));return 'ok'})()`); await sleep(150); await ev(`window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}))`); await waitFor(`!!document.querySelector('[role=dialog]')`);
 out.dialog = await ev(`!!document.querySelector('[role=dialog] form')`);
 await setInput(`document.querySelector('[role=dialog] input[placeholder]')`, 'بوست عن الصدقة');
 await setInput(`[...document.querySelectorAll('[role=dialog] input')].find(x=>x.placeholder.includes('الجزء'))`, 'المحتوى');

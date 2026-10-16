@@ -23,7 +23,7 @@ await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll
 await setInput(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل'))`, 'عميل ٣');
 await ev(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل')).form.requestSubmit()`); await sleep(400);
 await click('عميل ٣'); await sleep(400);
-await ev(`(()=>{const c=[...document.querySelectorAll('main .cursor-crosshair')][18];c.click();return 'ok'})()`); await waitFor(`!!document.querySelector('[role=dialog]')`);
+await ev(`(()=>{const c=[...document.querySelectorAll('main .cursor-crosshair')][18];c.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse'}));return 'ok'})()`); await sleep(150); await ev(`window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}))`); await waitFor(`!!document.querySelector('[role=dialog]')`);
 await setInput(`document.querySelector('[role=dialog] input[placeholder]')`, 'العنوان الأصلي');
 await click('إنشاء المهمة'); await waitFor(`!!document.querySelector('[role=dialog] input.text-\\[16px\\]')`);
 // --- 1) Escape must cancel: focus title, type, press Escape via real key events
