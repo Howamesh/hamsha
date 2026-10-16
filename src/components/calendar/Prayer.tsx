@@ -19,12 +19,12 @@ export function PrayerChip({ prayer }: { prayer: Prayer }) {
   return (
     <div
       className="flex items-center gap-1.5 rounded-md border border-dashed border-success px-2 py-1.5 bg-success-tint/60 text-[11.5px] font-semibold text-success-dark"
-      title={`${PRAYER_NAMES[prayer.name][lang]} · ${prayerLabel(prayer)}`}
+      title={`${PRAYER_NAMES[prayer.name][lang]} · ${prayerLabel(prayer, lang)}`}
     >
       <span className="w-[6px] h-[6px] rounded-full bg-success shrink-0" />
       <span className="truncate">{PRAYER_NAMES[prayer.name][lang]}</span>
-      <span className="text-[10px] tabular-nums text-success-dark/80 ms-auto whitespace-nowrap" dir="ltr">
-        {prayerLabel(prayer)}
+      <span className="text-[10px] tabular-nums text-success-dark/80 ms-auto whitespace-nowrap">
+        {prayerLabel(prayer, lang)}
       </span>
       <span className="text-[8.5px] font-bold tracking-[0.06em] uppercase rounded bg-success text-white px-1 py-[1px]">{t('blocked')}</span>
     </div>

@@ -1,6 +1,6 @@
 import { isToday } from 'date-fns'
 import { cn } from '@/lib/utils'
-import { fromIso, isWeekend, toIso, weekDays, hhmm } from '@/lib/dates'
+import { clock12Date, fromIso, isWeekend, toIso, weekDays } from '@/lib/dates'
 import { hijriCell } from '@/lib/hijri'
 import { clientById, tasksOnDay, taskProgress, urgency, userById } from '@/lib/derive'
 import { useStr, useNow } from '@/lib/useStr'
@@ -70,7 +70,7 @@ export function WeekView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (seed:
                 {today && (
                   <div className="absolute inset-x-0 h-[2px] bg-accent z-[3] pointer-events-none" style={{ top: `${(minutes / 1440) * 100}%` }}>
                     <span className="absolute -top-[9px] end-1 rounded bg-accent text-accent-fg text-[10px] font-bold px-1.5 py-[2px]" dir="ltr">
-                      {hhmm(now)}
+                      {clock12Date(now, lang)}
                     </span>
                   </div>
                 )}

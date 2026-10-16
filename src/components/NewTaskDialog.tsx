@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { IsoDate } from '@/lib/dates'
+import { clock12, type IsoDate } from '@/lib/dates'
 import { useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
@@ -147,7 +147,7 @@ export function NewTaskDialog({ seed, clientId, onClose }: { seed: NewTaskSeed; 
           </div>
           {seed.fromHour !== undefined && seed.toHour !== undefined && (
             <div className="text-[11.5px] text-fg-secondary" dir="auto">
-              {t('selectedRange', { from: `${String(seed.fromHour).padStart(2, '0')}:00`, to: `${String(seed.toHour).padStart(2, '0')}:00` })}
+              {t('selectedRange', { from: clock12(seed.fromHour, 0, lang), to: clock12(seed.toHour, 0, lang) })}
             </div>
           )}
         </div>

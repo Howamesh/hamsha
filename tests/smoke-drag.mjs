@@ -28,13 +28,13 @@ await click('عميل سحب'); await sleep(400);
 // --- Day view drag 15:00 → 16:00
 await click('يوم'); await sleep(400);
 const rows = `[...document.querySelectorAll('main .cursor-crosshair')]`;
-const r15 = await rect(`${rows}.find(r=>r.textContent.includes('15:00'))`);
-const r16 = await rect(`${rows}.find(r=>r.textContent.includes('16:00'))`);
+const r15 = await rect(`${rows}[8]`);
+const r16 = await rect(`${rows}[9]`);
 await mouse('mousePressed', r15.x, r15.y); await sleep(80);
 await mouse('mouseMoved', r16.x, r16.y); await sleep(120);
 await mouse('mouseReleased', r16.x, r16.y);
 await waitFor(`!!document.querySelector('[role=dialog]')`);
-out.dayRange = await ev(`document.querySelector('[role=dialog]').innerText.match(/15:00 – 17:00/)?.[0] || null`);
+out.dayRange = await ev(`document.querySelector('[role=dialog]').innerText.match(/3:00 م – 5:00 م/)?.[0] || null`);
 out.dayTime = await ev(`document.querySelector('[role=dialog] input[type=time]').value`);
 out.dayHours = await ev(`document.querySelector('[role=dialog] input[type=number]').value`);
 await setInput(`document.querySelector('[role=dialog] input[placeholder]')`, 'مهمة بالسحب');
@@ -55,7 +55,7 @@ out.monthSpan = dates.length === 2 ? Math.round((new Date(dates[1]) - new Date(d
 out.errors = errors;
 console.log(JSON.stringify(out,null,1));
 ws.close(); chrome.kill(); try { (await import('node:fs')).rmSync(`/tmp/hamsha-chrome-${port}`, { recursive: true, force: true }) } catch {}
-const CHECKS = { "out.dayRange === '15:00 – 17:00'": out.dayRange === '15:00 – 17:00', "out.dayTime === '15:00'": out.dayTime === '15:00', "out.dayHours === '2'": out.dayHours === '2', "out.partTimeSaved === '15:00/2'": out.partTimeSaved === '15:00/2', "out.monthSpan === 2": out.monthSpan === 2, "out.errors.length === 0": out.errors.length === 0 };
+const CHECKS = { "out.dayRange === '3:00 م – 5:00 م'": out.dayRange === '3:00 م – 5:00 م', "out.dayTime === '15:00'": out.dayTime === '15:00', "out.dayHours === '2'": out.dayHours === '2', "out.partTimeSaved === '15:00/2'": out.partTimeSaved === '15:00/2', "out.monthSpan === 2": out.monthSpan === 2, "out.errors.length === 0": out.errors.length === 0 };
 const failed = Object.entries(CHECKS).filter(([, ok]) => !ok).map(([c]) => c);
 if (failed.length) { console.error('FAILED:', failed); process.exit(1) }
 console.log('PASS smoke-drag.mjs')

@@ -2,6 +2,7 @@ import { Bell, Home, MessageCircle, Settings, User, X } from 'lucide-react'
 import { clientProgress, isDone, partsOf, urgency, visibleTasks } from '@/lib/derive'
 import { CITIES } from '@/lib/prayer'
 import { QUOTES, partsCount } from '@/lib/i18n'
+import { clock12 } from '@/lib/dates'
 import { useNow, useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
@@ -141,7 +142,7 @@ function HomeTab() {
 }
 
 function ProfileTab() {
-  const { t } = useStr()
+  const { t, lang } = useStr()
   const s = useData()
   const me = useUser()!
   const updateProfile = useSession((x) => x.updateProfile)
@@ -170,7 +171,7 @@ function ProfileTab() {
         <select value={whStart} onChange={(e) => void updateProfile({ whStart: Number(e.target.value) })} className="rounded-md bg-muted-bg px-2 py-1.5 text-[12.5px] font-semibold">
           {hours.map((h) => (
             <option key={h} value={h}>
-              {String(h).padStart(2, '0')}:00
+              {clock12(h, 0, lang)}
             </option>
           ))}
         </select>
@@ -178,7 +179,7 @@ function ProfileTab() {
         <select value={whEnd} onChange={(e) => void updateProfile({ whEnd: Number(e.target.value) })} className="rounded-md bg-muted-bg px-2 py-1.5 text-[12.5px] font-semibold">
           {hours.map((h) => (
             <option key={h} value={h}>
-              {String(h).padStart(2, '0')}:00
+              {clock12(h, 0, lang)}
             </option>
           ))}
         </select>

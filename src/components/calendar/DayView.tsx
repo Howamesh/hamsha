@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { isToday } from 'date-fns'
 import { cn } from '@/lib/utils'
-import { fromIso } from '@/lib/dates'
+import { clock12, clock12FromHHMM, fromIso } from '@/lib/dates'
 import { hijriFull } from '@/lib/hijri'
-import { cityById, energyAt, pad2, wallClock } from '@/lib/prayer'
+import { cityById, energyAt, wallClock } from '@/lib/prayer'
 import { clientById, tasksOnDay, taskProgress, urgency, userById } from '@/lib/derive'
 
 import { useStr, useNow } from '@/lib/useStr'
@@ -59,7 +59,7 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (seed: 
   const today = isToday(d)
   const cityId = (user && s.profiles[user.id]?.city) || 'riyadh'
   const wc = wallClock(now, cityById(cityId).tz)
-  const nowLabel = `${pad2(wc.hour)}:${pad2(wc.minute)}`
+  const nowLabel = clock12(wc.hour, wc.minute, lang)
 
   return (
     <div className="flex-1 min-h-0 rounded-md border border-border bg-card flex flex-col overflow-hidden">
@@ -139,8 +139,8 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (seed: 
                   </span>
                 </div>
               )}
-              <div className="w-[56px] shrink-0 ps-3 pt-1.5 text-[11px] font-semibold text-fg-muted tabular-nums" dir="ltr">
-                {pad2(h)}:00
+              <div className="w-[68px] shrink-0 ps-3 pt-1.5 text-[11px] font-semibold text-fg-muted tabular-nums whitespace-nowrap">
+                {clock12(h, 0, lang)}
               </div>
               <div className="flex-1 p-1.5 flex flex-col gap-1">
                 {partsToday
@@ -161,7 +161,7 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (seed: 
                         style={{ background: (client?.color ?? '#D9B600') + '22', borderInlineStartColor: client?.color ?? '#D9B600', borderInlineStartWidth: 3 }}
                       >
                         <span className="text-[11px] font-bold tabular-nums text-fg-secondary" dir="ltr">
-                          {p.time}
+                          {p.time ? clock12FromHHMM(p.time, lang) : ''}
                         </span>
                         <span dir="auto" className={cn('text-[12.5px] font-semibold truncate', p.done && 'line-through')}>
                           {p.label}

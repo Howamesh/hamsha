@@ -69,3 +69,16 @@ export function dayFraction(now = new Date()): number {
 }
 
 export const hhmm = (d: Date): string => format(d, 'HH:mm')
+
+/** 12-hour clock the way people read it: "3:00 م" / "3:00 PM" (Yousef, 2026-10-16). Minutes are padded, hours are not. */
+export function clock12(hour: number, minute: number, lang: 'ar' | 'en'): string {
+  const h12 = hour % 12 === 0 ? 12 : hour % 12
+  const suffix = lang === 'ar' ? (hour < 12 ? 'ص' : 'م') : hour < 12 ? 'AM' : 'PM'
+  return `${h12}:${String(minute).padStart(2, '0')} ${suffix}`
+}
+/** From an 'HH:MM' string */
+export function clock12FromHHMM(v: string, lang: 'ar' | 'en'): string {
+  const [h, m] = v.split(':').map(Number)
+  return Number.isFinite(h) && Number.isFinite(m) ? clock12(h, m, lang) : v
+}
+export const clock12Date = (d: Date, lang: 'ar' | 'en') => clock12(d.getHours(), d.getMinutes(), lang)

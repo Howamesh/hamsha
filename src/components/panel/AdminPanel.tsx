@@ -3,6 +3,7 @@ import { Bell, ChevronDown, MessageCircle, PieChart, Settings, SlidersHorizontal
 import { cn } from '@/lib/utils'
 import { clientProgress, isDone, taskProgress, urgency, workload } from '@/lib/derive'
 import { fmtDate, useStr } from '@/lib/useStr'
+import { clock12FromHHMM } from '@/lib/dates'
 import { useData, useSession } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
 import { Avatar, Bar, Button, Card, Input, SectionTitle, Segmented } from '../ui'
@@ -234,7 +235,7 @@ function Master() {
                         </div>
                         <span className="text-[10.5px] font-semibold text-fg-muted tabular-nums whitespace-nowrap" dir="ltr">
                           {fmtDate(p.day, lang, { day: 'numeric', month: 'short' })}
-                          {p.time ? ` · ${p.time}` : ''}
+                          {p.time ? ` · ${clock12FromHHMM(p.time, lang)}` : ''}
                         </span>
                       </button>
                     )

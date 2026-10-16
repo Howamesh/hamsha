@@ -5,6 +5,7 @@
  * (handled below via the Hijri month — a point Codex raised in the debate).
  */
 import { CalculationMethod, Coordinates, PrayerTimes } from 'adhan'
+import { clock12 } from './dates'
 
 export type CityId = 'riyadh' | 'jeddah' | 'makkah' | 'madinah' | 'dammam' | 'dubai' | 'cairo' | 'istanbul'
 
@@ -86,8 +87,10 @@ export function prayerTimes(city: City, date: Date): Prayer[] {
 }
 
 export const pad2 = (n: number) => String(n).padStart(2, '0')
-export const prayerLabel = (p: Prayer) =>
-  `${pad2(p.hour)}:${pad2(p.minute)}–${pad2(Math.floor((p.minutes + PRAYER_BLOCK_MINUTES) / 60) % 24)}:${pad2((p.minutes + PRAYER_BLOCK_MINUTES) % 60)}`
+export const prayerLabel = (p: Prayer, lang: 'ar' | 'en' = 'ar') => {
+  const end = p.minutes + PRAYER_BLOCK_MINUTES
+  return `${clock12(p.hour, p.minute, lang)} – ${clock12(Math.floor(end / 60) % 24, end % 60, lang)}`
+}
 
 /**
  * Energy level (0..1) for an hour row, declining linearly from Fajr.
