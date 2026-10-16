@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { isToday } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { fromIso } from '@/lib/dates'
@@ -12,8 +13,33 @@ import { Avatar } from '../ui'
 import { BrandTile } from '../BrandTile'
 import { PrayerChip, usePrayers } from './Prayer'
 import type { Task } from '@/types'
+import type { NewTaskSeed } from '../NewTaskDialog'
 
-export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: string) => void }) {
+export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (seed: NewTaskSeed) => void }) {
+  // Drag-select across hour rows (admin): press on 15:00, move to 16:00, release → 15:00–17:00
+  const [drag, setDrag] = useState<{ a: number; b: number } | null>(null)
+  const dragRef = useRef<{ a: number; b: number } | null>(null)
+  useEffect(() => {
+    if (!drag) return
+    const up = () => {
+      const d = dragRef.current
+      dragRef.current = null
+      setDrag(null)
+      if (d && onCreate) {
+        const from = Math.min(d.a, d.b)
+        const to = Math.max(d.a, d.b) + 1
+        onCreate({ day: focus, fromHour: from, toHour: to })
+      }
+    }
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+    return () => {
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag !== null])
+  const inDrag = (h: number) => !!drag && h >= Math.min(drag.a, drag.b) && h <= Math.max(drag.a, drag.b)
   const { lang, t } = useStr()
   const s = useData()
   const user = useUser()
@@ -43,6 +69,7 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: s
         </div>
         <div className="text-[11px] font-semibold text-fg-secondary">{hijriFull(d, lang)}</div>
         {isCreative && <div className="ms-auto text-[10.5px] font-bold tracking-[0.06em] uppercase text-warning-dark">{t('energy')}</div>}
+        {onCreate && !isCreative && <div className="ms-auto text-[11px] text-fg-muted">{t('dragHint')}</div>}
       </div>
 
       {list.length > 0 && (
@@ -82,8 +109,25 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: s
           return (
             <div
               key={h}
-              className={cn('relative flex min-h-[46px] border-b border-border-soft', onCreate && 'cursor-crosshair hover:bg-muted-bg/40')}
-              onClick={() => onCreate?.(focus)}
+              className={cn(
+                'relative flex min-h-[46px] border-b border-border-soft select-none',
+                onCreate && 'cursor-crosshair hover:bg-muted-bg/40',
+                inDrag(h) && 'bg-accent/10',
+              )}
+              onPointerDown={(e) => {
+                if (!onCreate || e.button !== 0) return
+                if ((e.target as HTMLElement).closest('button')) return
+                const d = { a: h, b: h }
+                dragRef.current = d
+                setDrag(d)
+              }}
+              onPointerEnter={() => {
+                if (dragRef.current) {
+                  const d = { ...dragRef.current, b: h }
+                  dragRef.current = d
+                  setDrag(d)
+                }
+              }}
             >
               {isCreative && (
                 <div className="absolute inset-y-0 start-0 w-[4px] bg-warning" style={{ opacity: energyAt(h, fajr.hour + fajr.minute / 60) }} />

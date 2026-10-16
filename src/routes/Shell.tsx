@@ -18,7 +18,7 @@ import { CreativePanel } from '@/components/panel/CreativePanel'
 import { ClientPanel } from '@/components/panel/ClientPanel'
 import { TaskSheet } from '@/components/TaskSheet'
 import { Checkin } from '@/components/Checkin'
-import { NewTaskDialog } from '@/components/NewTaskDialog'
+import { NewTaskDialog, type NewTaskSeed } from '@/components/NewTaskDialog'
 import { Toast } from '@/components/Toast'
 import { useAlerts } from '@/components/Alerts'
 import { BrandTile } from '@/components/BrandTile'
@@ -70,8 +70,8 @@ function App() {
   const badge = isAdmin ? (client ? t('badgeAdmin') : t('badgeMaster')) : isCreative ? t('badgeCreative') : t('badgeClient')
   const emptyMsg = isAdmin ? t('emptyMaster') : isCreative ? t('emptyCreative') : t('emptyClient')
 
-  const [newTaskDay, setNewTaskDay] = useState<string | null>(null)
-  const onCreate = isAdmin && s.clients.length > 0 ? (day: string) => setNewTaskDay(day) : undefined
+  const [newTask, setNewTask] = useState<NewTaskSeed | null>(null)
+  const onCreate = isAdmin && s.clients.length > 0 ? (seed: NewTaskSeed) => setNewTask(seed) : undefined
 
   const Panel = isAdmin ? AdminPanel : isCreative ? CreativePanel : ClientPanel
   const railTabs: Array<{ id: PanelTab; icon: React.ReactNode; badge?: number }> = isCreative
@@ -172,7 +172,7 @@ function App() {
         )}
 
         <main className={cn('flex-1 min-w-0 min-h-0 flex flex-col gap-[var(--gap)]', narrow && 'pb-[calc(64px+env(safe-area-inset-bottom,0px))]')}>
-          {ui.view === 'month' && <MonthView tasks={tasks} onCreate={onCreate} emptyMsg={emptyMsg} hint={isAdmin && client ? t('hintAdmin') : isCreative ? t('hintCreative') : undefined} />}
+          {ui.view === 'month' && <MonthView tasks={tasks} onCreate={onCreate} emptyMsg={emptyMsg} hint={isAdmin && client ? t('dragHint') : isCreative ? t('hintCreative') : undefined} />}
           {ui.view === 'week' && <WeekView tasks={tasks} onCreate={onCreate} />}
           {ui.view === 'day' && <DayView tasks={tasks} onCreate={onCreate} />}
         </main>
@@ -200,7 +200,7 @@ function App() {
         </nav>
       )}
 
-      {newTaskDay && <NewTaskDialog day={newTaskDay} clientId={client?.id ?? null} onClose={() => setNewTaskDay(null)} />}
+      {newTask && <NewTaskDialog seed={newTask} clientId={client?.id ?? null} onClose={() => setNewTask(null)} />}
       <TaskSheet />
       <Checkin />
       <Toast />

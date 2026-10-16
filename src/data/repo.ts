@@ -30,7 +30,7 @@ export interface Repo {
   createProject(input: Omit<Project, 'id'>): Promise<Project>
   updateProject(id: string, patch: Partial<Project>): Promise<Project>
   deleteProject(id: string): Promise<void>
-  createTask(input: Omit<Task, 'id' | 'version' | 'approval'>, firstPartLabel: string): Promise<Task>
+  createTask(input: Omit<Task, 'id' | 'version' | 'approval'>, firstPart: { label: string; time?: string; hours?: number }): Promise<Task>
   updateTask(id: string, patch: Partial<Task>, version: number): Promise<Task>
   deleteTask(id: string): Promise<void>
   upsertPart(part: Omit<TaskPart, 'id'> & { id?: string }): Promise<TaskPart>

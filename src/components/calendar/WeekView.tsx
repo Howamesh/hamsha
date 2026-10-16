@@ -9,10 +9,11 @@ import { useData } from '@/store/session'
 import { Avatar } from '../ui'
 import { BrandTile } from '../BrandTile'
 import type { Task } from '@/types'
+import type { NewTaskSeed } from '../NewTaskDialog'
 
 const dot: Record<string, string> = { late: 'var(--accent)', soon: 'var(--warning)', done: 'var(--success)', ok: 'var(--fg-faint)' }
 
-export function WeekView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: string) => void }) {
+export function WeekView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (seed: NewTaskSeed) => void }) {
   const { days, lang, t } = useStr()
   const s = useData()
   const now = useNow()
@@ -63,7 +64,7 @@ export function WeekView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (day: 
               <div
                 className={cn('relative flex-1 min-h-0 overflow-y-auto no-scrollbar p-2 flex flex-col gap-1.5', onCreate && 'cursor-crosshair')}
                 onClick={(e) => {
-                  if (e.target === e.currentTarget) onCreate?.(iso)
+                  if (e.target === e.currentTarget) onCreate?.({ day: iso })
                 }}
               >
                 {today && (

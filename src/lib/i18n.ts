@@ -156,6 +156,10 @@ export const STR = {
   cancel: { en: 'Cancel', ar: 'إلغاء' },
   createTask: { en: 'Create task', ar: 'إنشاء المهمة' },
   firstPart: { en: 'First part (e.g. Design)', ar: 'الجزء الأول (مثلاً: التصميم)' },
+  firstPartTitle: { en: 'First part', ar: 'الجزء الأول' },
+  hours: { en: 'Hours', ar: 'الساعات' },
+  selectedRange: { en: 'Selected on the timeline: {from} – {to}', ar: 'المحدد على الجدول: {from} – {to}' },
+  dragHint: { en: 'Drag across hours or days to create a task', ar: 'اسحب على الساعات أو الأيام لإنشاء مهمة' },
 
   // Misc UI
   hourShort: { en: 'h', ar: 'س' },

@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test:smoke": "node tests/smoke-roles.mjs && node tests/smoke-regressions.mjs && node tests/smoke-review3.mjs && node tests/smoke-hours.mjs",
+    "test:smoke": "node tests/smoke-roles.mjs && node tests/smoke-regressions.mjs && node tests/smoke-review3.mjs && node tests/smoke-hours.mjs && node tests/smoke-drag.mjs",
     "test:unit": "node tests/unit-validate.mjs",
     "test": "npm run test:unit && npm run test:smoke"
   },

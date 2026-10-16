@@ -176,11 +176,13 @@ export function createMockRepo(): Repo {
       snap.parts = snap.parts.filter((p) => !gone.has(p.taskId))
       commit()
     },
-    async createTask(input, firstPartLabel) {
+    async createTask(input, firstPart) {
       validateNewTask(input)
       const t: Task = { ...input, id: nid('k'), approval: 'draft', version: 1 }
+      const part: TaskPart = { id: nid('p'), taskId: t.id, label: firstPart.label, assigneeId: t.ownerId, hours: firstPart.hours ?? 4, day: t.start, time: firstPart.time, done: false, order: 0 }
+      validatePart(part, t)
       snap.tasks = [...snap.tasks, t]
-      snap.parts = [...snap.parts, { id: nid('p'), taskId: t.id, label: firstPartLabel, assigneeId: t.ownerId, hours: 4, day: t.start, done: false, order: 0 }]
+      snap.parts = [...snap.parts, part]
       commit()
       return t
     },

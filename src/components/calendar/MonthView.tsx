@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { isSameMonth, isToday } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { dayFraction, fromIso, isWeekend, monthGrid, toIso } from '@/lib/dates'
@@ -7,8 +8,32 @@ import { useStr, useNarrow, useNow } from '@/lib/useStr'
 import { useUi } from '@/store/ui'
 import { TaskChip } from '../TaskChip'
 import type { Task } from '@/types'
+import type { NewTaskSeed } from '../NewTaskDialog'
 
-export function MonthView({ tasks, onCreate, emptyMsg, hint }: { tasks: Task[]; onCreate?: (day: string) => void; emptyMsg: string; hint?: string }) {
+export function MonthView({ tasks, onCreate, emptyMsg, hint }: { tasks: Task[]; onCreate?: (seed: NewTaskSeed) => void; emptyMsg: string; hint?: string }) {
+  // Drag-select across days (admin, desktop): press on a day, move, release → start..end
+  const [drag, setDrag] = useState<{ a: string; b: string } | null>(null)
+  const dragRef = useRef<{ a: string; b: string } | null>(null)
+  useEffect(() => {
+    if (!drag) return
+    const up = () => {
+      const d = dragRef.current
+      dragRef.current = null
+      setDrag(null)
+      if (d && onCreate) {
+        const [from, to] = d.a <= d.b ? [d.a, d.b] : [d.b, d.a]
+        onCreate({ day: from, endDay: to })
+      }
+    }
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+    return () => {
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag !== null])
+  const inDrag = (iso: string) => !!drag && iso >= (drag.a <= drag.b ? drag.a : drag.b) && iso <= (drag.a <= drag.b ? drag.b : drag.a)
   const { days, lang, t } = useStr()
   const narrow = useNarrow()
   const now = useNow()
@@ -48,17 +73,32 @@ export function MonthView({ tasks, onCreate, emptyMsg, hint }: { tasks: Task[]; 
             <div
               key={iso}
               onClick={() => {
-                // Phone: a tap opens the day; desktop: a click on an empty day creates (admin)
+                // Phone: a tap opens the day (desktop creation happens on pointer up of a drag/click)
                 if (narrow) {
                   setFocus(iso)
                   setView('day')
-                } else onCreate?.(iso)
+                }
+              }}
+              onPointerDown={(e) => {
+                if (narrow || !onCreate || e.button !== 0) return
+                if ((e.target as HTMLElement).closest('button')) return
+                const dd = { a: iso, b: iso }
+                dragRef.current = dd
+                setDrag(dd)
+              }}
+              onPointerEnter={() => {
+                if (dragRef.current) {
+                  const dd = { ...dragRef.current, b: iso }
+                  dragRef.current = dd
+                  setDrag(dd)
+                }
               }}
               className={cn(
-                'relative border-b border-e border-border-soft p-1.5 flex flex-col gap-1 min-h-0 overflow-hidden',
+                'relative border-b border-e border-border-soft p-1.5 flex flex-col gap-1 min-h-0 overflow-hidden select-none',
                 !inMonth && 'bg-out-month',
                 inMonth && isWeekend(d) && 'bg-weekend',
                 onCreate && 'cursor-crosshair',
+                inDrag(iso) && 'bg-accent/10',
               )}
             >
               <div className="flex items-start justify-between gap-1">

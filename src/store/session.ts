@@ -22,7 +22,7 @@ interface SessionState {
   createProject: (input: Omit<Project, 'id'>) => Promise<void>
   updateProject: (id: string, patch: Partial<Project>) => Promise<void>
   deleteProject: (id: string) => Promise<void>
-  createTask: (input: Omit<Task, 'id' | 'version' | 'approval'>, firstPartLabel: string) => Promise<Task>
+  createTask: (input: Omit<Task, 'id' | 'version' | 'approval'>, firstPart: { label: string; time?: string; hours?: number }) => Promise<Task>
   updateTask: (id: string, patch: Partial<Task>) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   upsertPart: (part: Omit<TaskPart, 'id'> & { id?: string }) => Promise<void>
@@ -108,9 +108,9 @@ export const useSession = create<SessionState>((set, get) => ({
     adminOnly(get)
     await guard(repo.deleteProject(id))
   },
-  async createTask(input, firstPartLabel) {
+  async createTask(input, firstPart) {
     adminOnly(get)
-    return guard(repo.createTask(input, firstPartLabel))
+    return guard(repo.createTask(input, firstPart))
   },
   async updateTask(id, patch) {
     const u = get().user

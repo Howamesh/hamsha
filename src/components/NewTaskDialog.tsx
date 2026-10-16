@@ -12,7 +12,17 @@ import { Avatar, Button, Input, SectionTitle } from './ui'
  * "New task" sheet — opened by clicking a day (admin). Gathers everything the
  * task card shows so the task lands complete on the calendar in one step.
  */
-export function NewTaskDialog({ day, clientId, onClose }: { day: IsoDate; clientId: string | null; onClose: () => void }) {
+export interface NewTaskSeed {
+  day: IsoDate
+  /** Last day of a dragged range in the month view (inclusive) */
+  endDay?: IsoDate
+  /** Dragged hour range in the day view → first part's time + hours */
+  fromHour?: number
+  toHour?: number
+}
+
+export function NewTaskDialog({ seed, clientId, onClose }: { seed: NewTaskSeed; clientId: string | null; onClose: () => void }) {
+  const { day } = seed
   const { t, lang } = useStr()
   const s = useData()
   const me = useUser()!
@@ -32,7 +42,9 @@ export function NewTaskDialog({ day, clientId, onClose }: { day: IsoDate; client
   const [type, setType] = useState<TaskType>('static')
   const [owner, setOwner] = useState(me.id)
   const [start, setStart] = useState(day)
-  const [end, setEnd] = useState(day)
+  const [end, setEnd] = useState(seed.endDay && seed.endDay > day ? seed.endDay : day)
+  const [time, setTime] = useState(seed.fromHour !== undefined ? `${String(seed.fromHour).padStart(2, '0')}:00` : '')
+  const [hours, setHours] = useState(seed.fromHour !== undefined && seed.toHour !== undefined ? Math.max(1, seed.toHour - seed.fromHour) : 4)
   const [part, setPart] = useState('')
   const team = s.users.filter((u) => u.role !== 'client')
 
@@ -41,7 +53,7 @@ export function NewTaskDialog({ day, clientId, onClose }: { day: IsoDate; client
     if (!title.trim() || !client || !project) return
     const task = await sess.createTask(
       { projectId: project, clientId: client, title: title.trim(), type, start, end: end < start ? start : end, ownerId: owner },
-      part.trim() || t('defaultPart'),
+      { label: part.trim() || t('defaultPart'), time: time || undefined, hours },
     )
     onClose()
     openTask(task.id)
@@ -123,7 +135,22 @@ export function NewTaskDialog({ day, clientId, onClose }: { day: IsoDate; client
           </label>
         </div>
 
-        <Input value={part} onChange={(e) => setPart(e.target.value)} placeholder={t('firstPart')} dir="auto" className="py-2.5 text-[13px]" />
+        <div className="flex flex-col gap-1.5">
+          <SectionTitle>{t('firstPartTitle')}</SectionTitle>
+          <div className="flex gap-2">
+            <Input value={part} onChange={(e) => setPart(e.target.value)} placeholder={t('firstPart')} dir="auto" className="py-2.5 text-[13px]" />
+            <div className="flex items-center gap-1 shrink-0" dir="ltr">
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={cn(field, 'w-[110px]')} title={t('handOffTime')} />
+              <input type="number" min={0.5} step={0.5} value={hours} onChange={(e) => setHours(Math.max(0.5, Number(e.target.value) || 0.5))} className={cn(field, 'w-[64px] text-center')} title={t('hours')} />
+              <span className="text-[11px] text-fg-muted">{t('hourShort')}</span>
+            </div>
+          </div>
+          {seed.fromHour !== undefined && seed.toHour !== undefined && (
+            <div className="text-[11.5px] text-fg-secondary" dir="auto">
+              {t('selectedRange', { from: `${String(seed.fromHour).padStart(2, '0')}:00`, to: `${String(seed.toHour).padStart(2, '0')}:00` })}
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center justify-end gap-2 pt-1">
           <Button type="button" onClick={onClose}>
