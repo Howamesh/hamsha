@@ -98,8 +98,8 @@ export function MonthView({ tasks, onCreate, emptyMsg, hint }: { tasks: Task[]; 
                 !inMonth && 'bg-out-month',
                 inMonth && isWeekend(d) && 'bg-weekend',
                 onCreate && 'cursor-crosshair',
-                inDrag(iso) && 'bg-accent/10',
               )}
+              style={inDrag(iso) ? { background: 'color-mix(in oklab, var(--accent) 12%, var(--card))' } : undefined}
             >
               <div className="flex items-start justify-between gap-1">
                 <span className={cn('text-[10px] font-medium text-fg-muted truncate', !inMonth && 'opacity-60')}>{hijriCell(d, lang)}</span>

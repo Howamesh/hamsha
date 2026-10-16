@@ -111,9 +111,10 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (seed: 
               key={h}
               className={cn(
                 'relative flex min-h-[46px] border-b border-border-soft select-none',
-                onCreate && 'cursor-crosshair hover:bg-muted-bg/40',
-                inDrag(h) && 'bg-accent/10',
+                onCreate && 'cursor-crosshair',
+                onCreate && !drag && 'hover:bg-muted-bg/40',
               )}
+              style={inDrag(h) ? { background: 'color-mix(in oklab, var(--accent) 12%, var(--card))' } : undefined}
               onPointerDown={(e) => {
                 if (!onCreate || e.button !== 0) return
                 if ((e.target as HTMLElement).closest('button')) return
