@@ -7,7 +7,7 @@
 import { CalculationMethod, Coordinates, PrayerTimes } from 'adhan'
 import { clock12 } from './dates'
 
-export type CityId = 'riyadh' | 'jeddah' | 'makkah' | 'madinah' | 'dammam' | 'dubai' | 'cairo' | 'istanbul'
+export type CityId = 'riyadh' | 'jeddah' | 'makkah' | 'madinah' | 'qassim' | 'dammam' | 'dubai' | 'cairo' | 'istanbul'
 
 export interface City {
   id: CityId
@@ -22,6 +22,7 @@ export const CITIES: City[] = [
   { id: 'jeddah', name: { en: 'Jeddah', ar: 'جدة' }, lat: 21.4858, lng: 39.1925, tz: 'Asia/Riyadh' },
   { id: 'makkah', name: { en: 'Makkah', ar: 'مكة المكرمة' }, lat: 21.3891, lng: 39.8579, tz: 'Asia/Riyadh' },
   { id: 'madinah', name: { en: 'Madinah', ar: 'المدينة المنورة' }, lat: 24.5247, lng: 39.5692, tz: 'Asia/Riyadh' },
+  { id: 'qassim', name: { en: 'Al-Qassim (Buraydah)', ar: 'القصيم (بريدة)' }, lat: 26.3592, lng: 43.9818, tz: 'Asia/Riyadh' },
   { id: 'dammam', name: { en: 'Dammam', ar: 'الدمام' }, lat: 26.4207, lng: 50.0888, tz: 'Asia/Riyadh' },
   { id: 'dubai', name: { en: 'Dubai', ar: 'دبي' }, lat: 25.2048, lng: 55.2708, tz: 'Asia/Dubai' },
   { id: 'cairo', name: { en: 'Cairo', ar: 'القاهرة' }, lat: 30.0444, lng: 31.2357, tz: 'Africa/Cairo' },
