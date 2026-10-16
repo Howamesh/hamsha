@@ -9,6 +9,7 @@ import { useUi } from '@/store/ui'
 import { TASK_TYPES, type TaskType } from '@/types'
 import { Avatar, Button, Input, SectionTitle } from './ui'
 import { DraftInput } from './DraftInput'
+import { ClientTaskSummary } from './ClientTaskSummary'
 
 /** Soft limit: a member's open parts on one day beyond this show a warning (never blocks saving). */
 const DAY_HOURS_LIMIT = 8
@@ -25,6 +26,7 @@ export function TaskSheet() {
   const visible = task && me ? visibleTasks(s, me, null).some((x) => x.id === task.id) : false
   const [newPart, setNewPart] = useState('')
   if (!task || !me || !visible) return null
+  if (me.role === 'client') return <ClientTaskSummary />
 
   const admin = me.role === 'admin'
   const client = clientById(s, task.clientId)
@@ -38,8 +40,7 @@ export function TaskSheet() {
   const mm = Math.floor((Math.abs(ms) % 36e5) / 6e4)
   const countdown = lang === 'ar' ? `${Math.floor(h / 24)}ي ${h % 24}س ${mm}د` : `${Math.floor(h / 24)}d ${h % 24}h ${mm}m`
   const cdTone = pr.total && pr.done === pr.total ? 'bg-success-tint text-success-dark' : ms < 0 ? 'bg-danger-tint text-danger-dark' : ms < 864e5 ? 'bg-warning-tint text-warning-dark' : 'bg-success-tint text-success-dark'
-  const isClient = me.role === 'client'
-  const canToggle = (assigneeId: string) => !isClient && (admin || assigneeId === me.id)
+  const canToggle = (assigneeId: string) => admin || assigneeId === me.id
   const color = client?.color ?? '#D9B600'
   const approval = { draft: { en: 'Draft', ar: 'مسودة' }, pending: { en: 'Pending', ar: 'بانتظار الاعتماد' }, approved: { en: 'Approved', ar: 'معتمد' } }
 
@@ -142,7 +143,7 @@ export function TaskSheet() {
                 {approval[task.approval][lang]}
               </span>
             </div>
-            {task.approval === 'draft' && !isClient && (
+            {task.approval === 'draft' && (
               <Button size="sm" onClick={() => void sess.updateTask(task.id, { approval: 'pending' })}>
                 {t('sendForApproval')}
               </Button>
