@@ -194,17 +194,12 @@ begin
     if old.assignee_id is distinct from auth.uid() then
       raise exception 'not your part';
     end if;
-    if new.label       is distinct from old.label
-    or new.assignee_id is distinct from old.assignee_id
-    or new.hours       is distinct from old.hours
-    or new.day         is distinct from old.day
-    or new.hand_off    is distinct from old.hand_off
-    or new.position    is distinct from old.position then
+    -- allow-list: only the done flag (done_at is derived below, never taken from the client)
+    if (to_jsonb(new) - array['done', 'done_at']) is distinct from (to_jsonb(old) - array['done', 'done_at']) then
       raise exception 'creatives can only mark parts done';
     end if;
   end if;
-  if new.done and not old.done then new.done_at := now(); end if;
-  if not new.done then new.done_at := null; end if;
+  new.done_at := case when not new.done then null when old.done then old.done_at else now() end;
   return new;
 end $$;
 create trigger task_parts_guard before update on task_parts

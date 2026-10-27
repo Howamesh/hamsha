@@ -1,34 +1,55 @@
 # Supabase — سير العمل
 
-## الترتيب
+## الترتيب (تُطبَّق بالترتيب في SQL Editor أو عبر supabase CLI)
 1. `0001_schema.sql` الجداول + المحفّزات + `can_read_task()`.
-2. `0002_policies.sql` تفعيل RLS + السياسات + النشر للـ Realtime.
+2. `0002_policies.sql` المنح الصريحة + RLS + واجهتا العميل (`client_tasks`, `client_task_parts`) + النشر للـ Realtime.
+3. `0003_invitations.sql` نظام الدعوات: جدول `invitations` + دالة `invite_user()` + محفّز `on_auth_user_created`.
+4. `0004_rpc.sql` عمليات ذرية (`create_client`, `create_task`) + محفّزات تنظيف المحادثات عند حذف مهمة/عميل.
+5. `seed/production.sql` مرة واحدة: المنظمة + دعوة أول إدارة (بدّل `<ADMIN-EMAIL>` و`<ADMIN-NAME>` قبل التشغيل).
 
-## اختبار RLS (يُشغَّل في SQL Editor أو عبر supabase CLI قبل أي دعوة)
-```sql
-begin;
--- اختر هوية (استبدل <uuid> بمعرّف مستخدم حقيقي من auth.users)
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"<admin-uuid>","role":"authenticated"}', true);
--- المدير: يقرأ ويكتب داخل منظمته؛ منظمة أخرى = 0 صفوف / رفض
-select count(*) from tasks;                 -- كل مهام منظمته
--- المبدع:
-select set_config('request.jwt.claims', '{"sub":"<creative-uuid>","role":"authenticated"}', true);
-select count(*) from tasks;                 -- مهامه فقط (مالك أو له جزء)
-update tasks set start_date = start_date + 1 where id = '<task>';   -- يجب أن يفشل
-update task_parts set done = true where id = '<own-part>';           -- ينجح
-update task_parts set done = true where id = '<others-part>';        -- يفشل
--- العميل:
-select set_config('request.jwt.claims', '{"sub":"<client-uuid>","role":"authenticated"}', true);
-select count(*) from tasks;                 -- تقويمه فقط
-select count(*) from profiles;              -- المدراء + مستخدمو عميله فقط
-insert into messages (org_id, channel, sender_id, body) values ('<org>', 'team', '<client-uuid>', 'x'); -- يفشل
-rollback;
-```
-كل سطر «يفشل» يجب أن يرفع خطأ RLS؛ أي نجاح غير متوقع = لا نطلق.
+## قاعدة العميل (2026-10-27)
+العميل **لا يقرأ جدولي `tasks` و`task_parts` أبداً**. يقرأ فقط الواجهتين `client_tasks` (عنوان، نوع، تواريخ، اعتماد) و`client_task_parts` (اسم المرحلة + تمت/لم تتم). محادثة المهمة `task:<id>` للإدارة والمبدعين المشاركين فقط. أي إضافة مستقبلية للعميل = واجهة جديدة بحقول محددة، لا سياسة على الجدول.
 
-## ما زال غير مكتوب (يُكتب في خطوة الربط)
-- `invite_user(email, role, client_id)` RPC (security definer، للمدير فقط) + جدول `invitations` بصلاحية ومدة انتهاء.
-- `handle_new_user` trigger على `auth.users`: ينشئ `profiles` + `user_settings` من سجل الدعوة فقط.
-- بذرة الإنتاج (منظمة + أول مدير).
-- `createSupabaseRepo()` في `src/data/`: تحميل كامل للمهام/الأجزاء المصرّح بها (مع ترقيم داخلي حتى الاكتمال)، دمج تغييرات Realtime صفاً صفاً، تحديثات مشروطة بالإصدار مع إعادة جلب عند التعارض.
+## كيف يدخل عضو جديد (دعوة فقط — لا تسجيل مفتوح)
+1. الإدارة في همشة: `invite_user(email, role, client_id, name)` (للعميل `client_id` إلزامي، للفريق ممنوع). يُسجَّل في `invitations` بصلاحية ٧ أيام؛ إعادة الدعوة لنفس الإيميل تحدّث الدعوة المفتوحة وتمدّدها.
+2. إرسال الإيميل نفسه: لوحة Supabase → Authentication → Users → **Invite user** بنفس الإيميل (المرحلة ١؛ لاحقاً Edge Function تنادي `auth.admin.inviteUserByEmail`).
+3. لما يقبل الشخص الدعوة ويضع كلمة سره، يُنشأ صف في `auth.users` → المحفّز `handle_new_user()` ينشئ `profiles` + `user_settings` **من الدعوة فقط** ويعلّمها مقبولة. بلا دعوة مفتوحة = يُرفض إنشاء الحساب (الإيميل المجهول يطلع له «Database error saving new user» — هذا مقصود).
+4. في لوحة Supabase قبل أول دعوة: Authentication → Providers → Email: **أطفئ «Allow new users to sign up»**، فعّل تأكيد الإيميل وحماية كلمات المرور المسرّبة. وفي Authentication → URL Configuration: Site URL = `https://hamsha.studio` و Redirect URLs تشمل `https://hamsha.studio/welcome` (+ `http://localhost:5173/welcome` للتطوير) — رابط الدعوة ورابط «نسيت كلمة المرور» يفتحان شاشة `/welcome` حيث يختار الشخص كلمة مروره ويدخل.
+5. إيميل واحد = حساب واحد = منظمة واحدة (فهرس فريد على `profiles` و على الدعوات المفتوحة عبر كل المنظمات).
+
+ملاحظة: المحفّز يعمل بدور `supabase_auth_admin`، لذلك صلاحية تنفيذ `handle_new_user()` ممنوحة له فقط.
+
+## المستودع الحقيقي `src/data/supabase.ts`
+- `VITE_BACKEND=supabase` + `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (و`VITE_DEMO=false` في الإنتاج).
+- الفريق: يقرأ الجداول (RLS تفلتر الصفوف) ويستقبل Realtime على messages/tasks/task_parts/profiles/clients/projects ويعيد التحميل مجمّعاً.
+- العميل: يقرأ الواجهتين فقط، ويعيد التحميل كل دقيقة + Realtime على الرسائل.
+- كل كتابة يتبعها إعادة تحميل؛ تحديث المهمة مشروط بـ `version` (لو تغيّر عند غيرك ترجع «stale» وتُعاد القراءة).
+- المبدع يرسل على `task_parts` حقل `done` فقط (القاعدة ترفض غيره).
+- الإنشاءات المركبة عبر RPC (`create_client`, `create_task`)؛ الحذف يعتمد على cascade + محفّزات تنظيف المحادثات.
+- **كُتب قبل وجود المشروع (2026-10-27)، راجعه Codex، وفُحص بالأنواع فقط.**
+
+## أول تشغيل حي (قائمة الفحص)
+1. نافذة خاصة بلا جلسة → شاشة الدخول تظهر فوراً (بلا خطأ تحميل).
+2. تطبيق 0001→0004 ثم `seed/production.sql` بإيميل الإدارة → Invite user من اللوحة → الرابط يفتح `/welcome` → كلمة مرور → الدخول كإدارة.
+3. من SQL Editor: `select invite_user('creative@…','creative')` و `select invite_user('client@…','client','<client-id>')` → Invite user لكل واحد → دخولهم → يشوف كل واحد ما له فقط. وجرّب إيميلاً غير مدعو: يجب أن يُرفض.
+4. إنشاء عميل + مشروع + مهمة + جزء + رسالة من الواجهة، وقارن عدد الصفوف في الجداول.
+5. نافذتان بحسابين: تعديل نفس المهمة بنفس الإصدار → الثانية «stale»؛ حذف مهمة لها محادثة → المحادثة تختفي؛ فك ارتباط حساب عميل من لوحة الإدارة.
+6. Realtime: رسالة من نافذة تظهر في الثانية؛ العميل يرى مهمة جديدة خلال دقيقة.
+7. «نسيت كلمة المرور» من شاشة الدخول → الإيميل → `/welcome`.
+
+## اختبار الاختراق (إلزامي قبل أي تعديل على الصلاحيات)
+`supabase/tests/rls.sql` = ٩١ محاولة بالأدوار كلها (إدارة / مبدع مشارك / مبدع غير مشارك / عميل / عميل ثانٍ / مجهول / نظام المصادقة) مع النتيجة المتوقعة لكل سطر، وتشمل نظام الدعوات.
+
+- محلياً (PostgreSQL 16 من Homebrew، بدون Supabase):
+  ```bash
+  supabase/tests/run-local.sh
+  ```
+  يطبّق كل الترحيلات + البذرة ويطبع PASS/FAIL لكل سطر. المطلوب: `failures | 0`. (على GitHub يشتغل تلقائياً عبر `.github/workflows/checks.yml`.)
+- على مشروع Supabase حقيقي: بذرة الاختبار تكتب في `auth.users` مباشرة ولا تناسب مشروعاً حياً؛ اختبر هناك بحسابات مدعوة فعلاً (إدارة + مبدع + عميل تجريبي) وبالاستعلامات نفسها من `rls.sql` بعد تبديل المعرّفات.
+
+نتيجة 2026-10-27: السياسات القديمة = ١١ فشل (منها: العميل يقرأ الوصف والساعات، يدخل محادثة المهمة، **ويرفع نفسه إلى admin** عبر `profiles_admin_update`). الحالية = ٠ فشل من ٩١.
+
+## ما زال غير مكتوب
+- زر «ادعُ عضواً» في لوحة الإدارة (الدالة `invite_user` جاهزة؛ الواجهة لاحقاً — حالياً تُستدعى من SQL Editor ثم Invite user من اللوحة).
+- Edge Function لإرسال الدعوة من داخل همشة (بدل خطوة اللوحة).
+- سياسات Storage للمرفقات (المرحلة ٢).
