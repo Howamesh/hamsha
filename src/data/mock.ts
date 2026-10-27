@@ -118,6 +118,15 @@ export function createMockRepo(): Repo {
       const id = localStorage.getItem(SESSION_KEY)
       return snap.users.find((u) => u.id === id) ?? null
     },
+    async requestPasswordReset() {
+      await delay(200) // demo store has no passwords — nothing to send
+    },
+    async setPassword() {
+      const id = localStorage.getItem(SESSION_KEY)
+      const u = snap.users.find((x) => x.id === id)
+      if (!u) throw new Error('no session')
+      return u
+    },
     async load() {
       await delay(50)
       return snap

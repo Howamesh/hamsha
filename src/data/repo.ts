@@ -20,6 +20,10 @@ export interface Repo {
   signIn(email: string, password: string): Promise<User>
   signOut(): Promise<void>
   restoreSession(): Promise<User | null>
+  /** E-mails a password-reset link (no-op on the mock). */
+  requestPasswordReset(email: string): Promise<void>
+  /** Sets the password of the session opened by an invite / reset link, then returns the user. */
+  setPassword(password: string): Promise<User>
   load(): Promise<Snapshot>
   /** Subscribe to live changes (chat/presence). Returns unsubscribe. */
   subscribe(cb: (s: Snapshot) => void): () => void

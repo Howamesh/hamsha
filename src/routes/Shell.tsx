@@ -9,6 +9,7 @@ import { visibleTasks } from '@/lib/derive'
 import { useNarrow, useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
+import { IS_DEMO } from '@/data'
 import { Avatar, Button, Badge, Logo, Segmented } from '@/components/ui'
 import { MonthView } from '@/components/calendar/MonthView'
 import { WeekView } from '@/components/calendar/WeekView'
@@ -82,6 +83,8 @@ function App() {
     <div className="h-dvh flex flex-col gap-[var(--gap)] p-[var(--gap)] bg-bg overflow-hidden">
       {/* Top bar */}
       <header className="flex items-center gap-2 flex-wrap rounded-md border border-border bg-card px-3 py-2 shrink-0 z-30">
+        {/* Development only: anyone screenshotting the demo store sees it is not real data */}
+        {IS_DEMO && import.meta.env.DEV && <Badge className="bg-warning-tint text-warning-dark">{t('demoBadge')}</Badge>}
         {isAdmin && client && (
           <Button size="icon" onClick={() => ui.setCalId(null)} aria-label={t('back')}>
             {lang === 'ar' ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}

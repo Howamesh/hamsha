@@ -51,6 +51,7 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (seed: 
   const taskIds = new Set(tasks.map((x) => x.id))
   const partsToday = s.parts.filter((p) => p.day === focus && taskIds.has(p.taskId) && (user?.role !== 'creative' || p.assigneeId === user.id))
   const isCreative = user?.role === 'creative'
+  const isClient = user?.role === 'client' // clients never see people or hours (design S12)
   const prayers = usePrayers()
   const fajr = prayers[0]
   const H0 = isCreative ? Math.min(7, fajr.hour) : 7
@@ -94,9 +95,9 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (seed: 
                   {client?.name} · {task.title}
                 </span>
                 <span className="text-[11px] font-semibold text-fg-secondary tabular-nums">
-                  {pr.done}/{pr.total} · {pr.hours}{t('hourShort')}
+                  {pr.done}/{pr.total}{!isClient && <> · {pr.hours}{t('hourShort')}</>}
                 </span>
-                {owner && <Avatar name={owner.name} color={owner.color} size={20} />}
+                {owner && !isClient && <Avatar name={owner.name} color={owner.color} size={20} />}
               </button>
             )
           })}
@@ -168,7 +169,7 @@ export function DayView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (seed: 
                           {p.label}
                         </span>
                         <span className="text-[10.5px] text-fg-muted truncate">· {task?.title}</span>
-                        {who && <Avatar name={who.name} color={who.color} size={18} className="ms-auto" />}
+                        {who && !isClient && <Avatar name={who.name} color={who.color} size={18} className="ms-auto" />}
                       </button>
                     )
                   })}

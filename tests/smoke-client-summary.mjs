@@ -4,12 +4,13 @@ const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chro
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 let tabs; for (let i=0;i<50;i++){ try{ tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if(tabs.find(t=>t.type==='page')) break;}catch{} await sleep(200);}
 const ws = new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl); await new Promise(r=>ws.onopen=r);
-let id=0; const pend={}; ws.onmessage = m => { const d=JSON.parse(m.data); if(d.id&&pend[d.id]){pend[d.id](d);delete pend[d.id];} };
+let id=0; const pend={}; const errors=[];
+ws.onmessage = m => { const d=JSON.parse(m.data); if(d.id&&pend[d.id]){pend[d.id](d);delete pend[d.id];} if(d.method==='Runtime.exceptionThrown') errors.push(d.params.exceptionDetails.text+' '+(d.params.exceptionDetails.exception?.description||'')); if(d.method==='Runtime.consoleAPICalled'&&d.params.type==='error') errors.push(d.params.args.map(a=>a.value||a.description).join(' ')); };
 const send=(method,params={})=>new Promise(r=>{const i=++id;pend[i]=r;ws.send(JSON.stringify({id:i,method,params}));});
 const ev = async js => (await send('Runtime.evaluate',{expression:js,awaitPromise:true,returnByValue:true})).result?.result?.value;
 const waitFor = async (js, ms=15000) => { const t0=Date.now(); while(Date.now()-t0<ms){ if(await ev(js)) return true; await sleep(150);} throw new Error('timeout: '+js); };
-await send('Page.enable'); await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
-await send('Page.navigate',{url:'http://localhost:5173/login'}); await sleep(1500);
+await send('Runtime.enable'); await send('Page.enable'); await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
+await send('Page.navigate',{url:(process.env.HAMSHA_URL ?? 'http://localhost:5173') + '/login'}); await sleep(1500);
 await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='ادخل كمدير')`, 30000);
 const click = async (txt) => { await ev(`(()=>{const els=[...document.querySelectorAll('button,a,div,span')].filter(e=>e.offsetParent!==null&&e.textContent.trim()===${JSON.stringify(txt)});const el=els[els.length-1];el&&el.click()})()`); await sleep(450); };
 const setInput = async (sel, v, evt='input') => ev(`(()=>{const el=${sel};const proto=el.tagName==='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${JSON.stringify(v)});el.dispatchEvent(new Event(${JSON.stringify(evt)},{bubbles:true}));return 'ok'})()`);
@@ -43,7 +44,24 @@ const CHECKS = {
   'hides people': !text.includes('Ibrahim') && !text.includes('Producer'),
   'hides hours/brief/approval': !/س\b/.test(text) && !text.includes('الوصف') && !text.includes('إرسال للاعتماد'),
 };
-console.log(text);
+// Close the summary, then walk week + day views: a client must never see people or hours anywhere (design S12)
+await ev(`document.querySelector('[role=dialog] button[aria-label]')?.click()`); await sleep(300);
+const leaks = {};
+const nav = async (label) => ev(`document.querySelector('button[aria-label="${label}"]').click()`);
+for (const v of ['أسبوع', 'يوم']) {
+  await click(v); await sleep(500);
+  // walk back/forward until the task is on screen (it was created earlier this month)
+  let found = false;
+  const steps = v === 'أسبوع' ? [...Array(6).fill('السابق'), ...Array(12).fill('التالي')] : [...Array(6).fill('التالي'), ...Array(12).fill('السابق')];
+  for (let i = 0; i <= steps.length && !found; i++) { found = await ev(`document.body.innerText.includes('بوست عن الصدقة')`); if (!found && i < steps.length) { await nav(steps[i]); await sleep(250); } }
+  const html = await ev(`document.body.innerHTML`); const body = await ev(`document.body.innerText`);
+  leaks[v] = { found, people: /Ibrahim|AlQifari|Producer/.test(html), hours: /\d(\.\d)?س(\s|$|·)/.test(body) || body.includes('الساعات') };
+}
+CHECKS['week/day show the task'] = leaks['أسبوع'].found && leaks['يوم'].found;
+CHECKS['week/day hide people'] = !leaks['أسبوع'].people && !leaks['يوم'].people;
+CHECKS['week/day hide hours'] = !leaks['أسبوع'].hours && !leaks['يوم'].hours;
+CHECKS['no console errors'] = errors.length === 0;
+console.log(text, JSON.stringify(leaks), JSON.stringify({ errors }));
 ws.close(); chrome.kill(); try{fs.rmSync(`/tmp/hamsha-chrome-${port}`,{recursive:true,force:true})}catch{}
 const failed = Object.entries(CHECKS).filter(([, ok]) => !ok).map(([c]) => c)
 if (failed.length) { console.error('FAILED:', failed); process.exit(1) }

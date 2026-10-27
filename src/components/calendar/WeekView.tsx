@@ -5,7 +5,7 @@ import { hijriCell } from '@/lib/hijri'
 import { clientById, tasksOnDay, taskProgress, urgency, userById } from '@/lib/derive'
 import { useStr, useNow } from '@/lib/useStr'
 import { useUi } from '@/store/ui'
-import { useData } from '@/store/session'
+import { useData, useUser } from '@/store/session'
 import { Avatar } from '../ui'
 import { BrandTile } from '../BrandTile'
 import type { Task } from '@/types'
@@ -16,6 +16,7 @@ const dot: Record<string, string> = { late: 'var(--accent)', soon: 'var(--warnin
 export function WeekView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (seed: NewTaskSeed) => void }) {
   const { days, lang, t } = useStr()
   const s = useData()
+  const isClient = useUser()?.role === 'client' // clients never see people or hours (design S12)
   const now = useNow()
   const focus = useUi((u) => u.focus)
   const weekStart = useUi((u) => u.weekStart)
@@ -97,9 +98,9 @@ export function WeekView({ tasks, onCreate }: { tasks: Task[]; onCreate?: (seed:
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 mt-2">
-                        {owner && <Avatar name={owner.name} color={owner.color} size={18} />}
+                        {owner && !isClient && <Avatar name={owner.name} color={owner.color} size={18} />}
                         <span className="text-[10.5px] font-semibold text-fg-secondary">
-                          {pr.done}/{pr.total} · {pr.hours}{t('hourShort')}
+                          {pr.done}/{pr.total}{!isClient && <> · {pr.hours}{t('hourShort')}</>}
                         </span>
                       </div>
                     </button>

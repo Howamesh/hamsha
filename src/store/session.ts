@@ -15,6 +15,9 @@ interface SessionState {
   boot: () => Promise<void>
   signIn: (email: string, pw: string) => Promise<void>
   signOut: () => Promise<void>
+  requestPasswordReset: (email: string) => Promise<void>
+  /** Invite / reset link opened → the person sets a password and lands signed in. */
+  completeInvite: (password: string) => Promise<void>
 
   createClient: (name: string, defaultProjectName: string) => Promise<void>
   updateClient: (id: string, patch: Partial<Client>) => Promise<void>
@@ -76,12 +79,22 @@ export const useSession = create<SessionState>((set, get) => ({
   },
   async signIn(email, pw) {
     const user = await repo.signIn(email, pw)
-    set({ user })
+    // Reload for the new identity: never keep the previous account's snapshot in memory.
+    const data = await repo.load()
+    set({ user, data })
   },
   async signOut() {
     await repo.signOut()
-    set({ user: null })
+    set({ user: null, data: null })
     useUi.getState().resetForUser()
+  },
+  async requestPasswordReset(email) {
+    await repo.requestPasswordReset(email.trim())
+  },
+  async completeInvite(password) {
+    const user = await repo.setPassword(password)
+    const data = await repo.load()
+    set({ user, data })
   },
 
   async createClient(name, defaultProjectName) {
@@ -161,8 +174,9 @@ export const useSession = create<SessionState>((set, get) => ({
   async sendMessage(channel, body) {
     const u = get().user
     if (!u || !body.trim()) return
+    // Mirrors can_access_channel() in supabase/migrations/0002_policies.sql: task chat is internal (never a client).
     const allowed =
-      channel === 'team' ? u.role !== 'client' : channel.startsWith('client:') ? u.role === 'admin' || (u.role === 'client' && channel === `client:${u.clientId}`) : true
+      channel === 'team' ? u.role !== 'client' : channel.startsWith('client:') ? u.role === 'admin' || (u.role === 'client' && channel === `client:${u.clientId}`) : u.role !== 'client'
     if (!allowed) throw new Error('forbidden')
     await guard(repo.sendMessage(channel, u.id, body.trim()))
   },

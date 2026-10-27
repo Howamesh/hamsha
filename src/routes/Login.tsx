@@ -10,6 +10,8 @@ export default function Login() {
   const { t, lang } = useStr()
   const setLang = useUi((s) => s.setLang)
   const signIn = useSession((s) => s.signIn)
+  const requestPasswordReset = useSession((s) => s.requestPasswordReset)
+  const [notice, setNotice] = useState<string | null>(null)
   const nav = useNavigate()
   const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
@@ -85,9 +87,19 @@ export default function Login() {
               {busy ? t('signingIn') : t('signIn')}
             </Button>
           </div>
-          <button type="button" className="text-[12.5px] text-fg-secondary hover:text-fg self-start cursor-pointer">
+          <button
+            type="button"
+            className="text-[12.5px] text-fg-secondary hover:text-fg self-start cursor-pointer"
+            disabled={busy}
+            onClick={() => {
+              setError(null)
+              if (!email.trim()) return setNotice(t('resetNeedEmail'))
+              void requestPasswordReset(email).then(() => setNotice(t('resetSent'))).catch(() => setNotice(t('resetSent')))
+            }}
+          >
             {t('forgot')}
           </button>
+          {notice && <div className="rounded-md bg-muted-bg text-fg text-[12.5px] px-3 py-2 anim-fade">{notice}</div>}
         </form>
 
         {DEMO && (

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import Login from './routes/Login'
 import Shell from './routes/Shell'
+import Welcome from './routes/Welcome'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useSession } from './store/session'
 import { useUi } from './store/ui'
@@ -61,6 +62,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/welcome" element={<Welcome />} />
           <Route path="/*" element={<Shell />} />
         </Routes>
       </BrowserRouter>

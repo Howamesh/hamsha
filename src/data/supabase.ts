@@ -1,0 +1,351 @@
+/**
+ * Supabase repository — the real backend behind the same `Repo` contract as the mock.
+ *
+ * Security lives in the database (supabase/migrations/0002_policies.sql); this file only maps
+ * rows ⇄ domain types and chooses WHICH tables each role may read:
+ *   admin / creative → tasks + task_parts (RLS filters rows) + Realtime postgres_changes
+ *   client           → client_tasks + client_task_parts views (no people, hours or briefs) — views have
+ *                      no Realtime, so the client snapshot is refetched on an interval instead.
+ * Multi-row operations go through the transactional RPCs of 0004_rpc.sql (create_client, create_task);
+ * chat channels are removed by database triggers when a task/client is deleted.
+ * Every write is followed by a reload, so the store never holds a shape the database did not confirm
+ * (optimistic concurrency on tasks: `version` must match or the update is stale).
+ *
+ * Written 2026-10-27 before the Supabase project existed, reviewed by Codex the same night, type-checked
+ * only: the first live run follows supabase/README.md «أول تشغيل حي».
+ */
+import { createClient as createSupabaseClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js'
+import type { Repo, Snapshot } from './repo'
+import type { ChannelId, Client, Message, Presence, Profile, Project, Role, Task, TaskPart, User } from '@/types'
+import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
+
+// ---------- row shapes (snake_case, exactly the columns in 0001/0002) ----------
+interface ProfileRow { id: string; org_id: string; role: Role; name: string; email: string; title: string | null; color: string; client_id: string | null; presence: Presence }
+interface SettingsRow { user_id: string; city: string; wh_start: number; wh_end: number; notes: string; theme: 'light' | 'dark'; lang: 'ar' | 'en'; week_start: 'monday' | 'sunday' }
+interface ClientRow { id: string; name: string; color: string; logo_path: string | null; owner_id: string | null; start_date: string; end_date: string; contract: Client['contract'] }
+interface ProjectRow { id: string; client_id: string; name: string; lead_id: string | null; color: string }
+interface TaskRow { id: string; client_id: string; project_id: string; title: string; type: Task['type']; start_date: string; end_date: string; owner_id: string | null; description: string | null; reference: string | null; milestone: Task['milestone'] | null; approval: Task['approval']; version: number }
+interface ClientTaskRow { id: string; client_id: string; project_id: string; title: string; type: Task['type']; start_date: string; end_date: string; approval: Task['approval']; version: number }
+interface PartRow { id: string; task_id: string; label: string; assignee_id: string | null; hours: number; day: string; hand_off: string | null; done: boolean; position: number }
+interface ClientPartRow { id: string; task_id: string; label: string; done: boolean; position: number }
+interface MessageRow { id: string; channel: string; sender_id: string; body: string; created_at: string }
+
+const PALETTE = ['#D9B600', '#9B7BF2', '#4CB782', '#F06FA7', '#4E9BFA', '#F2994A', '#3B8EA5', '#7FA23B']
+const CLIENT_REFRESH_MS = 60_000
+const MESSAGE_LIMIT = 2000
+const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], presence: {}, profiles: {} }
+
+// ---------- row → domain ----------
+const toUser = (r: ProfileRow): User => ({ id: r.id, name: r.name, email: r.email, role: r.role, title: r.title ?? undefined, color: r.color, clientId: r.client_id ?? undefined })
+const toProfile = (r: SettingsRow): Profile => ({ userId: r.user_id, city: r.city, whStart: r.wh_start, whEnd: r.wh_end, notes: r.notes, theme: r.theme, lang: r.lang, weekStart: r.week_start })
+const toClient = (r: ClientRow): Client => ({ id: r.id, name: r.name, color: r.color, ownerId: r.owner_id ?? '', logo: r.logo_path ?? undefined, start: r.start_date, end: r.end_date, contract: r.contract })
+const toProject = (r: ProjectRow): Project => ({ id: r.id, clientId: r.client_id, name: r.name, leadId: r.lead_id ?? '', color: r.color })
+const toTask = (r: TaskRow | ClientTaskRow): Task => ({
+  id: r.id, projectId: r.project_id, clientId: r.client_id, title: r.title, type: r.type, start: r.start_date, end: r.end_date,
+  ownerId: 'owner_id' in r ? (r.owner_id ?? '') : '',
+  description: 'description' in r ? (r.description ?? undefined) : undefined,
+  reference: 'reference' in r ? (r.reference ?? undefined) : undefined,
+  milestone: 'milestone' in r ? (r.milestone ?? undefined) : undefined,
+  approval: r.approval, version: r.version,
+})
+/** Client view rows carry no hours/people: hours = 0 keeps the type honest without inventing data (progress is by count). */
+const toPart = (r: PartRow | ClientPartRow): TaskPart => ({
+  id: r.id, taskId: r.task_id, label: r.label,
+  assigneeId: 'assignee_id' in r ? (r.assignee_id ?? '') : '',
+  hours: 'hours' in r ? Number(r.hours) : 0,
+  day: 'day' in r ? r.day : '',
+  time: 'hand_off' in r && r.hand_off ? r.hand_off.slice(0, 5) : undefined,
+  done: r.done, order: r.position,
+})
+const toMessage = (r: MessageRow): Message => ({ id: r.id, channel: r.channel as ChannelId, senderId: r.sender_id, body: r.body, at: r.created_at })
+
+// ---------- domain → row (patches): `undefined` = leave unchanged; an explicit key with undefined clientId = unlink ----------
+const clientPatch = (p: Partial<Client>) => strip({ name: p.name, color: p.color, logo_path: p.logo, owner_id: p.ownerId, start_date: p.start, end_date: p.end, contract: p.contract })
+const projectPatch = (p: Partial<Project>) => strip({ name: p.name, color: p.color, lead_id: p.leadId, client_id: p.clientId })
+const taskPatch = (p: Partial<Task>) => strip({ title: p.title, type: p.type, start_date: p.start, end_date: p.end, owner_id: p.ownerId, project_id: p.projectId, client_id: p.clientId, description: p.description, reference: p.reference, milestone: p.milestone, approval: p.approval })
+const userPatch = (p: Partial<User>) => strip({ name: p.name, title: p.title, color: p.color, role: p.role, client_id: 'clientId' in p ? (p.clientId ?? null) : undefined })
+const settingsPatch = (p: Partial<Profile>) => strip({ city: p.city, wh_start: p.whStart, wh_end: p.whEnd, notes: p.notes, theme: p.theme, lang: p.lang, week_start: p.weekStart })
+function strip<T extends Record<string, unknown>>(o: T): Partial<T> {
+  const out: Partial<T> = {}
+  for (const k in o) if (o[k] !== undefined) out[k] = o[k]
+  return out
+}
+
+function fail(e: { message: string } | null, what: string): asserts e is null {
+  if (e) throw new Error(`${what}: ${e.message}`)
+}
+
+export function createSupabaseRepo(): Repo {
+  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+  if (!url || !key) throw new Error('VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are not set.')
+  // detectSessionInUrl (default) turns an invite / reset link (#access_token…) into a session for /welcome
+  const sb: SupabaseClient = createSupabaseClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } })
+
+  let me: User | null = null
+  let orgId: string | null = null
+  let snap: Snapshot | null = null
+  /** Bumped on every sign-in/out: a load that started under an older identity is discarded, never published. */
+  let gen = 0
+  const subs = new Set<(s: Snapshot) => void>()
+  let channel: RealtimeChannel | null = null
+  let timer: ReturnType<typeof setInterval> | null = null
+  let reloadTimer: ReturnType<typeof setTimeout> | null = null
+
+  const publish = (s: Snapshot) => {
+    snap = s
+    subs.forEach((cb) => cb(s))
+  }
+  /** Realtime fires per row; coalesce bursts into one reload. */
+  const scheduleReload = () => {
+    if (reloadTimer) clearTimeout(reloadTimer)
+    const g = gen
+    reloadTimer = setTimeout(() => {
+      void load()
+        .then((s) => {
+          if (g === gen) publish(s)
+        })
+        .catch((e) => console.warn('hamsha: live reload failed', e))
+    }, 150)
+  }
+
+  async function currentUser(): Promise<User | null> {
+    const { data: auth } = await sb.auth.getUser()
+    if (!auth.user) {
+      me = null
+      orgId = null
+      return null
+    }
+    const { data, error } = await sb.from('profiles').select('*').eq('id', auth.user.id).maybeSingle<ProfileRow>()
+    fail(error, 'profile')
+    // An auth user without a profile was never invited (handle_new_user refuses them) — treat as signed out.
+    if (!data) {
+      await sb.auth.signOut()
+      me = null
+      orgId = null
+      return null
+    }
+    me = toUser(data)
+    orgId = data.org_id
+    return me
+  }
+
+  async function load(): Promise<Snapshot> {
+    if (!me) await currentUser()
+    if (!me) return EMPTY // no session: nothing to ask the database (anon has no grants anyway)
+    const isClient = me.role === 'client'
+    const [users, settings, clients, projects, tasks, parts, messages] = await Promise.all([
+      sb.from('profiles').select('*').returns<ProfileRow[]>(),
+      sb.from('user_settings').select('*').returns<SettingsRow[]>(),
+      sb.from('clients').select('*').returns<ClientRow[]>(),
+      sb.from('projects').select('*').returns<ProjectRow[]>(),
+      isClient ? sb.from('client_tasks').select('*').returns<ClientTaskRow[]>() : sb.from('tasks').select('*').returns<TaskRow[]>(),
+      isClient ? sb.from('client_task_parts').select('*').returns<ClientPartRow[]>() : sb.from('task_parts').select('*').returns<PartRow[]>(),
+      // newest first so a long history never hides today's messages; shown oldest → newest
+      sb.from('messages').select('*').order('created_at', { ascending: false }).limit(MESSAGE_LIMIT).returns<MessageRow[]>(),
+    ])
+    for (const [r, what] of [[users, 'profiles'], [settings, 'settings'], [clients, 'clients'], [projects, 'projects'], [tasks, 'tasks'], [parts, 'parts'], [messages, 'messages']] as const) fail(r.error, what)
+    const presence: Record<string, Presence> = {}
+    for (const u of users.data ?? []) presence[u.id] = u.presence
+    const profiles: Record<string, Profile> = {}
+    for (const s of settings.data ?? []) profiles[s.user_id] = toProfile(s)
+    return {
+      users: (users.data ?? []).map(toUser),
+      clients: (clients.data ?? []).map(toClient),
+      projects: (projects.data ?? []).map(toProject),
+      tasks: (tasks.data ?? []).map(toTask),
+      parts: (parts.data ?? []).map(toPart),
+      messages: (messages.data ?? []).map(toMessage).reverse(),
+      presence,
+      profiles,
+    }
+  }
+
+  function startLive() {
+    stopLive()
+    if (!me) return
+    if (me.role === 'client') {
+      // Views are not published to Realtime (and the client must not subscribe to the raw tables).
+      timer = setInterval(scheduleReload, CLIENT_REFRESH_MS)
+      channel = sb.channel('client-live').on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, scheduleReload).subscribe()
+      return
+    }
+    channel = sb.channel('team-live')
+    for (const table of ['messages', 'tasks', 'task_parts', 'profiles', 'clients', 'projects']) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleReload)
+    }
+    channel.subscribe()
+  }
+  function stopLive() {
+    if (channel) void sb.removeChannel(channel)
+    channel = null
+    if (timer) clearInterval(timer)
+    timer = null
+    if (reloadTimer) clearTimeout(reloadTimer)
+    reloadTimer = null
+  }
+  function newIdentity() {
+    gen++
+    stopLive()
+    snap = null
+  }
+
+  const afterWrite = async <T,>(v: T): Promise<T> => {
+    const g = gen
+    const s = await load()
+    if (g === gen) publish(s)
+    return v
+  }
+
+  return {
+    async signIn(email, password) {
+      newIdentity()
+      const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password })
+      if (error) throw new Error('invalid')
+      const u = await currentUser()
+      if (!u) throw new Error('invalid')
+      startLive()
+      return u
+    },
+    async signOut() {
+      newIdentity()
+      me = null
+      orgId = null
+      await sb.auth.signOut()
+    },
+    async restoreSession() {
+      const u = await currentUser()
+      if (u) startLive()
+      return u
+    },
+    async requestPasswordReset(email) {
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/welcome` })
+      fail(error, 'requestPasswordReset')
+    },
+    async setPassword(password) {
+      const { error } = await sb.auth.updateUser({ password })
+      fail(error, 'setPassword')
+      newIdentity()
+      const u = await currentUser()
+      if (!u) throw new Error('no session')
+      startLive()
+      return u
+    },
+    async load() {
+      const s = await load()
+      snap = s
+      return s
+    },
+    subscribe(cb) {
+      subs.add(cb)
+      if (snap) cb(snap)
+      return () => subs.delete(cb)
+    },
+
+    async createClient(name, _ownerId, defaultProjectName) {
+      const color = PALETTE[(snap?.clients.length ?? 0) % PALETTE.length]
+      const { data, error } = await sb.rpc('create_client', { p_name: name, p_project_name: defaultProjectName, p_color: color }).single<ClientRow>()
+      fail(error, 'createClient')
+      return afterWrite(toClient(data))
+    },
+    async updateClient(id, patch) {
+      const cur = snap?.clients.find((c) => c.id === id)
+      if (cur) validateClientPatch(patch, cur)
+      const { data, error } = await sb.from('clients').update(clientPatch(patch)).eq('id', id).select('*').single<ClientRow>()
+      fail(error, 'updateClient')
+      return afterWrite(toClient(data))
+    },
+    async deleteClient(id) {
+      // projects/tasks/parts cascade in the database; chat channels are removed by triggers (0004)
+      const { error } = await sb.from('clients').delete().eq('id', id)
+      fail(error, 'deleteClient')
+      await afterWrite(undefined)
+    },
+    async createProject(input) {
+      if (!orgId) throw new Error('no session')
+      const { data, error } = await sb.from('projects').insert({ org_id: orgId, client_id: input.clientId, name: input.name, lead_id: input.leadId || null, color: input.color }).select('*').single<ProjectRow>()
+      fail(error, 'createProject')
+      return afterWrite(toProject(data))
+    },
+    async updateProject(id, patch) {
+      const { data, error } = await sb.from('projects').update(projectPatch(patch)).eq('id', id).select('*').single<ProjectRow>()
+      fail(error, 'updateProject')
+      return afterWrite(toProject(data))
+    },
+    async deleteProject(id) {
+      const { error } = await sb.from('projects').delete().eq('id', id)
+      fail(error, 'deleteProject')
+      await afterWrite(undefined)
+    },
+    async createTask(input, firstPart) {
+      validateNewTask(input)
+      validatePart({ taskId: '', label: firstPart.label, assigneeId: input.ownerId, hours: firstPart.hours ?? 4, day: input.start, time: firstPart.time, done: false, order: 0 })
+      const { data, error } = await sb
+        .rpc('create_task', {
+          p_client_id: input.clientId, p_project_id: input.projectId, p_title: input.title, p_type: input.type, p_start: input.start, p_end: input.end,
+          p_owner_id: input.ownerId || null, p_description: input.description ?? null, p_reference: input.reference ?? null, p_milestone: input.milestone ?? null,
+          p_part_label: firstPart.label, p_part_hours: firstPart.hours ?? 4, p_part_time: firstPart.time || null,
+        })
+        .single<TaskRow>()
+      fail(error, 'createTask')
+      return afterWrite(toTask(data))
+    },
+    async updateTask(id, patch, version) {
+      const cur = snap?.tasks.find((t) => t.id === id)
+      if (cur) validateTaskPatch(patch, cur)
+      // optimistic concurrency: the row must still be at the version the screen saw (tasks_touch bumps it)
+      const { data, error } = await sb.from('tasks').update(taskPatch(patch)).eq('id', id).eq('version', version).select('*').maybeSingle<TaskRow>()
+      fail(error, 'updateTask')
+      if (!data) {
+        await afterWrite(undefined)
+        throw new Error('stale') // changed by someone else, deleted, or no longer visible — the reload shows which
+      }
+      return afterWrite(toTask(data))
+    },
+    async deleteTask(id) {
+      const { error } = await sb.from('tasks').delete().eq('id', id)
+      fail(error, 'deleteTask')
+      await afterWrite(undefined)
+    },
+    async upsertPart(part) {
+      if (!orgId) throw new Error('no session')
+      validatePart(part, snap?.tasks.find((t) => t.id === part.taskId))
+      const row = { org_id: orgId, task_id: part.taskId, label: part.label, assignee_id: part.assigneeId || null, hours: part.hours, day: part.day, hand_off: part.time || null, done: part.done, position: part.order }
+      const q = part.id
+        ? me?.role === 'creative'
+          ? sb.from('task_parts').update({ done: part.done }).eq('id', part.id) // the DB allows creatives nothing but `done`
+          : sb.from('task_parts').update(row).eq('id', part.id)
+        : sb.from('task_parts').insert(row)
+      const { data, error } = await q.select('*').single<PartRow>()
+      fail(error, 'upsertPart')
+      return afterWrite(toPart(data))
+    },
+    async deletePart(id) {
+      const { error } = await sb.from('task_parts').delete().eq('id', id)
+      fail(error, 'deletePart')
+      await afterWrite(undefined)
+    },
+
+    async sendMessage(channel, senderId, body) {
+      if (!orgId) throw new Error('no session')
+      const { data, error } = await sb.from('messages').insert({ org_id: orgId, channel, sender_id: senderId, body }).select('*').single<MessageRow>()
+      fail(error, 'sendMessage')
+      return afterWrite(toMessage(data))
+    },
+    async setPresence(userId, p) {
+      const { error } = await sb.from('profiles').update({ presence: p, last_seen: new Date().toISOString() }).eq('id', userId)
+      fail(error, 'setPresence')
+      await afterWrite(undefined)
+    },
+    async updateUser(id, patch) {
+      const { data, error } = await sb.from('profiles').update(userPatch(patch)).eq('id', id).select('*').single<ProfileRow>()
+      fail(error, 'updateUser')
+      return afterWrite(toUser(data))
+    },
+    async updateProfile(userId, patch) {
+      const { data, error } = await sb.from('user_settings').upsert({ user_id: userId, ...settingsPatch(patch) }).select('*').single<SettingsRow>()
+      fail(error, 'updateProfile')
+      return afterWrite(toProfile(data))
+    },
+  }
+}
