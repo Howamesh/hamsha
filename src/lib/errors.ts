@@ -16,6 +16,7 @@ const MESSAGES: Record<string, { en: string; ar: string }> = {
   forbidden: { en: 'You are not allowed to do this.', ar: 'ليس لديك صلاحية لهذا الإجراء.' },
   'not found': { en: 'This item no longer exists.', ar: 'هذا العنصر لم يعد موجوداً.' },
   invalid: { en: 'Wrong email or password.', ar: 'البريد أو كلمة المرور غير صحيحة.' },
+  'already a member': { en: 'This e-mail already belongs to a member.', ar: 'هذا البريد لعضو مسجّل بالفعل.' },
 }
 
 export function errorMessage(e: unknown, lang: Lang): string {

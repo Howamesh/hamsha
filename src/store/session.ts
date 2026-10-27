@@ -5,7 +5,7 @@ import { fmtDate } from '@/lib/useStr'
 import { partsCount } from '@/lib/i18n'
 import { repo } from '@/data'
 import type { Snapshot } from '@/data/repo'
-import type { ChannelId, Client, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
+import type { InviteInput, InviteResult, ChannelId, Client, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
 
 interface SessionState {
   user: User | null
@@ -34,6 +34,7 @@ interface SessionState {
   setPresence: (p: Presence) => Promise<void>
   updateProfile: (patch: Partial<Profile>) => Promise<void>
   updateUser: (id: string, patch: Partial<User>) => Promise<void>
+  inviteMember: (input: InviteInput) => Promise<InviteResult>
 }
 
 /** UI-level permission boundary (the database enforces the same rules with RLS). */
@@ -188,6 +189,10 @@ export const useSession = create<SessionState>((set, get) => ({
   async updateUser(id, patch) {
     adminOnly(get)
     await guard(repo.updateUser(id, patch))
+  },
+  async inviteMember(input) {
+    adminOnly(get)
+    return guard(repo.inviteMember(input))
   },
   async updateProfile(patch) {
     const u = get().user

@@ -17,7 +17,7 @@
  */
 import { createClient as createSupabaseClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js'
 import type { Repo, Snapshot } from './repo'
-import type { ChannelId, Client, Message, Presence, Profile, Project, Role, Task, TaskPart, User } from '@/types'
+import type { InviteInput, InviteResult, ChannelId, Client, Message, Presence, Profile, Project, Role, Task, TaskPart, User } from '@/types'
 import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
 // ---------- row shapes (snake_case, exactly the columns in 0001/0002) ----------
@@ -373,6 +373,29 @@ export function createSupabaseRepo(): Repo {
       fail(error, 'updateUser')
       const u = toUser(data)
       return commit(u, (s) => ({ ...s, users: upsert(s.users, u) }))
+    },
+    async inviteMember(input: InviteInput): Promise<InviteResult> {
+      // The Edge Function calls invite_user() with THIS user's JWT (the database decides who is admin),
+      // then sends the Auth e-mail with the service key that never reaches the browser.
+      const { data, error } = await sb.functions.invoke<{ ok: boolean; sent: boolean; reason?: InviteResult['reason']; error?: string }>('invite-member', {
+        body: { email: input.email.trim().toLowerCase(), role: input.role, name: input.name?.trim() || undefined, clientId: input.role === 'client' ? input.clientId : undefined },
+      })
+      if (error) {
+        // FunctionsHttpError carries the JSON body with the real reason (403 only admins, 400 validation…)
+        const ctx = (error as { context?: Response }).context
+        let msg = error.message
+        try {
+          const j = ctx ? ((await ctx.json()) as { error?: string }) : null
+          if (j?.error) msg = j.error
+        } catch {
+          /* keep msg */
+        }
+        if (/only admins|403|permission denied/i.test(msg)) throw new Error('forbidden')
+        if (/already a member/i.test(msg)) throw new Error('already a member')
+        throw new Error(`inviteMember: ${msg}`)
+      }
+      if (!data?.ok) throw new Error('inviteMember: unexpected response')
+      return { sent: data.sent, reason: data.reason, error: data.error }
     },
     async updateProfile(userId, patch) {
       const { data, error } = await sb.from('user_settings').upsert({ user_id: userId, ...settingsPatch(patch) }).select('*').single<SettingsRow>()

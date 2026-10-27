@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bell, ChevronDown, MessageCircle, PieChart, Settings, SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { Bell, ChevronDown, MessageCircle, PieChart, Settings, SlidersHorizontal, Trash2, UserPlus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { clientProgress, isDone, taskProgress, urgency, workload } from '@/lib/derive'
 import { fmtDate, useStr } from '@/lib/useStr'
@@ -10,6 +10,7 @@ import { Avatar, Bar, Button, Card, Input, SectionTitle, Segmented } from '../ui
 import { Chat } from '../Chat'
 import { AlertsList, useAlerts } from '../Alerts'
 import { SettingsPanel } from '../Settings'
+import { InviteDialog } from '../InviteDialog'
 import { BrandTile } from '../BrandTile'
 import { PanelTabs } from './PanelTabs'
 
@@ -65,6 +66,7 @@ function Master() {
   const { t, lang } = useStr()
   const [openUser, setOpenUser] = useState<string | null>(null)
   const [openClient, setOpenClient] = useState<string | null>(null)
+  const [inviting, setInviting] = useState(false)
   const s = useData()
   const ui = useUi()
   const createClient = useSession((x) => x.createClient)
@@ -185,7 +187,13 @@ function Master() {
         </Button>
       </form>
 
-      <SectionTitle>{t('teamWorkload')}</SectionTitle>
+      <div className="flex items-center justify-between gap-2">
+        <SectionTitle>{t('teamWorkload')}</SectionTitle>
+        <Button size="sm" onClick={() => setInviting(true)} className="-my-1">
+          <UserPlus size={14} /> {t('inviteMember')}
+        </Button>
+      </div>
+      {inviting && <InviteDialog onClose={() => setInviting(false)} />}
       <div className="flex flex-col gap-1.5 -mt-2">
         {wl.map(({ user, open }) => {
           const expanded = openUser === user.id

@@ -4,7 +4,7 @@
  * localStorage so a reload does not wipe it. Replaced by Supabase later.
  */
 import type { Repo, Snapshot } from './repo'
-import type { ChannelId, Client, Message, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
+import type { ChannelId, Client, InviteInput, InviteResult, Message, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
 import { addIso, todayIso } from '@/lib/dates'
 import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
@@ -243,6 +243,17 @@ export function createMockRepo(): Repo {
       snap.users = snap.users.map((u) => (u.id === id ? next : u))
       commit()
       return next
+    },
+    async inviteMember(input: InviteInput): Promise<InviteResult> {
+      await delay(200)
+      const email = input.email.trim().toLowerCase()
+      if (snap.users.some((u) => u.email.toLowerCase() === email)) return { sent: false, reason: 'already_registered' }
+      // demo store: the invited person appears at once (there is no e-mail to accept)
+      const u: User = { id: nid('u'), name: input.name?.trim() || email.split('@')[0], email, role: input.role, color: PALETTE[snap.users.length % PALETTE.length], clientId: input.role === 'client' ? input.clientId : undefined }
+      snap.users = [...snap.users, u]
+      snap.profiles = { ...snap.profiles, [u.id]: { userId: u.id, city: 'riyadh', whStart: 9, whEnd: 17, notes: '', theme: 'light', lang: 'ar', weekStart: 'monday' } }
+      commit()
+      return { sent: true }
     },
     async updateProfile(userId, patch) {
       const next = { ...snap.profiles[userId], ...patch, userId }

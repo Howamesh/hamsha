@@ -90,6 +90,21 @@ export interface Message {
   at: string // ISO datetime
 }
 
+/** «ادعُ عضواً» — input of the admin invitation and the honest result (row written? e-mail sent?). */
+export interface InviteInput {
+  email: string
+  role: Role
+  name?: string
+  /** required when role = 'client', forbidden otherwise */
+  clientId?: string
+}
+export interface InviteResult {
+  sent: boolean
+  /** set when sent = false: 'already_registered' (an account with this e-mail exists) or 'send_failed' */
+  reason?: 'already_registered' | 'send_failed'
+  error?: string
+}
+
 export type Presence = 'live' | 'away'
 
 export interface Profile {

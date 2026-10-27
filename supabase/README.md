@@ -12,7 +12,7 @@
 
 ## كيف يدخل عضو جديد (دعوة فقط — لا تسجيل مفتوح)
 1. الإدارة في همشة: `invite_user(email, role, client_id, name)` (للعميل `client_id` إلزامي، للفريق ممنوع). يُسجَّل في `invitations` بصلاحية ٧ أيام؛ إعادة الدعوة لنفس الإيميل تحدّث الدعوة المفتوحة وتمدّدها.
-2. إرسال الإيميل نفسه: لوحة Supabase → Authentication → Users → **Invite user** بنفس الإيميل (المرحلة ١؛ لاحقاً Edge Function تنادي `auth.admin.inviteUserByEmail`).
+2. إرسال الإيميل: زر «ادعُ عضواً» في همشة (Edge Function `invite-member`) يسجّل الدعوة ويرسل البريد معاً. البديل اليدوي: صف في `invitations` + Authentication → Users → **Invite user**.
 3. لما يقبل الشخص الدعوة ويضع كلمة سره، يُنشأ صف في `auth.users` → المحفّز `handle_new_user()` ينشئ `profiles` + `user_settings` **من الدعوة فقط** ويعلّمها مقبولة. بلا دعوة مفتوحة = يُرفض إنشاء الحساب (الإيميل المجهول يطلع له «Database error saving new user» — هذا مقصود).
 4. في لوحة Supabase قبل أول دعوة: Authentication → Providers → Email: **أطفئ «Allow new users to sign up»**، فعّل تأكيد الإيميل وحماية كلمات المرور المسرّبة. وفي Authentication → URL Configuration: Site URL = `https://hamsha.studio` و Redirect URLs تشمل `https://hamsha.studio/welcome` (+ `http://localhost:5173/welcome` للتطوير) — رابط الدعوة ورابط «نسيت كلمة المرور» يفتحان شاشة `/welcome` حيث يختار الشخص كلمة مروره ويدخل.
 5. إيميل واحد = حساب واحد = منظمة واحدة (فهرس فريد على `profiles` و على الدعوات المفتوحة عبر كل المنظمات).
@@ -50,7 +50,13 @@
 
 نتيجة 2026-10-27: السياسات القديمة = ١١ فشل (منها: العميل يقرأ الوصف والساعات، يدخل محادثة المهمة، **ويرفع نفسه إلى admin** عبر `profiles_admin_update`). الحالية = ٠ فشل من ٩١.
 
+## «ادعُ عضواً» (2026-10-28)
+- لوحة الإدارة → «ضغط الفريق» → زر **ادعُ عضواً**: بريد + اسم + دور (+ العميل إن كان الدور عميلاً).
+- `supabase/functions/invite-member/index.ts` (Edge Function، verify JWT مفعّل): تستدعي `invite_user()` **بتوكن المستدعي نفسه** (القاعدة تقرر من هو الإدارة من `profiles.role`)، ثم ترسل بريد الدعوة بمفتاح الخدمة عبر `auth.admin.inviteUserByEmail` مع `data = {role, name, client_name}` **للعرض في القالب فقط** (RLS لا تقرأ `user_metadata` أبداً) و`redirectTo = https://hamsha.studio/welcome` (ضمن Redirect URLs).
+- الحالة صادقة: `sent:true` · `sent:false` مع `already_registered` (حساب موجود → «نسيت كلمة المرور؟») أو `send_failed` (الصف سُجّل، أعد المحاولة).
+- قالب البريد «Invite user» في اللوحة يقرأ `{{ .Data.role }}` / `{{ .Data.name }}` / `{{ .Data.client_name }}` ويعرّب الدور؛ بدون metadata (دعوة من اللوحة مباشرة) يعرض النص العام.
+- النشر: اللوحة → Edge Functions → `invite-member` (لصق محتوى الملف). المتغيرات `SUPABASE_URL/ANON_KEY/SERVICE_ROLE_KEY` تضخّها Supabase تلقائياً؛ `HAMSHA_SITE_URL` اختياري.
+- الاختبار: `tests/smoke-invite.mjs` (mock): زر → نافذة → تحقق البريد → إرسال → toast → العضو يظهر → تكرار البريد مرفوض.
+
 ## ما زال غير مكتوب
-- زر «ادعُ عضواً» في لوحة الإدارة (الدالة `invite_user` جاهزة؛ الواجهة لاحقاً — حالياً تُستدعى من SQL Editor ثم Invite user من اللوحة).
-- Edge Function لإرسال الدعوة من داخل همشة (بدل خطوة اللوحة).
 - سياسات Storage للمرفقات (المرحلة ٢).
