@@ -1,0 +1,105 @@
+# 9116678ba2f0594de57b0d8b3bb6f5162de41382  supabase/tests/00_local_shim.sql
+# b9fb35b29e9b8ae06817ffbb80ab0246b3e2abeb  supabase/tests/10_seed.sql
+# 93243ace9eb331abcc63c105d0406c48d8ce19b4  supabase/tests/20_harness.sql
+# 6e263bb6ed6f98e693dda5109a67a3c3cac68599  supabase/tests/rls.sql
+# be29f13300c05cd5bab788e28c478de9c52387fd  supabase/tests/run-ci.sh
+# 9cc4dea2c523159b3999365275536fd937accebf  supabase/tests/run-local.sh
+# cd392dc460b2f6b4a43d897b5c2dbe5401aa1fe3  tests/smoke-client-summary.mjs
+# 35ed2ec37b8e1b9ea5b190d81733f00bce652c70  tests/smoke-drag.mjs
+# 8f25b5682a969430d827a9752ea915fa1f603b3c  tests/smoke-hours.mjs
+# a6816e1541a7c5ce759bfe313ef2228b3b89de0f  tests/smoke-regressions.mjs
+# 4fdb93442d5ef0a4b643c53ddd5e3b20a95d7c8f  tests/smoke-review3.mjs
+# 6e0e69bd57a6086a50f8c7f23cc7283dbaf931f6  tests/smoke-roles.mjs
+# 72e3e4b649ac988b901ef5294c876339a43d12d0  tests/unit-validate.mjs
+# d0460e2a77fa11a969e7d4d5a204e6485efe9bcf  package.json:scripts
+admin reads all tasks
+admin reads all parts
+admin reads task chat
+admin updates task dates
+creative1 sees only T1
+creative1 cannot see T2
+creative1 marks own part done
+creative1 cannot change part hours
+creative1 cannot move task dates
+creative1 sends T1 for approval
+creative1 reads T1 task chat
+creative1 posts in team chat
+creative1 cannot post in client chat
+[extra] creative1 cannot change task created_at
+[extra] creative1 forging done_at is ignored (update accepted)
+[extra] forged done_at was not stored
+[extra] creative1 reads only clients of own tasks
+[extra] creative1 reads only projects of own tasks
+[extra] creative2 cannot send T1 for approval
+creative2 cannot mark T1 part done
+[LAB-249] client cannot read tasks table at all
+[LAB-249] client cannot read task description
+[LAB-249] client cannot read task_parts table (hours/people)
+[LAB-249] client reads own task summary view
+[LAB-249] client reads own steps view (label/done only)
+client view hides other clients
+[LAB-250] client cannot read task chat
+[LAB-250] client cannot post in task chat
+client cannot read team chat
+client cannot post in team chat
+client reads own client chat
+client posts in own client chat
+client cannot read other client chat
+client reads own client row only
+client reads own projects only
+client sees admins but not creatives
+client cannot update a task
+client cannot insert a task
+client cannot read audit log
+[extra] client cannot change own email
+[extra] client cannot change own role
+client cannot read attachments
+client2 view shows only own tasks
+client2 cannot read client1 chat
+anon reads nothing from tasks
+anon reads nothing from client view
+anon reads nothing from profiles
+[extra] anon cannot call can_read_task()
+[inv] admin invites a creative
+[inv] admin invites a client user for client 1
+[inv] client invitation without a client is rejected
+[inv] team invitation with a client is rejected
+[inv] inviting an existing member is rejected
+[inv] bad e-mail is rejected
+[inv] re-inviting the same e-mail updates the open invitation (still one row)
+[inv] admin sees the org invitations
+[inv] creative cannot invite
+[inv] client cannot invite
+[inv] creative cannot read invitations
+[inv] client cannot read invitations
+[inv] creative cannot insert an invitation directly
+[inv] anon cannot call invite_user
+[inv] invited e-mail signs up → accepted
+[inv] …and gets a creative profile with the invited name
+[inv] …and private settings (owner check: settings are private even from admins)
+[inv] admin cannot read another user's private settings
+[inv] …and the invitation is marked accepted
+[inv] uninvited e-mail cannot sign up
+[inv] …and has no profile
+[inv] an accepted invitation cannot be reused
+[inv] (setup) expire the client invitation
+[inv] expired invitation cannot sign up
+[inv] admin re-invites (resets expiry)
+[inv] client user signs up after re-invite
+[inv] …linked to client 1 as role client
+[inv] new client user sees only own task view
+[inv] new creative sees no tasks yet
+[rpc] admin creates client + first project in one call
+[rpc] …the project exists
+[rpc] creative cannot create a client
+[rpc] client cannot create a client
+[rpc] anon cannot call create_client
+[rpc] admin creates task + first part
+[rpc] …its first part is on the start day for the owner
+[rpc] creative cannot create a task
+[rpc] task for a project of another client is rejected
+[rpc] (setup) T1 has chat messages
+[rpc] admin deletes T1
+[rpc] …its chat is gone with it
+[rpc] admin deletes client 2 (cascades T2)
+[rpc] …client 2 chat and T2 chat are gone
