@@ -8,8 +8,9 @@
  *                      no Realtime, so the client snapshot is refetched on an interval instead.
  * Multi-row operations go through the transactional RPCs of 0004_rpc.sql (create_client, create_task);
  * chat channels are removed by database triggers when a task/client is deleted.
- * Every write is followed by a reload, so the store never holds a shape the database did not confirm
- * (optimistic concurrency on tasks: `version` must match or the update is stale).
+ * Every write returns as soon as the database confirms it: the confirmed row is merged into the local
+ * snapshot (one round-trip to the screen) and a full reload reconciles in the background.
+ * Optimistic concurrency on tasks: `version` must match or the update is stale.
  *
  * Written 2026-10-27 before the Supabase project existed, reviewed by Codex the same night, type-checked
  * only: the first live run follows supabase/README.md «أول تشغيل حي».
@@ -190,12 +191,24 @@ export function createSupabaseRepo(): Repo {
     snap = null
   }
 
-  const afterWrite = async <T,>(v: T): Promise<T> => {
-    const g = gen
-    const s = await load()
-    if (g === gen) publish(s)
+  /**
+   * After a CONFIRMED write: patch the local snapshot right away (the screen updates in one round-trip)
+   * and reconcile with a full reload in the background. Nothing is shown before the database said yes,
+   * so there is never anything to roll back; a failed write throws before the screen changes.
+   */
+  const commit = <T,>(v: T, patch: (s: Snapshot) => Snapshot): T => {
+    if (snap) publish(patch(snap))
+    scheduleReload()
     return v
   }
+  const without = <T extends { id: string }>(xs: T[], id: string) => xs.filter((x) => x.id !== id)
+  const upsert = <T extends { id: string }>(xs: T[], x: T) => (xs.some((y) => y.id === x.id) ? xs.map((y) => (y.id === x.id ? x : y)) : [...xs, x])
+  const dropTasks = (s: Snapshot, ids: Set<string>): Snapshot => ({
+    ...s,
+    tasks: s.tasks.filter((t) => !ids.has(t.id)),
+    parts: s.parts.filter((p) => !ids.has(p.taskId)),
+    messages: s.messages.filter((m) => !(m.channel.startsWith('task:') && ids.has(m.channel.slice(5)))),
+  })
 
   return {
     async signIn(email, password) {
@@ -246,36 +259,47 @@ export function createSupabaseRepo(): Repo {
       const color = PALETTE[(snap?.clients.length ?? 0) % PALETTE.length]
       const { data, error } = await sb.rpc('create_client', { p_name: name, p_project_name: defaultProjectName, p_color: color }).single<ClientRow>()
       fail(error, 'createClient')
-      return afterWrite(toClient(data))
+      const c = toClient(data)
+      return commit(c, (s) => ({ ...s, clients: upsert(s.clients, c) })) // its first project arrives with the background reload
     },
     async updateClient(id, patch) {
       const cur = snap?.clients.find((c) => c.id === id)
       if (cur) validateClientPatch(patch, cur)
       const { data, error } = await sb.from('clients').update(clientPatch(patch)).eq('id', id).select('*').single<ClientRow>()
       fail(error, 'updateClient')
-      return afterWrite(toClient(data))
+      const c = toClient(data)
+      return commit(c, (s) => ({ ...s, clients: upsert(s.clients, c) }))
     },
     async deleteClient(id) {
       // projects/tasks/parts cascade in the database; chat channels are removed by triggers (0004)
       const { error } = await sb.from('clients').delete().eq('id', id)
       fail(error, 'deleteClient')
-      await afterWrite(undefined)
+      commit(undefined, (s) => {
+        const gone = new Set(s.tasks.filter((t) => t.clientId === id).map((t) => t.id))
+        const d = dropTasks(s, gone)
+        return { ...d, clients: without(d.clients, id), projects: d.projects.filter((p) => p.clientId !== id), messages: d.messages.filter((m) => m.channel !== `client:${id}`) }
+      })
     },
     async createProject(input) {
       if (!orgId) throw new Error('no session')
       const { data, error } = await sb.from('projects').insert({ org_id: orgId, client_id: input.clientId, name: input.name, lead_id: input.leadId || null, color: input.color }).select('*').single<ProjectRow>()
       fail(error, 'createProject')
-      return afterWrite(toProject(data))
+      const pr = toProject(data)
+      return commit(pr, (s) => ({ ...s, projects: upsert(s.projects, pr) }))
     },
     async updateProject(id, patch) {
       const { data, error } = await sb.from('projects').update(projectPatch(patch)).eq('id', id).select('*').single<ProjectRow>()
       fail(error, 'updateProject')
-      return afterWrite(toProject(data))
+      const pr = toProject(data)
+      return commit(pr, (s) => ({ ...s, projects: upsert(s.projects, pr) }))
     },
     async deleteProject(id) {
       const { error } = await sb.from('projects').delete().eq('id', id)
       fail(error, 'deleteProject')
-      await afterWrite(undefined)
+      commit(undefined, (s) => {
+        const d = dropTasks(s, new Set(s.tasks.filter((t) => t.projectId === id).map((t) => t.id)))
+        return { ...d, projects: without(d.projects, id) }
+      })
     },
     async createTask(input, firstPart) {
       validateNewTask(input)
@@ -288,7 +312,10 @@ export function createSupabaseRepo(): Repo {
         })
         .single<TaskRow>()
       fail(error, 'createTask')
-      return afterWrite(toTask(data))
+      const t = toTask(data)
+      // the RPC made the first part too: fetch it so the sheet opens complete (one small query)
+      const { data: parts } = await sb.from('task_parts').select('*').eq('task_id', t.id).returns<PartRow[]>()
+      return commit(t, (s) => ({ ...s, tasks: upsert(s.tasks, t), parts: [...s.parts.filter((p) => p.taskId !== t.id), ...(parts ?? []).map(toPart)] }))
     },
     async updateTask(id, patch, version) {
       const cur = snap?.tasks.find((t) => t.id === id)
@@ -297,15 +324,17 @@ export function createSupabaseRepo(): Repo {
       const { data, error } = await sb.from('tasks').update(taskPatch(patch)).eq('id', id).eq('version', version).select('*').maybeSingle<TaskRow>()
       fail(error, 'updateTask')
       if (!data) {
-        await afterWrite(undefined)
+        scheduleReload()
         throw new Error('stale') // changed by someone else, deleted, or no longer visible — the reload shows which
       }
-      return afterWrite(toTask(data))
+      const t = toTask(data)
+      // the database clamps parts into the new date range (tasks_clamp_parts); mirror it until the reload
+      return commit(t, (s) => ({ ...s, tasks: upsert(s.tasks, t), parts: s.parts.map((p) => (p.taskId === id ? { ...p, day: p.day < t.start ? t.start : p.day > t.end ? t.end : p.day } : p)) }))
     },
     async deleteTask(id) {
       const { error } = await sb.from('tasks').delete().eq('id', id)
       fail(error, 'deleteTask')
-      await afterWrite(undefined)
+      commit(undefined, (s) => dropTasks(s, new Set([id])))
     },
     async upsertPart(part) {
       if (!orgId) throw new Error('no session')
@@ -318,34 +347,38 @@ export function createSupabaseRepo(): Repo {
         : sb.from('task_parts').insert(row)
       const { data, error } = await q.select('*').single<PartRow>()
       fail(error, 'upsertPart')
-      return afterWrite(toPart(data))
+      const p = toPart(data)
+      return commit(p, (s) => ({ ...s, parts: upsert(s.parts, p) }))
     },
     async deletePart(id) {
       const { error } = await sb.from('task_parts').delete().eq('id', id)
       fail(error, 'deletePart')
-      await afterWrite(undefined)
+      commit(undefined, (s) => ({ ...s, parts: without(s.parts, id) }))
     },
 
     async sendMessage(channel, senderId, body) {
       if (!orgId) throw new Error('no session')
       const { data, error } = await sb.from('messages').insert({ org_id: orgId, channel, sender_id: senderId, body }).select('*').single<MessageRow>()
       fail(error, 'sendMessage')
-      return afterWrite(toMessage(data))
+      const m = toMessage(data)
+      return commit(m, (s) => ({ ...s, messages: upsert(s.messages, m) }))
     },
     async setPresence(userId, p) {
       const { error } = await sb.from('profiles').update({ presence: p, last_seen: new Date().toISOString() }).eq('id', userId)
       fail(error, 'setPresence')
-      await afterWrite(undefined)
+      commit(undefined, (s) => ({ ...s, presence: { ...s.presence, [userId]: p } }))
     },
     async updateUser(id, patch) {
       const { data, error } = await sb.from('profiles').update(userPatch(patch)).eq('id', id).select('*').single<ProfileRow>()
       fail(error, 'updateUser')
-      return afterWrite(toUser(data))
+      const u = toUser(data)
+      return commit(u, (s) => ({ ...s, users: upsert(s.users, u) }))
     },
     async updateProfile(userId, patch) {
       const { data, error } = await sb.from('user_settings').upsert({ user_id: userId, ...settingsPatch(patch) }).select('*').single<SettingsRow>()
       fail(error, 'updateProfile')
-      return afterWrite(toProfile(data))
+      const pr = toProfile(data)
+      return commit(pr, (s) => ({ ...s, profiles: { ...s.profiles, [userId]: pr } }))
     },
   }
 }
