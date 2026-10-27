@@ -68,9 +68,11 @@ async function handle(req: Request): Promise<Response> {
 
   // --- 2. as the service role: send the Auth invitation e-mail (display metadata only)
   const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } })
+  // The client's display name is read AS THE CALLER (an admin sees their org's clients through RLS);
+  // the service role deliberately has no SELECT grant on public tables.
   let clientName: string | null = null
   if (clientId) {
-    const { data: c } = await admin.from('clients').select('name').eq('id', clientId).maybeSingle<{ name: string }>()
+    const { data: c } = await asCaller.from('clients').select('name').eq('id', clientId).maybeSingle<{ name: string }>()
     clientName = c?.name ?? null
   }
   const { error: sendErr } = await admin.auth.admin.inviteUserByEmail(email, {
