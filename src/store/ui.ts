@@ -57,7 +57,7 @@ export const useUi = create<UiState>()(
       setWeekStart: (weekStart) => set({ weekStart }),
       setView: (view) => set({ view }),
       setFocus: (focus) => set({ focus }),
-      setCalId: (calId) => set({ calId, panelTab: 'main' }),
+      setCalId: (calId) => set({ calId, panelTab: 'main', taskId: null }), // leaving a calendar closes its task sheet
       togglePanel: (open) => set((s) => ({ panelOpen: open ?? !s.panelOpen })),
       setPanelTab: (panelTab) => set({ panelTab, panelOpen: true }),
       openTask: (taskId) => set({ taskId }),

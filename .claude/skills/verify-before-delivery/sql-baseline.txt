@@ -7,11 +7,12 @@
 # cd392dc460b2f6b4a43d897b5c2dbe5401aa1fe3  tests/smoke-client-summary.mjs
 # 35ed2ec37b8e1b9ea5b190d81733f00bce652c70  tests/smoke-drag.mjs
 # 8f25b5682a969430d827a9752ea915fa1f603b3c  tests/smoke-hours.mjs
+# 9cf94eadd707118570dfc57d361f383940bf0814  tests/smoke-live-fixes.mjs
 # a6816e1541a7c5ce759bfe313ef2228b3b89de0f  tests/smoke-regressions.mjs
 # 4fdb93442d5ef0a4b643c53ddd5e3b20a95d7c8f  tests/smoke-review3.mjs
 # 6e0e69bd57a6086a50f8c7f23cc7283dbaf931f6  tests/smoke-roles.mjs
 # 72e3e4b649ac988b901ef5294c876339a43d12d0  tests/unit-validate.mjs
-# d0460e2a77fa11a969e7d4d5a204e6485efe9bcf  package.json:scripts
+# fb51ae047e36d63eaef463ce623f5858161aac06  package.json:scripts
 admin reads all tasks
 admin reads all parts
 admin reads task chat
