@@ -17,7 +17,7 @@
  */
 import { createClient as createSupabaseClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js'
 import type { Repo, Snapshot } from './repo'
-import type { InviteInput, InviteResult, ChannelId, Client, Message, Presence, Profile, Project, Role, Task, TaskPart, User } from '@/types'
+import type { PendingInvite, InviteInput, InviteResult, ChannelId, Client, Message, Presence, Profile, Project, Role, Task, TaskPart, User } from '@/types'
 import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
 // ---------- row shapes (snake_case, exactly the columns in 0001/0002) ----------
@@ -395,6 +395,33 @@ export function createSupabaseRepo(): Repo {
         throw new Error(`inviteMember: ${msg}`)
       }
       if (!data?.ok) throw new Error('inviteMember: unexpected response')
+      return { sent: data.sent, reason: data.reason, error: data.error }
+    },
+    async listPendingInvites() {
+      const { data, error } = await sb.rpc('pending_members')
+      fail(error, 'listPendingInvites')
+      return ((data ?? []) as Array<{ id: string; email: string; name: string; role: PendingInvite['role']; client_id: string | null; invited_at: string | null }>).map((r) => ({
+        id: r.id, email: r.email, name: r.name, role: r.role, clientId: r.client_id ?? undefined, invitedAt: r.invited_at ?? undefined,
+      }))
+    },
+    async resendInvite(email) {
+      const { data, error } = await sb.functions.invoke<{ ok: boolean; sent: boolean; reason?: InviteResult['reason']; error?: string }>('invite-member', {
+        body: { action: 'resend', email: email.trim().toLowerCase() },
+      })
+      if (error) {
+        const ctx = (error as { context?: Response }).context
+        let msg = error.message
+        try {
+          const j = ctx ? ((await ctx.json()) as { error?: string }) : null
+          if (j?.error) msg = j.error
+        } catch {
+          /* keep msg */
+        }
+        if (/403|permission denied/i.test(msg)) throw new Error('forbidden')
+        if (/not pending|404/i.test(msg)) throw new Error('not found')
+        throw new Error(`resendInvite: ${msg}`)
+      }
+      if (!data?.ok) throw new Error('resendInvite: unexpected response')
       return { sent: data.sent, reason: data.reason, error: data.error }
     },
     async updateProfile(userId, patch) {

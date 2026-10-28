@@ -1,13 +1,13 @@
-# 9116678ba2f0594de57b0d8b3bb6f5162de41382  supabase/tests/00_local_shim.sql
-# b9fb35b29e9b8ae06817ffbb80ab0246b3e2abeb  supabase/tests/10_seed.sql
+# 3f2bb17397167b914831904d1e2523a3158dda32  supabase/tests/00_local_shim.sql
+# 6c258b8ca646eec00684fc3581d151a95cde21c4  supabase/tests/10_seed.sql
 # 93243ace9eb331abcc63c105d0406c48d8ce19b4  supabase/tests/20_harness.sql
-# 6e263bb6ed6f98e693dda5109a67a3c3cac68599  supabase/tests/rls.sql
+# 1c2124dfecb9ca59666fc877ee16fd04951bc7d8  supabase/tests/rls.sql
 # be29f13300c05cd5bab788e28c478de9c52387fd  supabase/tests/run-ci.sh
 # 9cc4dea2c523159b3999365275536fd937accebf  supabase/tests/run-local.sh
 # cd392dc460b2f6b4a43d897b5c2dbe5401aa1fe3  tests/smoke-client-summary.mjs
 # 35ed2ec37b8e1b9ea5b190d81733f00bce652c70  tests/smoke-drag.mjs
 # 8f25b5682a969430d827a9752ea915fa1f603b3c  tests/smoke-hours.mjs
-# d8d5da39bae2f62c416dfb22bf7af9ce0d7c6365  tests/smoke-invite.mjs
+# 3b8e928d68e4cf87c8f6fe127c2cc085b5190523  tests/smoke-invite.mjs
 # 9cf94eadd707118570dfc57d361f383940bf0814  tests/smoke-live-fixes.mjs
 # a6816e1541a7c5ce759bfe313ef2228b3b89de0f  tests/smoke-regressions.mjs
 # 4fdb93442d5ef0a4b643c53ddd5e3b20a95d7c8f  tests/smoke-review3.mjs
@@ -105,3 +105,13 @@ anon reads nothing from profiles
 [rpc] …its chat is gone with it
 [rpc] admin deletes client 2 (cascades T2)
 [rpc] …client 2 chat and T2 chat are gone
+[pend] admin sees the invited-not-confirmed member
+[pend] …and the invited client user; nobody else
+[pend] creative sees nothing
+[pend] client sees nothing
+[pend] anon cannot call it
+[pend] (setup) opening the link confirms the e-mail but is NOT enough
+[pend] …still pending without a password
+[pend] (setup) the member chooses a password
+[pend] …and leaves the pending list (only the client user remains)
+[pend] …the confirmed creative is gone

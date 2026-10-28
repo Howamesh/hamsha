@@ -4,7 +4,7 @@
  * localStorage so a reload does not wipe it. Replaced by Supabase later.
  */
 import type { Repo, Snapshot } from './repo'
-import type { ChannelId, Client, InviteInput, InviteResult, Message, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
+import type { ChannelId, Client, InviteInput, InviteResult, Message, PendingInvite, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
 import { addIso, todayIso } from '@/lib/dates'
 import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
@@ -80,6 +80,8 @@ const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms))
 
 export function createMockRepo(): Repo {
   let snap = read()
+  /** demo only: invitees stay «pending» for the session (there is no e-mail to accept) */
+  const pending: PendingInvite[] = []
   const subs = new Set<(s: Snapshot) => void>()
   const commit = () => {
     snap = { ...snap }
@@ -252,7 +254,18 @@ export function createMockRepo(): Repo {
       const u: User = { id: nid('u'), name: input.name?.trim() || email.split('@')[0], email, role: input.role, color: PALETTE[snap.users.length % PALETTE.length], clientId: input.role === 'client' ? input.clientId : undefined }
       snap.users = [...snap.users, u]
       snap.profiles = { ...snap.profiles, [u.id]: { userId: u.id, city: 'riyadh', whStart: 9, whEnd: 17, notes: '', theme: 'light', lang: 'ar', weekStart: 'monday' } }
+      pending.push({ id: u.id, email, name: u.name, role: u.role, clientId: u.clientId, invitedAt: new Date().toISOString() })
       commit()
+      return { sent: true }
+    },
+    async listPendingInvites() {
+      await delay(100)
+      return pending.filter((p) => snap.users.some((u) => u.id === p.id))
+    },
+    async resendInvite(email) {
+      await delay(200)
+      const p = pending.find((x) => x.email === email.trim().toLowerCase())
+      if (!p) throw new Error('not found')
       return { sent: true }
     },
     async updateProfile(userId, patch) {

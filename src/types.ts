@@ -105,6 +105,16 @@ export interface InviteResult {
   error?: string
 }
 
+/** A member who was invited but has not chosen a password yet (admin view). */
+export interface PendingInvite {
+  id: string
+  email: string
+  name: string
+  role: Role
+  clientId?: string
+  invitedAt?: string
+}
+
 export type Presence = 'live' | 'away'
 
 export interface Profile {

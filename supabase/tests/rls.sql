@@ -87,7 +87,7 @@ select t.run('[inv] client cannot read invitations', :'K1', 'select * from invit
 select t.run('[inv] creative cannot insert an invitation directly', :'C1', 'insert into invitations (org_id, email, role) values (' || quote_literal(:'ORG') || ', ''w@test'', ''admin'')', 'error');
 select t.run('[inv] anon cannot call invite_user', null, 'select invite_user(''z@test'', ''creative'', null, null)', 'error');
 -- the auth system creates users: only invited e-mails get a profile
-select t.run_su('[inv] invited e-mail signs up → accepted', 'insert into auth.users (id, email) values (''00000000-0000-0000-0000-0000000000d1'', ''New.Creative@test'')', 'rows:1');
+select t.run_su('[inv] invited e-mail signs up → accepted', 'insert into auth.users (id, email, invited_at) values (''00000000-0000-0000-0000-0000000000d1'', ''New.Creative@test'', now())', 'rows:1');
 select t.run('[inv] …and gets a creative profile with the invited name', :'A', 'select 1 from profiles where id = ''00000000-0000-0000-0000-0000000000d1'' and role = ''creative'' and name = ''اسم محدث'' and email = ''new.creative@test''', 'rows:1');
 select t.run_su('[inv] …and private settings (owner check: settings are private even from admins)', 'select 1 from user_settings where user_id = ''00000000-0000-0000-0000-0000000000d1''', 'rows:1');
 select t.run('[inv] admin cannot read another user''s private settings', :'A', 'select 1 from user_settings where user_id = ''00000000-0000-0000-0000-0000000000d1''', 'none');
@@ -98,7 +98,7 @@ select t.run_su('[inv] an accepted invitation cannot be reused', 'insert into au
 select t.run_su('[inv] (setup) expire the client invitation', 'update invitations set expires_at = now() - interval ''1 minute'' where email = ''newclient@test''', 'rows:1');
 select t.run_su('[inv] expired invitation cannot sign up', 'insert into auth.users (id, email) values (''00000000-0000-0000-0000-0000000000d4'', ''newclient@test'')', 'error');
 select t.run('[inv] admin re-invites (resets expiry)', :'A', 'select invite_user(''newclient@test'', ''client'', ''20000000-0000-0000-0000-000000000001'', ''عميل جديد'')', 'rows:1');
-select t.run_su('[inv] client user signs up after re-invite', 'insert into auth.users (id, email) values (''00000000-0000-0000-0000-0000000000d5'', ''newclient@test'')', 'rows:1');
+select t.run_su('[inv] client user signs up after re-invite', 'insert into auth.users (id, email, invited_at) values (''00000000-0000-0000-0000-0000000000d5'', ''newclient@test'', now())', 'rows:1');
 select t.run('[inv] …linked to client 1 as role client', :'A', 'select 1 from profiles where id = ''00000000-0000-0000-0000-0000000000d5'' and role = ''client'' and client_id = ''20000000-0000-0000-0000-000000000001''', 'rows:1');
 select t.run('[inv] new client user sees only own task view', '00000000-0000-0000-0000-0000000000d5', 'select * from client_tasks', 'rows:1');
 select t.run('[inv] new creative sees no tasks yet', '00000000-0000-0000-0000-0000000000d1', 'select * from tasks', 'none');
@@ -119,6 +119,18 @@ select t.run('[rpc] admin deletes T1', :'A', 'delete from tasks where id = ' || 
 select t.run('[rpc] …its chat is gone with it', :'A', 'select * from messages where channel = ''task:'' || ' || quote_literal(:'T1'), 'none');
 select t.run('[rpc] admin deletes client 2 (cascades T2)', :'A', 'delete from clients where id = ''20000000-0000-0000-0000-000000000002''', 'rows:1');
 select t.run('[rpc] …client 2 chat and T2 chat are gone', :'A', 'select * from messages where channel in (''client:20000000-0000-0000-0000-000000000002'', ''task:'' || ' || quote_literal(:'T2') || ')', 'none');
+
+-- ===== pending members (0005): invited but no password yet =====
+select t.run('[pend] admin sees the invited-not-confirmed member', :'A', 'select 1 from pending_members() where email = ''new.creative@test'' and role = ''creative''', 'rows:1');
+select t.run('[pend] …and the invited client user; nobody else', :'A', 'select * from pending_members()', 'rows:2');
+select t.run('[pend] creative sees nothing', :'C1', 'select * from pending_members()', 'none');
+select t.run('[pend] client sees nothing', :'K1', 'select * from pending_members()', 'none');
+select t.run('[pend] anon cannot call it', null, 'select * from pending_members()', 'error');
+select t.run_su('[pend] (setup) opening the link confirms the e-mail but is NOT enough', 'update auth.users set email_confirmed_at = now() where id = ''00000000-0000-0000-0000-0000000000d1''', 'rows:1');
+select t.run('[pend] …still pending without a password', :'A', 'select 1 from pending_members() where email = ''new.creative@test''', 'rows:1');
+select t.run_su('[pend] (setup) the member chooses a password', 'update auth.users set encrypted_password = ''x'' where id = ''00000000-0000-0000-0000-0000000000d1''', 'rows:1');
+select t.run('[pend] …and leaves the pending list (only the client user remains)', :'A', 'select 1 from pending_members() where email = ''newclient@test''', 'rows:1');
+select t.run('[pend] …the confirmed creative is gone', :'A', 'select 1 from pending_members() where email = ''new.creative@test''', 'none');
 
 select * from t.report();
 select count(*) filter (where not pass) as failures, count(*) as total from t.results;

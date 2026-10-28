@@ -56,7 +56,9 @@
 - الحالة صادقة: `sent:true` · `sent:false` مع `already_registered` (حساب موجود → «نسيت كلمة المرور؟») أو `send_failed` (الصف سُجّل، أعد المحاولة).
 - قالب البريد «Invite user» في اللوحة يقرأ `{{ .Data.role }}` / `{{ .Data.name }}` / `{{ .Data.client_name }}` ويعرّب الدور؛ بدون metadata (دعوة من اللوحة مباشرة) يعرض النص العام.
 - النشر: اللوحة → Edge Functions → `invite-member` (لصق محتوى الملف). المتغيرات `SUPABASE_URL/ANON_KEY/SERVICE_ROLE_KEY` تضخّها Supabase تلقائياً؛ `HAMSHA_SITE_URL` اختياري.
-- الاختبار: `tests/smoke-invite.mjs` (mock): زر → نافذة → تحقق البريد → إرسال → toast → العضو يظهر → تكرار البريد مرفوض.
+- الاختبار: `tests/smoke-invite.mjs` (mock): زر → نافذة → تحقق البريد → إرسال → toast → العضو يظهر → القائمة المعلّقة + «أعد الإرسال» → تكرار البريد مرفوض.
+- **الدعوات المعلّقة** (0005): `pending_members()` (security definer، للإدارة فقط، منظمتها فقط) = ملف موجود + `auth.users.email_confirmed_at` فارغ. تظهر في اللوحة تحت زر الدعوة مع «أعد الإرسال» (نفس الدالة بـ `action: "resend"`؛ Auth يعيد دعوة غير المؤكَّد، والمؤكَّد يرجع `already_registered`).
+- **Storage** (0006): حاويتان `client-logos` (قراءة عامة) و`attachments` (خاصة)؛ المسار `<org_id>/…`؛ القراءة لأعضاء المنظمة، الكتابة للإدارة والمبدعين، الحذف للإدارة. الملف يتخطى CI المحلي (لا storage schema) ويُطبَّق على Supabase فقط — لا واجهة رفع بعد.
 
 ## ما زال غير مكتوب
 - سياسات Storage للمرفقات (المرحلة ٢).

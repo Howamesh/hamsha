@@ -38,7 +38,7 @@ async function handle(req: Request): Promise<Response> {
   const auth = req.headers.get('Authorization') ?? ''
   if (!auth.startsWith('Bearer ')) return json(401, { error: 'missing token' })
 
-  let body: { email?: unknown; role?: unknown; name?: unknown; clientId?: unknown }
+  let body: { action?: unknown; email?: unknown; role?: unknown; name?: unknown; clientId?: unknown }
   try {
     const parsed: unknown = await req.json()
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return json(400, { error: 'invalid json' })
@@ -47,10 +47,11 @@ async function handle(req: Request): Promise<Response> {
     return json(400, { error: 'invalid json' })
   }
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: 'invalid email' })
+  if (body.action === 'resend') return resend(req, auth, email)
   const role = typeof body.role === 'string' ? body.role : ''
   const name = typeof body.name === 'string' ? body.name.trim() : ''
   const clientId = typeof body.clientId === 'string' && body.clientId ? body.clientId : null
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: 'invalid email' })
   if (!ROLES.has(role)) return json(400, { error: 'invalid role' })
   if ((role === 'client') !== !!clientId) return json(400, { error: 'client needs a client; team must not have one' })
 
@@ -88,4 +89,38 @@ async function handle(req: Request): Promise<Response> {
     return json(200, { ok: true, sent: false, reason: already ? 'already_registered' : 'send_failed', error: sendErr.message, invitation: inv })
   }
   return json(200, { ok: true, sent: true, invitation: inv })
+}
+
+// ---------- action=resend: re-send the invitation e-mail to a member who has not set a password yet ----------
+// Authorisation again comes from the database: pending_members() returns rows ONLY for an admin of the
+// member's own organization (security definer, see 0005: invited + no password yet). Auth re-invites an
+// unconfirmed user; one who already opened the link gets the password-set (recovery) mail instead.
+async function resend(_req: Request, auth: string, email: string): Promise<Response> {
+  const url = Deno.env.get('SUPABASE_URL')!
+  const asCaller = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: auth } } })
+  const { data: rows, error: pendErr } = await asCaller.rpc('pending_members')
+  if (pendErr) return json(/42501|permission denied/i.test(pendErr.message) ? 403 : 400, { error: pendErr.message })
+  const member = (rows as Array<{ id: string; email: string; name: string | null; role: string; client_id: string | null }> | null)?.find((r) => r.email === email)
+  if (!member) return json(404, { error: 'not pending' })
+  let clientName: string | null = null
+  if (member.client_id) {
+    const { data: c } = await asCaller.from('clients').select('name').eq('id', member.client_id).maybeSingle<{ name: string }>()
+    clientName = c?.name ?? null
+  }
+  const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } })
+  const { error: sendErr } = await admin.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${SITE_URL}/welcome`,
+    data: { role: member.role, name: member.name, client_name: clientName },
+  })
+  if (sendErr) {
+    const code = (sendErr as { code?: string }).code ?? ''
+    const already = code === 'email_exists' || /already|registered|exists|confirmed/i.test(sendErr.message)
+    if (!already) return json(200, { ok: true, sent: false, reason: 'send_failed', error: sendErr.message })
+    // The person opened the first link (e-mail confirmed) but never chose a password: Auth refuses a
+    // second invite, so send the password-set link instead — it lands on /welcome exactly like the invite.
+    const { error: recErr } = await admin.auth.resetPasswordForEmail(email, { redirectTo: `${SITE_URL}/welcome` })
+    if (recErr) return json(200, { ok: true, sent: false, reason: 'send_failed', error: recErr.message })
+    return json(200, { ok: true, sent: true, via: 'recovery' })
+  }
+  return json(200, { ok: true, sent: true })
 }

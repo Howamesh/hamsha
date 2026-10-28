@@ -11,6 +11,7 @@ import { Chat } from '../Chat'
 import { AlertsList, useAlerts } from '../Alerts'
 import { SettingsPanel } from '../Settings'
 import { InviteDialog } from '../InviteDialog'
+import { PendingInvites } from '../PendingInvites'
 import { BrandTile } from '../BrandTile'
 import { PanelTabs } from './PanelTabs'
 
@@ -67,6 +68,7 @@ function Master() {
   const [openUser, setOpenUser] = useState<string | null>(null)
   const [openClient, setOpenClient] = useState<string | null>(null)
   const [inviting, setInviting] = useState(false)
+  const [inviteGen, setInviteGen] = useState(0)
   const s = useData()
   const ui = useUi()
   const createClient = useSession((x) => x.createClient)
@@ -193,7 +195,15 @@ function Master() {
           <UserPlus size={14} /> {t('inviteMember')}
         </Button>
       </div>
-      {inviting && <InviteDialog onClose={() => setInviting(false)} />}
+      {inviting && (
+        <InviteDialog
+          onClose={() => {
+            setInviting(false)
+            setInviteGen((g) => g + 1)
+          }}
+        />
+      )}
+      <PendingInvites refreshKey={inviteGen} />
       <div className="flex flex-col gap-1.5 -mt-2">
         {wl.map(({ user, open }) => {
           const expanded = openUser === user.id

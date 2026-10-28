@@ -46,7 +46,14 @@ await setInput(`[...document.querySelectorAll('input')].find(x=>x.placeholder.in
 await ev(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل')).form.requestSubmit()`); await sleep(500);
 await click('عميل الدعوة'); await sleep(500);
 CHECKS['invited creative appears among team members'] = await ev(`[...document.querySelectorAll('aside button[title]')].some(b=>b.title==='مبدع الفحص')`);
-await ev(`document.querySelector('header button[aria-label="رجوع"]')?.click()`); await sleep(500);
+await ev(`document.querySelector('header button[aria-label="رجوع"]')?.click()`); await sleep(600);
+// 3b) pending list shows the invitee with a resend button; resend → toast
+await waitFor(`!!document.querySelector('[data-testid=pending-invites]')`);
+CHECKS['pending list shows the invitee'] = await ev(`document.querySelector('[data-testid=pending-invites]').innerText.includes('new.creative@example.com')`);
+await ev(`[...document.querySelectorAll('[data-testid=pending-invites] button')].find(b=>b.textContent.includes('أعد الإرسال')).click()`);
+await waitFor(`!!document.querySelector('[role=alert]') && document.querySelector('[role=alert]').innerText.includes('أُعيد إرسال الدعوة إلى new.creative@example.com')`);
+CHECKS['resend → toast names the e-mail'] = true;
+await ev(`document.querySelector('[role=alert] button')?.click()`); await sleep(300);
 // 4) client role needs a client: with no clients the hint shows and send stays disabled
 await click('ادعُ عضواً'); await waitFor(`!!document.querySelector('[role=dialog][aria-label="دعوة عضو جديد"]')`);
 await setInput(`document.querySelector('[role=dialog] input[type=email]')`, 'client.user@example.com');

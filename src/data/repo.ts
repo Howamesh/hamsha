@@ -3,7 +3,7 @@
  * Supabase project exists; the Supabase implementation will satisfy the same
  * interface so no screen has to change.
  */
-import type { ChannelId, Client, InviteInput, InviteResult, Message, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
+import type { ChannelId, Client, InviteInput, InviteResult, Message, PendingInvite, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
 
 export interface Snapshot {
   users: User[]
@@ -46,4 +46,8 @@ export interface Repo {
   updateUser(id: string, patch: Partial<User>): Promise<User>
   /** Admin only: records an invitation and e-mails it (Supabase: Edge Function «invite-member»). */
   inviteMember(input: InviteInput): Promise<InviteResult>
+  /** Admin only: members invited but without a password yet. */
+  listPendingInvites(): Promise<PendingInvite[]>
+  /** Admin only: re-sends the invitation e-mail of a pending member. */
+  resendInvite(email: string): Promise<InviteResult>
 }

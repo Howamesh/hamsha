@@ -1,7 +1,7 @@
 -- Local stand-in for the Supabase platform pieces the migrations rely on.
 -- auth.uid() reads request.jwt.claims exactly like Supabase does.
 create schema if not exists auth;
-create table if not exists auth.users (id uuid primary key, email text);
+create table if not exists auth.users (id uuid primary key, email text, email_confirmed_at timestamptz, invited_at timestamptz, encrypted_password text);
 create or replace function auth.uid() returns uuid
 language sql stable as $$
   select (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')::uuid

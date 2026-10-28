@@ -1,12 +1,12 @@
 -- Seed for the RLS tests: one org, 1 admin, 2 creatives, 2 clients with one user each.
 -- These fixture users predate the invitation system, so the auth trigger is paused just for this insert.
 alter table auth.users disable trigger on_auth_user_created;
-insert into auth.users (id, email) values
-  ('00000000-0000-0000-0000-00000000000a', 'admin@test'),
-  ('00000000-0000-0000-0000-0000000000c1', 'c1@test'),
-  ('00000000-0000-0000-0000-0000000000c2', 'c2@test'),
-  ('00000000-0000-0000-0000-0000000000e1', 'client1@test'),
-  ('00000000-0000-0000-0000-0000000000e2', 'client2@test');
+insert into auth.users (id, email, email_confirmed_at, encrypted_password) values
+  ('00000000-0000-0000-0000-00000000000a', 'admin@test', now(), 'x'),
+  ('00000000-0000-0000-0000-0000000000c1', 'c1@test', now(), 'x'),
+  ('00000000-0000-0000-0000-0000000000c2', 'c2@test', now(), 'x'),
+  ('00000000-0000-0000-0000-0000000000e1', 'client1@test', now(), 'x'),
+  ('00000000-0000-0000-0000-0000000000e2', 'client2@test', now(), 'x');
 alter table auth.users enable trigger on_auth_user_created;
 
 insert into organizations (id, name) values ('10000000-0000-0000-0000-000000000001', 'هوامش');
