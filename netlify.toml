@@ -18,3 +18,14 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# Branch deploys (e.g. the `social` branch → https://social--hamsha-studio.netlify.app) and PR previews
+# talk to the STAGING Supabase project, never to production. These are public values (publishable key);
+# netlify.toml context values override the UI variables, which keep pointing production at `hamsha`.
+[context.branch-deploy.environment]
+  VITE_SUPABASE_URL = "https://fvhalabzjbyzgwqfqqul.supabase.co"
+  VITE_SUPABASE_ANON_KEY = "sb_publishable_N426aY8pX3C4h5weuN0lPg_0WNiDm2r"
+
+[context.deploy-preview.environment]
+  VITE_SUPABASE_URL = "https://fvhalabzjbyzgwqfqqul.supabase.co"
+  VITE_SUPABASE_ANON_KEY = "sb_publishable_N426aY8pX3C4h5weuN0lPg_0WNiDm2r"
