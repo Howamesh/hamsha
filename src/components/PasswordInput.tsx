@@ -25,7 +25,8 @@ export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputHTMLAttribut
         tabIndex={-1}
         className="absolute inset-y-0 right-0 flex items-center px-3 text-fg-secondary hover:text-fg cursor-pointer"
       >
-        {shown ? <EyeOff size={17} /> : <Eye size={17} />}
+        {/* icon shows the STATE (Yousef's preference): crossed eye = hidden, open eye = visible */}
+        {shown ? <Eye size={17} /> : <EyeOff size={17} />}
       </button>
     </div>
   )
