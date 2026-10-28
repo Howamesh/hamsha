@@ -5,7 +5,7 @@ import { fmtDate } from '@/lib/useStr'
 import { partsCount } from '@/lib/i18n'
 import { repo } from '@/data'
 import type { Snapshot } from '@/data/repo'
-import type { PendingInvite, InviteInput, InviteResult, ChannelId, Client, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
+import type { PendingInvite, InviteInput, InviteResult, ChannelId, Client, NewPostInput, NewVersionInput, Post, PostDecision, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
 
 interface SessionState {
   user: User | null
@@ -37,6 +37,12 @@ interface SessionState {
   inviteMember: (input: InviteInput) => Promise<InviteResult>
   listPendingInvites: () => Promise<PendingInvite[]>
   resendInvite: (email: string) => Promise<InviteResult>
+
+  createPost: (input: NewPostInput) => Promise<Post>
+  addPostVersion: (input: NewVersionInput) => Promise<void>
+  updatePost: (id: string, patch: Partial<Pick<Post, 'status' | 'publishedUrl' | 'title' | 'platform' | 'format' | 'taskId'>>) => Promise<void>
+  deletePost: (id: string) => Promise<void>
+  decidePost: (versionId: string, decision: PostDecision, note?: string) => Promise<void>
 }
 
 /** UI-level permission boundary (the database enforces the same rules with RLS). */
@@ -49,7 +55,7 @@ function adminOnly(get: () => SessionState): User {
 let booting = false
 let unsubscribe: (() => void) | null = null
 
-const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], presence: {}, profiles: {} }
+const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], posts: [], postVersions: [], presence: {}, profiles: {} }
 
 /** Surface repository errors to the user — event handlers and async calls never reach the ErrorBoundary. */
 function report(e: unknown): never {
@@ -208,6 +214,36 @@ export const useSession = create<SessionState>((set, get) => ({
     const u = get().user
     if (!u) return
     await guard(repo.updateProfile(u.id, patch))
+  },
+
+  // ---------- «السوشل»: same boundaries the database enforces (0007_social.sql) ----------
+  async createPost(input) {
+    const u = get().user
+    if (!u || u.role === 'client') throw new Error('forbidden')
+    if (u.role === 'creative') {
+      const s = get().data ?? EMPTY
+      const works = s.tasks.some((t) => t.clientId === input.clientId && (t.ownerId === u.id || s.parts.some((p) => p.taskId === t.id && p.assigneeId === u.id)))
+      if (!works) throw new Error('forbidden')
+    }
+    return guard(repo.createPost(input))
+  },
+  async addPostVersion(input) {
+    const u = get().user
+    if (!u || u.role === 'client') throw new Error('forbidden')
+    await guard(repo.addPostVersion(input))
+  },
+  async updatePost(id, patch) {
+    adminOnly(get)
+    await guard(repo.updatePost(id, patch))
+  },
+  async deletePost(id) {
+    adminOnly(get)
+    await guard(repo.deletePost(id))
+  },
+  async decidePost(versionId, decision, note) {
+    const u = get().user
+    if (!u || u.role !== 'client') throw new Error('forbidden')
+    await guard(repo.decidePost(versionId, decision, note))
   },
 }))
 

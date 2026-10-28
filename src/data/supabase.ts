@@ -17,7 +17,7 @@
  */
 import { createClient as createSupabaseClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js'
 import type { Repo, Snapshot } from './repo'
-import type { PendingInvite, InviteInput, InviteResult, ChannelId, Client, Message, Presence, Profile, Project, Role, Task, TaskPart, User } from '@/types'
+import type { PendingInvite, InviteInput, InviteResult, ChannelId, Client, Message, NewPostInput, NewVersionInput, Post, PostDecision, PostVersion, Presence, Profile, Project, Role, Task, TaskPart, User } from '@/types'
 import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
 // ---------- row shapes (snake_case, exactly the columns in 0001/0002) ----------
@@ -30,11 +30,15 @@ interface ClientTaskRow { id: string; client_id: string; project_id: string; tit
 interface PartRow { id: string; task_id: string; label: string; assignee_id: string | null; hours: number; day: string; hand_off: string | null; done: boolean; position: number }
 interface ClientPartRow { id: string; task_id: string; label: string; done: boolean; position: number }
 interface MessageRow { id: string; channel: string; sender_id: string; body: string; created_at: string }
+interface PostRow { id: string; client_id: string; task_id: string | null; title: string; platform: Post['platform']; format: Post['format']; status: Post['status']; current_version: number; sent_at: string | null; published_url: string | null; published_at: string | null; created_by?: string | null; created_at: string; updated_at: string }
+interface VersionRow { id: string; post_id: string; number: number; image_path: string; caption: string; note: string | null; decision: PostVersion['decision'] | null; decision_note: string | null; decided_at: string | null; created_by?: string | null; created_at: string }
 
 const PALETTE = ['#D9B600', '#9B7BF2', '#4CB782', '#F06FA7', '#4E9BFA', '#F2994A', '#3B8EA5', '#7FA23B']
 const CLIENT_REFRESH_MS = 60_000
 const MESSAGE_LIMIT = 2000
-const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], presence: {}, profiles: {} }
+const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], posts: [], postVersions: [], presence: {}, profiles: {} }
+const POST_MEDIA_BUCKET = 'post-media'
+const SIGNED_URL_TTL_S = 60 * 60
 
 // ---------- row → domain ----------
 const toUser = (r: ProfileRow): User => ({ id: r.id, name: r.name, email: r.email, role: r.role, title: r.title ?? undefined, color: r.color, clientId: r.client_id ?? undefined })
@@ -59,6 +63,15 @@ const toPart = (r: PartRow | ClientPartRow): TaskPart => ({
   done: r.done, order: r.position,
 })
 const toMessage = (r: MessageRow): Message => ({ id: r.id, channel: r.channel as ChannelId, senderId: r.sender_id, body: r.body, at: r.created_at })
+const toPost = (r: PostRow): Post => ({
+  id: r.id, clientId: r.client_id, taskId: r.task_id ?? undefined, title: r.title, platform: r.platform, format: r.format, status: r.status, currentVersion: r.current_version,
+  sentAt: r.sent_at ?? undefined, publishedUrl: r.published_url ?? undefined, publishedAt: r.published_at ?? undefined, createdBy: r.created_by ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at,
+})
+const toVersion = (r: VersionRow): PostVersion => ({
+  id: r.id, postId: r.post_id, number: r.number, imagePath: r.image_path, caption: r.caption, note: r.note ?? undefined,
+  decision: r.decision ?? undefined, decisionNote: r.decision_note ?? undefined, decidedAt: r.decided_at ?? undefined, createdBy: r.created_by ?? undefined, createdAt: r.created_at,
+})
+const postPatch = (p: Partial<Post>) => strip({ title: p.title, platform: p.platform, format: p.format, status: p.status, published_url: p.publishedUrl, task_id: 'taskId' in p ? (p.taskId ?? null) : undefined })
 
 // ---------- domain → row (patches): `undefined` = leave unchanged; an explicit key with undefined clientId = unlink ----------
 const clientPatch = (p: Partial<Client>) => strip({ name: p.name, color: p.color, logo_path: p.logo, owner_id: p.ownerId, start_date: p.start, end_date: p.end, contract: p.contract })
@@ -92,6 +105,8 @@ export function createSupabaseRepo(): Repo {
   let channel: RealtimeChannel | null = null
   let timer: ReturnType<typeof setInterval> | null = null
   let reloadTimer: ReturnType<typeof setTimeout> | null = null
+  /** signed URLs of post media, per path (private bucket) */
+  const urlCache = new Map<string, { url: string; exp: number }>()
 
   const publish = (s: Snapshot) => {
     snap = s
@@ -135,7 +150,7 @@ export function createSupabaseRepo(): Repo {
     if (!me) await currentUser()
     if (!me) return EMPTY // no session: nothing to ask the database (anon has no grants anyway)
     const isClient = me.role === 'client'
-    const [users, settings, clients, projects, tasks, parts, messages] = await Promise.all([
+    const [users, settings, clients, projects, tasks, parts, messages, posts, versions] = await Promise.all([
       sb.from('profiles').select('*').returns<ProfileRow[]>(),
       sb.from('user_settings').select('*').returns<SettingsRow[]>(),
       sb.from('clients').select('*').returns<ClientRow[]>(),
@@ -144,8 +159,10 @@ export function createSupabaseRepo(): Repo {
       isClient ? sb.from('client_task_parts').select('*').returns<ClientPartRow[]>() : sb.from('task_parts').select('*').returns<PartRow[]>(),
       // newest first so a long history never hides today's messages; shown oldest → newest
       sb.from('messages').select('*').order('created_at', { ascending: false }).limit(MESSAGE_LIMIT).returns<MessageRow[]>(),
+      sb.from(isClient ? 'client_posts' : 'posts').select('*').returns<PostRow[]>(),
+      sb.from(isClient ? 'client_post_versions' : 'post_versions').select('*').returns<VersionRow[]>(),
     ])
-    for (const [r, what] of [[users, 'profiles'], [settings, 'settings'], [clients, 'clients'], [projects, 'projects'], [tasks, 'tasks'], [parts, 'parts'], [messages, 'messages']] as const) fail(r.error, what)
+    for (const [r, what] of [[users, 'profiles'], [settings, 'settings'], [clients, 'clients'], [projects, 'projects'], [tasks, 'tasks'], [parts, 'parts'], [messages, 'messages'], [posts, 'posts'], [versions, 'post_versions']] as const) fail(r.error, what)
     const presence: Record<string, Presence> = {}
     for (const u of users.data ?? []) presence[u.id] = u.presence
     const profiles: Record<string, Profile> = {}
@@ -157,6 +174,8 @@ export function createSupabaseRepo(): Repo {
       tasks: (tasks.data ?? []).map(toTask),
       parts: (parts.data ?? []).map(toPart),
       messages: (messages.data ?? []).map(toMessage).reverse(),
+      posts: (posts.data ?? []).map(toPost),
+      postVersions: (versions.data ?? []).map(toVersion),
       presence,
       profiles,
     }
@@ -172,7 +191,7 @@ export function createSupabaseRepo(): Repo {
       return
     }
     channel = sb.channel('team-live')
-    for (const table of ['messages', 'tasks', 'task_parts', 'profiles', 'clients', 'projects']) {
+    for (const table of ['messages', 'tasks', 'task_parts', 'profiles', 'clients', 'projects', 'posts', 'post_versions']) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleReload)
     }
     channel.subscribe()
@@ -277,7 +296,8 @@ export function createSupabaseRepo(): Repo {
       commit(undefined, (s) => {
         const gone = new Set(s.tasks.filter((t) => t.clientId === id).map((t) => t.id))
         const d = dropTasks(s, gone)
-        return { ...d, clients: without(d.clients, id), projects: d.projects.filter((p) => p.clientId !== id), messages: d.messages.filter((m) => m.channel !== `client:${id}`) }
+        const goneP = new Set(d.posts.filter((p) => p.clientId === id).map((p) => p.id))
+        return { ...d, clients: without(d.clients, id), projects: d.projects.filter((p) => p.clientId !== id), messages: d.messages.filter((m) => m.channel !== `client:${id}`), posts: d.posts.filter((p) => !goneP.has(p.id)), postVersions: d.postVersions.filter((v) => !goneP.has(v.postId)) }
       })
     },
     async createProject(input) {
@@ -423,6 +443,69 @@ export function createSupabaseRepo(): Repo {
       }
       if (!data?.ok) throw new Error('resendInvite: unexpected response')
       return { sent: data.sent, reason: data.reason, error: data.error }
+    },
+    // ---------- «السوشل» (0007): the database owns the state machine; this only maps rows and uploads files ----------
+    async createPost(input: NewPostInput) {
+      if (!orgId) throw new Error('no session')
+      const { data, error } = await sb.from('posts').insert({ org_id: orgId, client_id: input.clientId, task_id: input.taskId ?? null, title: input.title.trim(), platform: input.platform, format: input.format }).select('*').single<PostRow>()
+      fail(error, 'createPost')
+      const p = toPost(data)
+      return commit(p, (s) => ({ ...s, posts: upsert(s.posts, p) }))
+    },
+    async addPostVersion(input: NewVersionInput) {
+      if (!orgId) throw new Error('no session')
+      const post = snap?.posts.find((p) => p.id === input.postId)
+      if (!post) throw new Error('not found')
+      const ext = (input.file.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+      // <org>/<client>/<post>/<n>-<random>.<ext>: the storage policy reads org + client from the path
+      const path = `${orgId}/${post.clientId}/${post.id}/${post.currentVersion + 1}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const up = await sb.storage.from(POST_MEDIA_BUCKET).upload(path, input.file, { contentType: input.file.type, upsert: false })
+      fail(up.error, 'upload')
+      const { data, error } = await sb.from('post_versions').insert({ org_id: orgId, post_id: post.id, number: 0, image_path: path, caption: input.caption, note: input.note?.trim() || null }).select('*').single<VersionRow>()
+      if (error) {
+        await sb.storage.from(POST_MEDIA_BUCKET).remove([path]) // never leave an orphan file behind a failed insert
+        fail(error, 'addPostVersion')
+      }
+      const v = toVersion(data!)
+      return commit(v, (s) => ({ ...s, postVersions: upsert(s.postVersions, v), posts: s.posts.map((p) => (p.id === v.postId ? { ...p, currentVersion: v.number, status: 'draft', sentAt: undefined, updatedAt: v.createdAt } : p)) }))
+    },
+    async updatePost(id, patch) {
+      const { data, error } = await sb.from('posts').update(postPatch(patch)).eq('id', id).select('*').maybeSingle<PostRow>()
+      fail(error, 'updatePost')
+      if (!data) {
+        scheduleReload()
+        throw new Error('stale')
+      }
+      const p = toPost(data)
+      return commit(p, (s) => ({ ...s, posts: upsert(s.posts, p) }))
+    },
+    async deletePost(id) {
+      const paths = (snap?.postVersions ?? []).filter((v) => v.postId === id).map((v) => v.imagePath)
+      const { error } = await sb.from('posts').delete().eq('id', id)
+      fail(error, 'deletePost')
+      if (paths.length) void sb.storage.from(POST_MEDIA_BUCKET).remove(paths).catch(() => undefined)
+      commit(undefined, (s) => ({ ...s, posts: without(s.posts, id), postVersions: s.postVersions.filter((v) => v.postId !== id) }))
+    },
+    async decidePost(versionId, decision: PostDecision, note) {
+      const { error } = await sb.rpc('decide_post', { p_version: versionId, p_decision: decision, p_note: note?.trim() || null })
+      fail(error, 'decidePost')
+      const at = new Date().toISOString()
+      commit(undefined, (s) => {
+        const v = s.postVersions.find((x) => x.id === versionId)
+        return {
+          ...s,
+          postVersions: s.postVersions.map((x) => (x.id === versionId ? { ...x, decision, decisionNote: note?.trim() || undefined, decidedAt: at } : x)),
+          posts: v ? s.posts.map((p) => (p.id === v.postId ? { ...p, status: decision, updatedAt: at } : p)) : s.posts,
+        }
+      })
+    },
+    async mediaUrl(path) {
+      const hit = urlCache.get(path)
+      if (hit && hit.exp > Date.now()) return hit.url
+      const { data, error } = await sb.storage.from(POST_MEDIA_BUCKET).createSignedUrl(path, SIGNED_URL_TTL_S)
+      fail(error, 'mediaUrl')
+      urlCache.set(path, { url: data.signedUrl, exp: Date.now() + (SIGNED_URL_TTL_S - 60) * 1000 })
+      return data.signedUrl
     },
     async updateProfile(userId, patch) {
       const { data, error } = await sb.from('user_settings').upsert({ user_id: userId, ...settingsPatch(patch) }).select('*').single<SettingsRow>()

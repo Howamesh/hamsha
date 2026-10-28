@@ -4,7 +4,7 @@
  * localStorage so a reload does not wipe it. Replaced by Supabase later.
  */
 import type { Repo, Snapshot } from './repo'
-import type { ChannelId, Client, InviteInput, InviteResult, Message, PendingInvite, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
+import type { ChannelId, Client, InviteInput, InviteResult, Message, NewPostInput, NewVersionInput, PendingInvite, Post, PostDecision, PostVersion, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
 import { addIso, todayIso } from '@/lib/dates'
 import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
@@ -46,11 +46,13 @@ function seed(): Snapshot {
   const tasks: Task[] = []
   const parts: TaskPart[] = []
   const messages: Message[] = []
+  const posts: Post[] = []
+  const postVersions: PostVersion[] = []
 
   const profiles: Record<string, Profile> = {}
   for (const u of users) profiles[u.id] = { userId: u.id, city: 'riyadh', whStart: 9, whEnd: 17, notes: '', theme: 'light', lang: 'ar', weekStart: 'monday' }
 
-  return { users, clients, projects, tasks, parts, messages, presence: {}, profiles }
+  return { users, clients, projects, tasks, parts, messages, posts, postVersions, presence: {}, profiles }
 }
 
 function read(): Snapshot {
@@ -59,7 +61,10 @@ function read(): Snapshot {
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Snapshot>
       const ok = ['users', 'clients', 'projects', 'tasks', 'parts', 'messages'].every((k) => Array.isArray((parsed as Record<string, unknown>)[k]))
-      if (ok && parsed.profiles && parsed.presence) return parsed as Snapshot
+      if (ok && parsed.profiles && parsed.presence) {
+        // snapshots saved before «السوشل» (0007) have no posts yet
+        return { posts: [], postVersions: [], ...parsed } as Snapshot
+      }
     }
   } catch {
     /* ignore */
@@ -157,6 +162,9 @@ export function createMockRepo(): Repo {
     },
     async deleteClient(id) {
       snap.messages = snap.messages.filter((m) => m.channel !== `client:${id}`)
+      const goneP = new Set(snap.posts.filter((p) => p.clientId === id).map((p) => p.id))
+      snap.posts = snap.posts.filter((p) => !goneP.has(p.id))
+      snap.postVersions = snap.postVersions.filter((v) => !goneP.has(v.postId))
       snap.clients = snap.clients.filter((c) => c.id !== id)
       snap.projects = snap.projects.filter((p) => p.clientId !== id)
       const gone = new Set(snap.tasks.filter((t) => t.clientId === id).map((t) => t.id))
@@ -267,6 +275,80 @@ export function createMockRepo(): Repo {
       const p = pending.find((x) => x.email === email.trim().toLowerCase())
       if (!p) throw new Error('not found')
       return { sent: true }
+    },
+    // ---------- «السوشل» — mirrors 0007_social.sql (posts_status_guard / post_versions_insert / decide_post) ----------
+    async createPost(input: NewPostInput) {
+      const me = snap.users.find((u) => u.id === localStorage.getItem(SESSION_KEY))
+      if (!me || me.role === 'client') throw new Error('forbidden')
+      if (!input.title.trim()) throw new Error('title')
+      const now = new Date().toISOString()
+      const p: Post = { id: nid('s'), clientId: input.clientId, taskId: input.taskId, title: input.title.trim(), platform: input.platform, format: input.format, status: 'draft', currentVersion: 0, createdBy: me.id, createdAt: now, updatedAt: now }
+      snap.posts = [...snap.posts, p]
+      commit()
+      return p
+    },
+    async addPostVersion(input: NewVersionInput) {
+      const me = snap.users.find((u) => u.id === localStorage.getItem(SESSION_KEY))
+      if (!me || me.role === 'client') throw new Error('forbidden')
+      const post = snap.posts.find((p) => p.id === input.postId)
+      if (!post) throw new Error('not found')
+      if (post.status === 'published') throw new Error('a published post cannot change')
+      const imagePath = await new Promise<string>((res, rej) => {
+        const r = new FileReader()
+        r.onload = () => res(String(r.result))
+        r.onerror = () => rej(new Error('read'))
+        r.readAsDataURL(input.file)
+      })
+      const v: PostVersion = { id: nid('v'), postId: post.id, number: post.currentVersion + 1, imagePath, caption: input.caption, note: input.note?.trim() || undefined, createdBy: me.id, createdAt: new Date().toISOString() }
+      snap.postVersions = [...snap.postVersions, v]
+      snap.posts = snap.posts.map((p) => (p.id === post.id ? { ...p, currentVersion: v.number, status: 'draft', sentAt: undefined, updatedAt: v.createdAt } : p))
+      commit()
+      return v
+    },
+    async updatePost(id, patch) {
+      const me = snap.users.find((u) => u.id === localStorage.getItem(SESSION_KEY))
+      if (!me || me.role !== 'admin') throw new Error('forbidden')
+      const cur = snap.posts.find((p) => p.id === id)
+      if (!cur) throw new Error('not found')
+      const next: Post = { ...cur, ...patch, id, updatedAt: new Date().toISOString() }
+      if (patch.status && patch.status !== cur.status) {
+        if (cur.status === 'draft' && patch.status === 'sent') {
+          if (cur.currentVersion === 0) throw new Error('upload a version before sending')
+          next.sentAt = next.updatedAt
+        } else if (cur.status === 'sent' && patch.status === 'draft') next.sentAt = undefined
+        else if (cur.status === 'approved' && patch.status === 'published') {
+          if (!next.publishedUrl) throw new Error('published_url is required')
+          next.publishedAt = next.updatedAt
+        } else throw new Error(`transition ${cur.status} → ${patch.status} is not allowed`)
+      }
+      snap.posts = snap.posts.map((p) => (p.id === id ? next : p))
+      commit()
+      return next
+    },
+    async deletePost(id) {
+      snap.posts = snap.posts.filter((p) => p.id !== id)
+      snap.postVersions = snap.postVersions.filter((v) => v.postId !== id)
+      commit()
+    },
+    async decidePost(versionId, decision: PostDecision, note) {
+      const me = snap.users.find((u) => u.id === localStorage.getItem(SESSION_KEY))
+      if (!me || me.role !== 'client') throw new Error('only clients decide')
+      const v = snap.postVersions.find((x) => x.id === versionId)
+      const post = v && snap.posts.find((p) => p.id === v.postId)
+      if (!v || !post) throw new Error('not found')
+      if (post.clientId !== me.clientId) throw new Error('not your post')
+      if (post.status !== 'sent') throw new Error('post is not awaiting your decision')
+      if (v.number !== post.currentVersion) throw new Error('only the current version can be decided')
+      if (v.decision) throw new Error('already decided')
+      const clean = note?.trim() || undefined
+      if (decision === 'changes' && !clean) throw new Error('say what to change')
+      const at = new Date().toISOString()
+      snap.postVersions = snap.postVersions.map((x) => (x.id === v.id ? { ...x, decision, decisionNote: clean, decidedAt: at } : x))
+      snap.posts = snap.posts.map((p) => (p.id === post.id ? { ...p, status: decision, updatedAt: at } : p))
+      commit()
+    },
+    async mediaUrl(path) {
+      return path
     },
     async updateProfile(userId, patch) {
       const next = { ...snap.profiles[userId], ...patch, userId }

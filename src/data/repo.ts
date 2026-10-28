@@ -3,7 +3,7 @@
  * Supabase project exists; the Supabase implementation will satisfy the same
  * interface so no screen has to change.
  */
-import type { ChannelId, Client, InviteInput, InviteResult, Message, PendingInvite, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
+import type { ChannelId, Client, InviteInput, InviteResult, Message, NewPostInput, NewVersionInput, PendingInvite, Post, PostDecision, PostVersion, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
 
 export interface Snapshot {
   users: User[]
@@ -12,6 +12,8 @@ export interface Snapshot {
   tasks: Task[]
   parts: TaskPart[]
   messages: Message[]
+  posts: Post[]
+  postVersions: PostVersion[]
   presence: Record<string, Presence>
   profiles: Record<string, Profile>
 }
@@ -50,4 +52,18 @@ export interface Repo {
   listPendingInvites(): Promise<PendingInvite[]>
   /** Admin only: re-sends the invitation e-mail of a pending member. */
   resendInvite(email: string): Promise<InviteResult>
+
+  // ---------- «السوشل» (team: admin + creatives who work with the client; client: decide only) ----------
+  /** Team: a new post is born as an empty draft; upload its first version right after. */
+  createPost(input: NewPostInput): Promise<Post>
+  /** Team: uploads the image, inserts a frozen version; the post returns to draft at that version. */
+  addPostVersion(input: NewVersionInput): Promise<PostVersion>
+  /** Admin: send (draft→sent), withdraw (sent→draft), publish (approved→published + url), rename/retarget. */
+  updatePost(id: string, patch: Partial<Pick<Post, 'status' | 'publishedUrl' | 'title' | 'platform' | 'format' | 'taskId'>>): Promise<Post>
+  /** Admin only. */
+  deletePost(id: string): Promise<void>
+  /** Client: «موافق» / «يبي تعديل» (+ note) on the CURRENT version of a post that was sent. */
+  decidePost(versionId: string, decision: PostDecision, note?: string): Promise<void>
+  /** Resolves a version's imagePath to something an <img> can show (signed URL on Supabase, as-is on the demo store). */
+  mediaUrl(path: string): Promise<string>
 }

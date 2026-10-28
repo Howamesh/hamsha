@@ -115,6 +115,76 @@ export interface PendingInvite {
   invitedAt?: string
 }
 
+// ---------- «السوشل» phase 1 (0007_social.sql) ----------
+export type PostPlatform = 'instagram' | 'tiktok' | 'snapchat' | 'linkedin' | 'x'
+export type PostFormat = 'square' | 'portrait' | 'story'
+/** draft (team) → sent (client decides) → approved | changes → published (link pasted). A new version returns to draft. */
+export type PostStatus = 'draft' | 'sent' | 'approved' | 'changes' | 'published'
+export type PostDecision = 'approved' | 'changes'
+
+export interface Post {
+  id: string
+  clientId: string
+  taskId?: string
+  title: string
+  platform: PostPlatform
+  format: PostFormat
+  status: PostStatus
+  /** Number of the latest version (0 = nothing uploaded yet). The client's decision binds to this number. */
+  currentVersion: number
+  sentAt?: string
+  publishedUrl?: string
+  publishedAt?: string
+  /** Team only (the client view carries no people). */
+  createdBy?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** A frozen upload: image + caption never change after the insert; the decision is written by decide_post(). */
+export interface PostVersion {
+  id: string
+  postId: string
+  number: number
+  /** Storage path (Supabase) or data/blob URL (demo store). Resolve with repo.mediaUrl(). */
+  imagePath: string
+  caption: string
+  /** Team → client note shown with the version */
+  note?: string
+  decision?: PostDecision
+  decisionNote?: string
+  decidedAt?: string
+  createdBy?: string
+  createdAt: string
+}
+
+export interface NewPostInput {
+  clientId: string
+  taskId?: string
+  title: string
+  platform: PostPlatform
+  format: PostFormat
+}
+export interface NewVersionInput {
+  postId: string
+  file: File
+  caption: string
+  note?: string
+}
+
+export const POST_PLATFORMS: Record<PostPlatform, { en: string; ar: string; color: string }> = {
+  instagram: { en: 'Instagram', ar: 'إنستقرام', color: '#E1306C' },
+  tiktok: { en: 'TikTok', ar: 'تيك توك', color: '#111111' },
+  snapchat: { en: 'Snapchat', ar: 'سناب شات', color: '#D9B600' },
+  linkedin: { en: 'LinkedIn', ar: 'لينكدإن', color: '#0A66C2' },
+  x: { en: 'X', ar: 'إكس', color: '#222222' },
+}
+export const POST_FORMATS: Record<PostFormat, { en: string; ar: string; ratio: number }> = {
+  square: { en: 'Square 1:1', ar: 'مربع ١:١', ratio: 1 },
+  portrait: { en: 'Portrait 4:5', ar: 'طولي ٤:٥', ratio: 4 / 5 },
+  story: { en: 'Story 9:16', ar: 'ستوري ٩:١٦', ratio: 9 / 16 },
+}
+
 export type Presence = 'live' | 'away'
 
 export interface Profile {

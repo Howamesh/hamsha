@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Bell, Calendar, ChevronLeft, ChevronRight, LogOut, MessageCircle, PanelRightOpen, PieChart, Settings, User } from 'lucide-react'
+import { Bell, Calendar, ChevronLeft, ChevronRight, LogOut, MessageCircle, PanelRightOpen, PieChart, Settings, Share2, User } from 'lucide-react'
 import { addDays, addMonths, addWeeks } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { fromIso, toIso, todayIso, weekDays } from '@/lib/dates'
@@ -23,6 +23,9 @@ import { NewTaskDialog, type NewTaskSeed } from '@/components/NewTaskDialog'
 import { Toast } from '@/components/Toast'
 import { useAlerts } from '@/components/Alerts'
 import { BrandTile } from '@/components/BrandTile'
+import { SocialBoard } from '@/components/social/SocialBoard'
+import { postsNeedingAction, visiblePosts } from '@/lib/social'
+import { PostSheet } from '@/components/social/PostSheet'
 
 export default function Shell() {
   const me = useUser()
@@ -44,6 +47,8 @@ function App() {
   const client = ui.calId ? s.clients.find((c) => c.id === ui.calId) : me.role === 'client' ? s.clients.find((c) => c.id === me.clientId) : null
   const tasks = useMemo(() => visibleTasks(s, me, ui.calId), [s, me, ui.calId])
   const presence = s.presence[me.id] ?? 'away'
+  const social = ui.workspace === 'social'
+  const socialBadge = useMemo(() => postsNeedingAction(visiblePosts(s, me, ui.calId), me.role), [s, me, ui.calId])
 
   // Close the panel by default on phones
   useEffect(() => {
@@ -102,6 +107,19 @@ function App() {
           <Badge className="hidden sm:inline">{badge}</Badge>
         </div>
         <div className="flex-1" />
+        <div className="relative">
+          <Segmented
+            size="sm"
+            value={ui.workspace}
+            options={[
+              { value: 'calendar', label: t('calendar') },
+              { value: 'social', label: t('social') },
+            ]}
+            onChange={ui.setWorkspace}
+          />
+          {!!socialBadge && !social && <span className="absolute -top-1.5 -end-1.5 min-w-[16px] h-4 px-1 rounded-full bg-accent text-accent-fg text-[10px] font-bold grid place-items-center pointer-events-none" data-testid="social-badge">{socialBadge}</span>}
+        </div>
+        {!social && (
         <div className="flex items-center gap-1.5">
           <Button size="icon" className="h-8 w-8" onClick={() => shift(-1)} aria-label={t('prev')}>
             {lang === 'ar' ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
@@ -117,6 +135,8 @@ function App() {
             {t('today')}
           </Button>
         </div>
+        )}
+        {!social && (
         <Segmented
           value={ui.view}
           options={[
@@ -126,6 +146,7 @@ function App() {
           ]}
           onChange={ui.setView}
         />
+        )}
         {isCreative && (
           <Segmented
             size="sm"
@@ -175,9 +196,15 @@ function App() {
         )}
 
         <main className={cn('flex-1 min-w-0 min-h-0 flex flex-col gap-[var(--gap)]', narrow && 'pb-[calc(64px+env(safe-area-inset-bottom,0px))]')}>
-          {ui.view === 'month' && <MonthView tasks={tasks} onCreate={onCreate} emptyMsg={emptyMsg} hint={isAdmin && client ? t('dragHint') : isCreative ? t('hintCreative') : undefined} />}
-          {ui.view === 'week' && <WeekView tasks={tasks} onCreate={onCreate} />}
-          {ui.view === 'day' && <DayView tasks={tasks} onCreate={onCreate} />}
+          {social ? (
+            <SocialBoard />
+          ) : (
+            <>
+              {ui.view === 'month' && <MonthView tasks={tasks} onCreate={onCreate} emptyMsg={emptyMsg} hint={isAdmin && client ? t('dragHint') : isCreative ? t('hintCreative') : undefined} />}
+              {ui.view === 'week' && <WeekView tasks={tasks} onCreate={onCreate} />}
+              {ui.view === 'day' && <DayView tasks={tasks} onCreate={onCreate} />}
+            </>
+          )}
         </main>
       </div>
 
@@ -191,8 +218,12 @@ function App() {
       )}
       {narrow && (
         <nav className="fixed inset-x-2 bottom-2 z-[65] h-[54px] rounded-md border border-border bg-card flex items-stretch shadow-[0_8px_24px_rgba(0,0,0,0.1)]">
-          <button type="button" onClick={() => ui.togglePanel(false)} className={cn('flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', !ui.panelOpen ? 'text-fg' : 'text-fg-secondary')}>
+          <button type="button" onClick={() => { ui.togglePanel(false); ui.setWorkspace('calendar') }} className={cn('flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', !ui.panelOpen && !social ? 'text-fg' : 'text-fg-secondary')}>
             <Calendar size={18} /> {t(ui.view)}
+          </button>
+          <button type="button" onClick={() => { ui.togglePanel(false); ui.setWorkspace('social') }} className={cn('relative flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', !ui.panelOpen && social ? 'text-fg' : 'text-fg-secondary')}>
+            <Share2 size={18} /> {t('social')}
+            {!!socialBadge && <span className="absolute top-1.5 end-[22%] min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-accent-fg text-[9.5px] font-bold grid place-items-center">{socialBadge}</span>}
           </button>
           {railTabs.map((r) => (
             <button key={r.id} type="button" onClick={() => ui.setPanelTab(r.id)} className={cn('relative flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', ui.panelOpen && ui.panelTab === r.id ? 'text-fg' : 'text-fg-secondary')}>
@@ -205,6 +236,7 @@ function App() {
 
       {newTask && <NewTaskDialog seed={newTask} clientId={client?.id ?? null} onClose={() => setNewTask(null)} />}
       <TaskSheet />
+      <PostSheet />
       <Checkin />
       <Toast />
     </div>
