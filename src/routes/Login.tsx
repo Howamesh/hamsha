@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Input, Logo } from '@/components/ui'
+import { PasswordInput } from '@/components/PasswordInput'
 import { useStr } from '@/lib/useStr'
 import { useSession } from '@/store/session'
 import { IS_DEMO } from '@/data'
@@ -71,10 +72,8 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <Input
-              type="password"
+            <PasswordInput
               autoComplete="current-password"
-              dir="ltr"
               placeholder={t('password')}
               value={pw}
               onChange={(e) => setPw(e.target.value)}

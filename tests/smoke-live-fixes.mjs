@@ -26,6 +26,12 @@ CHECKS['invite link lands on /welcome'] = (await ev(`location.pathname`)) === '/
 CHECKS['welcome form is shown'] = await ev(`document.body.innerText.includes('أهلاً بك في همشة')`);
 await send('Page.navigate',{url: BASE + '/#access_token=test&refresh_token=test&type=recovery'}); await mounted();
 CHECKS['recovery link lands on /welcome'] = (await ev(`location.pathname`)) === '/welcome';
+// 1b) the «eye» on every password field: hidden by default, visible after one click, hidden again after another
+await waitFor(`document.querySelectorAll('input[type=password]').length === 2`);
+await ev(`document.querySelector('button[aria-label="إظهار كلمة المرور"]').click()`); await sleep(150);
+CHECKS['eye reveals the password'] = (await ev(`document.querySelectorAll('input[type=text][autocomplete="new-password"]').length`)) === 1;
+await ev(`document.querySelector('button[aria-label="إخفاء كلمة المرور"]').click()`); await sleep(150);
+CHECKS['eye hides it again'] = (await ev(`document.querySelectorAll('input[type=password]').length`)) === 2;
 
 // 2) task sheet closes when the admin leaves the client calendar
 await send('Page.navigate',{url: BASE + '/login'}); await sleep(1500);
