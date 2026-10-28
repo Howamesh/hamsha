@@ -12,8 +12,10 @@ export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputHTMLAttribut
   const { t } = useStr()
   const [shown, setShown] = useState(false)
   return (
-    <div className="relative">
-      <Input ref={ref} type={shown ? 'text' : 'password'} dir="ltr" className={cn('pe-11', className)} {...props} />
+    // the field is LTR (passwords are latin) and so is this wrapper, so the eye sits at the RIGHT edge,
+    // after the text, even on the Arabic page (first version overlapped the first letters — 2026-10-28)
+    <div className="relative" dir="ltr">
+      <Input ref={ref} type={shown ? 'text' : 'password'} dir="ltr" className={cn('pr-11', className)} {...props} />
       <button
         type="button"
         onClick={() => setShown((v) => !v)}
@@ -21,7 +23,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputHTMLAttribut
         aria-pressed={shown}
         title={shown ? t('hidePassword') : t('showPassword')}
         tabIndex={-1}
-        className="absolute inset-y-0 end-0 flex items-center px-3 text-fg-secondary hover:text-fg cursor-pointer"
+        className="absolute inset-y-0 right-0 flex items-center px-3 text-fg-secondary hover:text-fg cursor-pointer"
       >
         {shown ? <EyeOff size={17} /> : <Eye size={17} />}
       </button>

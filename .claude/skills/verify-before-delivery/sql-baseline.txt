@@ -8,7 +8,7 @@
 # 35ed2ec37b8e1b9ea5b190d81733f00bce652c70  tests/smoke-drag.mjs
 # 8f25b5682a969430d827a9752ea915fa1f603b3c  tests/smoke-hours.mjs
 # 3b8e928d68e4cf87c8f6fe127c2cc085b5190523  tests/smoke-invite.mjs
-# b8bb425feac720281f58d6785471acc7e28c1026  tests/smoke-live-fixes.mjs
+# c3c8e175ec5ed6736fd785f389c65e57f3a60c24  tests/smoke-live-fixes.mjs
 # a6816e1541a7c5ce759bfe313ef2228b3b89de0f  tests/smoke-regressions.mjs
 # 4fdb93442d5ef0a4b643c53ddd5e3b20a95d7c8f  tests/smoke-review3.mjs
 # 6e0e69bd57a6086a50f8c7f23cc7283dbaf931f6  tests/smoke-roles.mjs
