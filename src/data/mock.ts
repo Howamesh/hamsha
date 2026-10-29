@@ -4,7 +4,7 @@
  * localStorage so a reload does not wipe it. Replaced by Supabase later.
  */
 import type { Repo, Snapshot } from './repo'
-import type { ChannelId, Client, InviteInput, InviteResult, Message, NewPostInput, NewVersionInput, PendingInvite, Post, PostDecision, PostVersion, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
+import type { ChannelId, Client, ClientAccount, ClientAccountInput, InviteInput, InviteResult, Message, NewPostInput, NewVersionInput, PendingInvite, Post, PostDecision, PostVersion, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
 import { addIso, todayIso } from '@/lib/dates'
 import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
@@ -48,11 +48,12 @@ function seed(): Snapshot {
   const messages: Message[] = []
   const posts: Post[] = []
   const postVersions: PostVersion[] = []
+  const clientAccounts: ClientAccount[] = []
 
   const profiles: Record<string, Profile> = {}
   for (const u of users) profiles[u.id] = { userId: u.id, city: 'riyadh', whStart: 9, whEnd: 17, notes: '', theme: 'light', lang: 'ar', weekStart: 'monday' }
 
-  return { users, clients, projects, tasks, parts, messages, posts, postVersions, presence: {}, profiles }
+  return { users, clients, projects, tasks, parts, messages, posts, postVersions, clientAccounts, presence: {}, profiles }
 }
 
 function read(): Snapshot {
@@ -62,8 +63,12 @@ function read(): Snapshot {
       const parsed = JSON.parse(raw) as Partial<Snapshot>
       const ok = ['users', 'clients', 'projects', 'tasks', 'parts', 'messages'].every((k) => Array.isArray((parsed as Record<string, unknown>)[k]))
       if (ok && parsed.profiles && parsed.presence) {
-        // snapshots saved before «السوشل» (0007) have no posts yet
-        return { posts: [], postVersions: [], ...parsed } as Snapshot
+        // snapshots saved before «السوشل» (0007) have no posts yet; 0008 turned imagePath into imagePaths[]
+        const versions = (parsed.postVersions ?? []).map((v) => {
+          const old = v as PostVersion & { imagePath?: string }
+          return old.imagePaths ? v : { ...v, imagePaths: old.imagePath ? [old.imagePath] : [] }
+        })
+        return { posts: [], clientAccounts: [], ...parsed, postVersions: versions } as Snapshot
       }
     }
   } catch {
@@ -165,6 +170,7 @@ export function createMockRepo(): Repo {
       const goneP = new Set(snap.posts.filter((p) => p.clientId === id).map((p) => p.id))
       snap.posts = snap.posts.filter((p) => !goneP.has(p.id))
       snap.postVersions = snap.postVersions.filter((v) => !goneP.has(v.postId))
+      snap.clientAccounts = snap.clientAccounts.filter((a) => a.clientId !== id)
       snap.clients = snap.clients.filter((c) => c.id !== id)
       snap.projects = snap.projects.filter((p) => p.clientId !== id)
       const gone = new Set(snap.tasks.filter((t) => t.clientId === id).map((t) => t.id))
@@ -282,7 +288,7 @@ export function createMockRepo(): Repo {
       if (!me || me.role === 'client') throw new Error('forbidden')
       if (!input.title.trim()) throw new Error('title')
       const now = new Date().toISOString()
-      const p: Post = { id: nid('s'), clientId: input.clientId, taskId: input.taskId, title: input.title.trim(), platform: input.platform, format: input.format, status: 'draft', currentVersion: 0, createdBy: me.id, createdAt: now, updatedAt: now }
+      const p: Post = { id: nid('s'), clientId: input.clientId, taskId: input.taskId, accountId: input.accountId, title: input.title.trim(), platform: input.platform, format: input.format, status: 'draft', currentVersion: 0, createdBy: me.id, createdAt: now, updatedAt: now }
       snap.posts = [...snap.posts, p]
       commit()
       return p
@@ -293,13 +299,23 @@ export function createMockRepo(): Repo {
       const post = snap.posts.find((p) => p.id === input.postId)
       if (!post) throw new Error('not found')
       if (post.status === 'published') throw new Error('a published post cannot change')
-      const imagePath = await new Promise<string>((res, rej) => {
-        const r = new FileReader()
-        r.onload = () => res(String(r.result))
-        r.onerror = () => rej(new Error('read'))
-        r.readAsDataURL(input.file)
-      })
-      const v: PostVersion = { id: nid('v'), postId: post.id, number: post.currentVersion + 1, imagePath, caption: input.caption, note: input.note?.trim() || undefined, createdBy: me.id, createdAt: new Date().toISOString() }
+      if (input.media.length === 0) throw new Error('no media')
+      const imagePaths: string[] = []
+      for (const m of input.media) {
+        if (!(m instanceof File)) {
+          imagePaths.push(m.path)
+          continue
+        }
+        imagePaths.push(
+          await new Promise<string>((res, rej) => {
+            const r = new FileReader()
+            r.onload = () => res(String(r.result))
+            r.onerror = () => rej(new Error('read'))
+            r.readAsDataURL(m)
+          }),
+        )
+      }
+      const v: PostVersion = { id: nid('v'), postId: post.id, number: post.currentVersion + 1, imagePaths, caption: input.caption, note: input.note?.trim() || undefined, createdBy: me.id, createdAt: new Date().toISOString() }
       snap.postVersions = [...snap.postVersions, v]
       snap.posts = snap.posts.map((p) => (p.id === post.id ? { ...p, currentVersion: v.number, status: 'draft', sentAt: undefined, updatedAt: v.createdAt } : p))
       commit()
@@ -315,6 +331,7 @@ export function createMockRepo(): Repo {
         if (cur.status === 'draft' && patch.status === 'sent') {
           if (cur.currentVersion === 0) throw new Error('upload a version before sending')
           next.sentAt = next.updatedAt
+          snap.postVersions = snap.postVersions.map((v) => (v.postId === id && v.number === cur.currentVersion && !v.sentAt ? { ...v, sentAt: next.updatedAt } : v))
         } else if (cur.status === 'sent' && patch.status === 'draft') next.sentAt = undefined
         else if (cur.status === 'approved' && patch.status === 'published') {
           if (!next.publishedUrl) throw new Error('published_url is required')
@@ -338,7 +355,7 @@ export function createMockRepo(): Repo {
       if (!v || !post) throw new Error('not found')
       if (post.clientId !== me.clientId) throw new Error('not your post')
       if (post.status !== 'sent') throw new Error('post is not awaiting your decision')
-      if (v.number !== post.currentVersion) throw new Error('only the current version can be decided')
+      if (v.number !== post.currentVersion || !v.sentAt) throw new Error('only the current sent version can be decided')
       if (v.decision) throw new Error('already decided')
       const clean = note?.trim() || undefined
       if (decision === 'changes' && !clean) throw new Error('say what to change')
@@ -349,6 +366,40 @@ export function createMockRepo(): Repo {
     },
     async mediaUrl(path) {
       return path
+    },
+    publicUrl(path) {
+      return path
+    },
+    // ---------- client accounts — mirrors 0008 (admin writes; handle without @, unique per client+platform) ----------
+    async saveClientAccount(input: ClientAccountInput) {
+      const me = snap.users.find((u) => u.id === localStorage.getItem(SESSION_KEY))
+      if (!me || me.role !== 'admin') throw new Error('forbidden')
+      const handle = input.handle.trim().replace(/^@/, '')
+      if (!/^[A-Za-z0-9._-]{1,60}$/.test(handle)) throw new Error('bad handle')
+      if (!input.displayName.trim()) throw new Error('name')
+      if (snap.clientAccounts.some((a) => a.id !== input.id && a.clientId === input.clientId && a.platform === input.platform && a.handle.toLowerCase() === handle.toLowerCase())) throw new Error('duplicate handle')
+      const cur = input.id ? snap.clientAccounts.find((a) => a.id === input.id) : undefined
+      let avatarPath = cur?.avatarPath
+      if (input.avatar === null) avatarPath = undefined
+      else if (input.avatar) {
+        avatarPath = await new Promise<string>((res, rej) => {
+          const r = new FileReader()
+          r.onload = () => res(String(r.result))
+          r.onerror = () => rej(new Error('read'))
+          r.readAsDataURL(input.avatar as File)
+        })
+      }
+      const a: ClientAccount = { id: cur?.id ?? nid('a'), clientId: input.clientId, platform: input.platform, handle, displayName: input.displayName.trim(), bio: input.bio?.trim() || undefined, avatarPath }
+      snap.clientAccounts = cur ? snap.clientAccounts.map((x) => (x.id === a.id ? a : x)) : [...snap.clientAccounts, a]
+      commit()
+      return a
+    },
+    async deleteClientAccount(id) {
+      const me = snap.users.find((u) => u.id === localStorage.getItem(SESSION_KEY))
+      if (!me || me.role !== 'admin') throw new Error('forbidden')
+      snap.clientAccounts = snap.clientAccounts.filter((a) => a.id !== id)
+      snap.posts = snap.posts.map((p) => (p.accountId === id ? { ...p, accountId: undefined } : p))
+      commit()
     },
     async updateProfile(userId, patch) {
       const next = { ...snap.profiles[userId], ...patch, userId }

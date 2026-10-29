@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Images, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fmtDate, useStr } from '@/lib/useStr'
 import { useData, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
 import { POST_PLATFORMS, type Post } from '@/types'
-import { postsNeedingAction, visiblePosts } from '@/lib/social'
+import { postsNeedingAction, visiblePosts, visibleVersions } from '@/lib/social'
 import { useMediaUrl } from '@/lib/useMedia'
 import { Button, Segmented } from '../ui'
 import { BrandTile } from '../BrandTile'
@@ -80,16 +80,26 @@ function Empty({ text }: { text: string }) {
 function PostCard({ post, onOpen, lang }: { post: Post; onOpen: () => void; lang: 'ar' | 'en' }) {
   const { t } = useStr()
   const s = useData()
+  const me = useUser()!
   const client = s.clients.find((c) => c.id === post.clientId)
-  const v = s.postVersions.find((x) => x.postId === post.id && x.number === post.currentVersion)
-  const src = useMediaUrl(v?.imagePath)
+  const account = s.clientAccounts.find((a) => a.id === post.accountId)
+  // a client only has the sent versions: the card shows the newest one they may see
+  const v = visibleVersions(s, me, post.id).find((x) => x.number === post.currentVersion) ?? visibleVersions(s, me, post.id)[0]
+  const src = useMediaUrl(v?.imagePaths[0])
   const ratio = post.format === 'story' ? '9 / 16' : post.format === 'portrait' ? '4 / 5' : '1 / 1'
   return (
     <button type="button" onClick={onOpen} className="rounded-md border border-border bg-bg text-start cursor-pointer hover:border-fg-faint overflow-hidden flex flex-col anim-fade" data-testid="post-card" data-status={post.status}>
       <div className="relative w-full bg-muted-bg overflow-hidden" style={{ aspectRatio: ratio, maxHeight: 280 }}>
         {src ? <img src={src} alt="" className="w-full h-full object-cover" draggable={false} /> : <div className="absolute inset-0 grid place-items-center text-[11px] text-fg-muted">{t('noVersionYet')}</div>}
         <StatusChip st={post.status} className="absolute top-2 start-2 shadow-sm" />
-        {post.currentVersion > 1 && <span className="absolute top-2 end-2 text-[10.5px] font-bold rounded-md px-1.5 py-0.5 bg-black/60 text-white">v{post.currentVersion}</span>}
+        <div className="absolute top-2 end-2 flex gap-1">
+          {!!v && v.imagePaths.length > 1 && (
+            <span className="text-[10.5px] font-bold rounded-md px-1.5 py-0.5 bg-black/60 text-white inline-flex items-center gap-1" data-testid="card-carousel">
+              <Images size={11} /> {v.imagePaths.length}
+            </span>
+          )}
+          {post.currentVersion > 1 && <span className="text-[10.5px] font-bold rounded-md px-1.5 py-0.5 bg-black/60 text-white">v{post.currentVersion}</span>}
+        </div>
       </div>
       <div className="p-2.5 flex flex-col gap-1">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -101,6 +111,11 @@ function PostCard({ post, onOpen, lang }: { post: Post; onOpen: () => void; lang
         <div className="text-[10.5px] text-fg-secondary flex items-center gap-1.5">
           <span className="w-[7px] h-[7px] rounded-full" style={{ background: POST_PLATFORMS[post.platform].color }} />
           {POST_PLATFORMS[post.platform][lang]}
+          {account && (
+            <span className="truncate" dir="ltr">
+              @{account.handle}
+            </span>
+          )}
           <span className={cn('ms-auto tabular-nums')} dir="ltr">
             {fmtDate(post.updatedAt.slice(0, 10), lang, { day: 'numeric', month: 'short' })}
           </span>

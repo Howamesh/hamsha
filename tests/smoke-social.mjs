@@ -1,4 +1,5 @@
-// «السوشل» phase 1 (2026-10-28): the whole approval loop on the demo store, across the three roles.
+// «السوشل» phase 1 (2026-10-28) + 1.5 (2026-10-29): the whole approval loop on the demo store, across the three roles,
+// plus the real-account preview, the carousel, the full-screen viewer, the kept images on a new version and the draft leak.
 // admin creates a post (image + caption) → sends it → client sees it in «السوشل» with ONLY «موافق / يبي تعديل»
 // → asks for changes with a note → admin sees the note, uploads v2 (post back to draft) → sends → client approves
 // → admin pastes the live link («تم النشر») → client finds it in the archive. A creative with no tasks sees nothing.
@@ -32,9 +33,9 @@ function png(r,g,b){ const w=4,h=4; const raw=Buffer.alloc((w*3+1)*h); for(let y
   const chunk=(t,d)=>{const len=Buffer.alloc(4);len.writeUInt32BE(d.length);const td=Buffer.concat([Buffer.from(t),d]);const c=Buffer.alloc(4);c.writeUInt32BE(crc(td));return Buffer.concat([len,td,c])};
   const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(w,0);ihdr.writeUInt32BE(h,4);ihdr[8]=8;ihdr[9]=2;ihdr[10]=0;ihdr[11]=0;ihdr[12]=0;
   return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',zlib.deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]); }
-const f1=`/tmp/hamsha-smoke-${port}-v1.png`, f2=`/tmp/hamsha-smoke-${port}-v2.png`;
-fs.writeFileSync(f1, png(220,40,40)); fs.writeFileSync(f2, png(40,120,220));
-const setFile = async (file) => { const doc = await send('DOM.getDocument',{depth:1}); const q = await send('DOM.querySelector',{nodeId:doc.result.root.nodeId, selector:'[data-testid=post-image]'}); await send('DOM.setFileInputFiles',{files:[file], nodeId:q.result.nodeId}); await sleep(400); };
+const f1=`/tmp/hamsha-smoke-${port}-v1.png`, f2=`/tmp/hamsha-smoke-${port}-v2.png`, f3=`/tmp/hamsha-smoke-${port}-av.png`;
+fs.writeFileSync(f1, png(220,40,40)); fs.writeFileSync(f2, png(40,120,220)); fs.writeFileSync(f3, png(20,200,120));
+const setFile = async (file, selector='[data-testid=post-image]') => { const doc = await send('DOM.getDocument',{depth:1}); const q = await send('DOM.querySelector',{nodeId:doc.result.root.nodeId, selector}); await send('DOM.setFileInputFiles',{files:Array.isArray(file)?file:[file], nodeId:q.result.nodeId}); await sleep(400); };
 
 await send('Page.navigate',{url: BASE + '/login'}); await sleep(1500);
 await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='ادخل كمدير')`, 30000);
@@ -56,13 +57,32 @@ await click('منشور جديد'); await waitFor(`!!document.querySelector('[ro
 CHECKS['create disabled before image'] = await ev(`[...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent.trim()==='إنشاء').disabled === true`);
 await setInput(`[...document.querySelectorAll('[role=dialog] input')].find(x=>x.placeholder.includes('تهنئة'))`, 'تهنئة اليوم الوطني');
 await setInput(`document.querySelector('[role=dialog] textarea')`, 'كل عام والوطن بخير 🇸🇦');
+// ---- the client's real account (1.5): no account yet → the dialog opens straight on the form
+CHECKS['no account yet → hint under the preview'] = (await text('[role=dialog][aria-label="منشور سوشل جديد"]')).includes('ما فيه حساب مختار');
+await ev(`document.querySelector('[data-testid=manage-accounts]').click()`); await waitFor(`!!document.querySelector('[data-testid=account-form]')`);
+await setFile(f3, '[data-testid=avatar-input]');
+await setInput(`document.querySelector('[data-testid=account-handle]')`, '@sana.sa');
+await setInput(`document.querySelector('[data-testid=account-name]')`, 'سنا للبطاقات');
+await click('احفظ الحساب'); await waitFor(`!document.querySelector('[data-testid=accounts-dialog]')`);
+CHECKS['account saved toast'] = await toastHas('انحفظ الحساب'); await closeToast();
+CHECKS['account picked in the select (@ stripped)'] = await ev(`[...document.querySelector('[data-testid=post-account]').options].some(o=>o.selected && o.textContent.includes('@sana.sa'))`);
+CHECKS['feed header shows the real handle + avatar'] = await ev(`(()=>{const p=document.querySelector('[data-testid=feed-preview]');return !!p && p.innerText.includes('sana.sa') && p.innerText.includes('سنا للبطاقات') && !!p.querySelector('img[src^="data:image/png"]')})()`);
 await setFile(f1);
-CHECKS['phone preview shows the picked image'] = await ev(`!!document.querySelector('[role=dialog] img[src^="blob:"]')`);
+CHECKS['phone preview shows the picked image'] = await ev(`!!document.querySelector('[role=dialog] [data-testid=feed-image][src^="blob:"]')`);
+CHECKS['no fake numbers in the preview'] = !/\d+\s*(likes|إعجاب|تعليق|متابع)/.test(await text('[data-testid=feed-preview]'));
+CHECKS['preview says «معاينة قبل النشر»'] = (await text('[data-testid=feed-preview]')).includes('معاينة قبل النشر');
 await waitFor(`[...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent.trim()==='إنشاء').disabled === false`);
 await click('إنشاء');
 await waitFor(`!!document.querySelector('[data-testid=post-sheet]')`);
 CHECKS['sheet opens as draft v1'] = (await status()) === 'draft' && (await text('[data-testid=versions]')).includes('النسخة 1');
-CHECKS['version stored as data url (demo)'] = await ev(`!!document.querySelector('[data-testid=post-sheet] img[src^="data:image/png"]')`);
+CHECKS['version stored as data url (demo)'] = await ev(`!!document.querySelector('[data-testid=post-sheet] [data-testid=feed-image][src^="data:image/png"]')`);
+// ---- full screen (1.5): tap the design → viewer, Esc closes
+await ev(`document.querySelector('[data-testid=post-sheet] [data-testid=feed-design]').click()`); await waitFor(`!!document.querySelector('[data-testid=post-viewer]')`);
+CHECKS['full-screen viewer opens on tap'] = await ev(`(()=>{const v=document.querySelector('[data-testid=post-viewer] [data-testid=feed-preview]');return !!v && v.getBoundingClientRect().width >= 300})()`);
+await ev(`document.querySelector('[data-testid=viewer-theme]').click()`); await sleep(200);
+CHECKS['viewer dark toggle'] = await ev(`document.querySelector('[data-testid=post-viewer] [data-testid=feed-preview]')?.dataset.dark === '1'`);
+await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27}); await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27}); await sleep(300);
+CHECKS['Esc closes the viewer'] = !(await ev(`!!document.querySelector('[data-testid=post-viewer]')`));
 CHECKS['admin cannot publish a draft (no link form)'] = !(await ev(`!!document.querySelector('[data-testid=published-url]')`));
 await click('أرسل للعميل');
 CHECKS['sent toast'] = await toastHas('أُرسل للعميل'); await closeToast();
@@ -70,12 +90,23 @@ CHECKS['status sent'] = (await status()) === 'sent';
 CHECKS['withdraw offered while sent'] = await ev(`[...document.querySelectorAll('[data-testid=team-actions] button')].some(b=>b.textContent.includes('اسحب'))`);
 await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
 CHECKS['card shows «عند العميل»'] = await ev(`[...document.querySelectorAll('[data-testid=post-card]')].some(c=>c.dataset.status==='sent' && c.innerText.includes('تهنئة اليوم الوطني'))`);
+// ---- a second post that is NEVER sent: the client must not see it (the 1.5 security fix)
+await click('منشور جديد'); await waitFor(`!!document.querySelector('[role=dialog][aria-label="منشور سوشل جديد"]')`);
+await setInput(`[...document.querySelectorAll('[role=dialog] input')].find(x=>x.placeholder.includes('تهنئة'))`, 'مسودة سرية');
+await setFile(f2); await waitFor(`[...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent.trim()==='إنشاء').disabled === false`);
+await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid=post-sheet]')`);
+CHECKS['second post is a draft'] = (await status()) === 'draft';
+await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
+CHECKS['admin sees both cards'] = (await ev(`document.querySelectorAll('[data-testid=post-card]').length`)) === 2;
 await click('تسجيل الخروج'); await sleep(700);
 
 // ---------- client: only two choices → asks for changes ----------
 await click('ادخل كعميل'); await waitFor(`!!document.querySelector('[data-testid=social-badge]')`, 20000);
 CHECKS['client badge = 1'] = (await text('[data-testid=social-badge]')).trim() === '1';
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=post-card]')`);
+await click('الكل'); await sleep(300);
+CHECKS['client never sees the unsent draft (even under «الكل»)'] = (await ev(`[...document.querySelectorAll('[data-testid=post-card]')].map(c=>c.innerText).join('|')`)).includes('تهنئة اليوم الوطني') && !(await ev(`[...document.querySelectorAll('[data-testid=post-card]')].some(c=>c.innerText.includes('مسودة سرية'))`));
+CHECKS['client card shows the real handle'] = await ev(`[...document.querySelectorAll('[data-testid=post-card]')].some(c=>c.innerText.includes('@sana.sa'))`);
 CHECKS['client has no «منشور جديد»'] = !(await ev(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim().includes('منشور جديد'))`));
 await ev(`document.querySelector('[data-testid=post-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=client-decision]')`);
 CHECKS['client sees exactly موافق + يبي تعديل'] = await ev(`(()=>{const bs=[...document.querySelectorAll('[data-testid=client-decision] button')].map(b=>b.textContent.trim());return bs.length===2 && bs.includes('موافق') && bs.includes('يبي تعديل')})()`);
@@ -97,14 +128,23 @@ await click('السوشل'); await waitFor(`!!document.querySelector('[data-test
 CHECKS['admin card shows «يبي تعديل»'] = await ev(`document.querySelector('[data-testid=post-card]').dataset.status === 'changes'`);
 await ev(`document.querySelector('[data-testid=post-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=post-sheet]')`);
 CHECKS['admin reads the client note'] = (await text('[data-testid=decision-note]')).includes('كبّر الشعار وغيّر لون الخلفية');
+CHECKS['sheet opens on the rejected version with its banner'] = await ev(`!!document.querySelector('[data-testid=changes-banner]') && document.querySelector('[data-testid=changes-banner]').innerText.includes('النسخة 1')`);
+CHECKS['rejected design still shown (nothing lost)'] = await ev(`!!document.querySelector('[data-testid=post-sheet] [data-testid=feed-image][src^="data:image/png"]')`);
 CHECKS['cannot resend the same version'] = !(await ev(`[...document.querySelectorAll('[data-testid=team-actions] button')].some(b=>b.textContent.includes('أرسل للعميل'))`));
-await click('ارفع نسخة جديدة'); await waitFor(`!!document.querySelector('[role=dialog][aria-label="نسخة جديدة"]')`);
+await ev(`document.querySelector('[data-testid=upload-fixed]').click()`); await waitFor(`!!document.querySelector('[role=dialog][aria-label="نسخة جديدة"]')`);
 CHECKS['v2 dialog keeps the caption'] = (await ev(`document.querySelector('[role=dialog][aria-label="نسخة جديدة"] textarea').value`)) === 'كل عام والوطن بخير 🇸🇦';
+CHECKS['v2 dialog keeps the previous image (no re-upload)'] = (await ev(`[...document.querySelectorAll('[role=dialog][aria-label="نسخة جديدة"] [data-testid=media-item]')].map(m=>m.dataset.kept).join(',')`)) === '1';
+CHECKS['v2 dialog repeats the client note'] = (await text('[role=dialog][aria-label="نسخة جديدة"]')).includes('كبّر الشعار وغيّر لون الخلفية');
+// add a second image → a 2-image carousel (the kept image stays the cover)
 await setFile(f2);
+CHECKS['carousel: 2 items, kept one first'] = (await ev(`[...document.querySelectorAll('[role=dialog][aria-label="نسخة جديدة"] [data-testid=media-item]')].map(m=>m.dataset.kept).join(',')`)) === '1,0';
+CHECKS['carousel counter in the dialog preview'] = (await text('[role=dialog][aria-label="نسخة جديدة"] [data-testid=carousel-counter]')).trim() === '1/2';
 await setInput(`[...document.querySelectorAll('[role=dialog][aria-label="نسخة جديدة"] input')].find(x=>x.placeholder.includes('وش تغيّر'))`, 'كبّرنا الشعار');
 await click('رفع'); await waitFor(`!document.querySelector('[role=dialog][aria-label="نسخة جديدة"]')`);
 CHECKS['back to draft at v2'] = (await status()) === 'draft' && (await text('[data-testid=versions]')).includes('النسخة 2');
 CHECKS['old decision kept on v1'] = (await text('[data-testid=versions]')).includes('كبّر الشعار');
+CHECKS['v2 is a 2-image carousel'] = (await text('[data-testid=versions]')).includes('2 صور') && (await text('[data-testid=post-sheet] [data-testid=carousel-counter]')).trim() === '1/2';
+CHECKS['banner gone once a new version exists'] = !(await ev(`!!document.querySelector('[data-testid=changes-banner]')`));
 await click('أرسل للعميل'); await toastHas('أُرسل للعميل'); await closeToast();
 CHECKS['status sent again'] = (await status()) === 'sent';
 await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
@@ -115,6 +155,8 @@ await click('ادخل كعميل'); await waitFor(`!!document.querySelector('[da
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=post-card]')`);
 await ev(`document.querySelector('[data-testid=post-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=client-decision]')`);
 CHECKS['client sees v2 note'] = (await text('[data-testid=post-sheet]')).includes('كبّرنا الشعار');
+CHECKS['client sees the carousel with dots'] = await ev(`!!document.querySelector('[data-testid=post-sheet] [data-testid=carousel-dots]')`);
+CHECKS['client sees the two SENT versions (v1, v2) and nothing unsent'] = (await ev(`document.querySelectorAll('[data-testid=version-row]').length`)) === 2;
 await click('موافق'); await toastHas('وصل قرارك'); await closeToast();
 CHECKS['status approved'] = (await status()) === 'approved';
 await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
@@ -135,7 +177,7 @@ await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إ
 // reload: everything persisted
 await send('Page.reload'); await sleep(1500); await waitFor(`!!document.querySelector('[data-testid=social-board]') || [...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='السوشل')`, 20000);
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=post-card]')`);
-CHECKS['persisted after reload'] = await ev(`document.querySelector('[data-testid=post-card]').dataset.status === 'published'`);
+CHECKS['persisted after reload'] = await ev(`[...document.querySelectorAll('[data-testid=post-card]')].some(c=>c.dataset.status === 'published')`);
 await click('تسجيل الخروج'); await sleep(700);
 
 // ---------- client archive + creative isolation ----------
@@ -143,6 +185,7 @@ await click('ادخل كعميل'); await sleep(1200);
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=social-board]')`);
 await click('الأرشيف'); await sleep(300);
 CHECKS['client archive keeps the published post with its link'] = await ev(`document.querySelector('[data-testid=post-card]')?.dataset.status === 'published'`);
+CHECKS['client archive has exactly one card (the draft never leaked)'] = (await ev(`document.querySelectorAll('[data-testid=post-card]').length`)) === 1;
 await ev(`document.querySelector('[data-testid=post-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=post-sheet]')`);
 CHECKS['client opens the live link'] = await ev(`[...document.querySelectorAll('[data-testid=post-sheet] a')].some(a=>a.href==='https://www.instagram.com/p/abc123/')`);
 await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
@@ -154,7 +197,7 @@ CHECKS['creative without tasks cannot create'] = !(await ev(`[...document.queryS
 
 CHECKS['no console errors'] = errors.length === 0;
 
-ws.close(); chrome.kill(); try{fs.rmSync(`/tmp/hamsha-chrome-${port}`,{recursive:true,force:true}); fs.rmSync(f1); fs.rmSync(f2);}catch{}
+ws.close(); chrome.kill(); try{fs.rmSync(`/tmp/hamsha-chrome-${port}`,{recursive:true,force:true}); fs.rmSync(f1); fs.rmSync(f2); fs.rmSync(f3);}catch{}
 console.log(JSON.stringify({...CHECKS, errors}, null, 1));
 const failed = Object.entries(CHECKS).filter(([, ok]) => !ok).map(([c]) => c)
 if (failed.length) { console.error('FAILED:', failed); process.exit(1) }

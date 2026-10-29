@@ -1,15 +1,17 @@
-import { useState, type FormEvent } from 'react'
-import { Check, ExternalLink, MessageSquareWarning, Send, Trash2, Undo2, Upload, X } from 'lucide-react'
+import { useMemo, useState, type FormEvent } from 'react'
+import { Check, ExternalLink, Maximize2, MessageSquareWarning, Send, Settings2, Trash2, Undo2, Upload, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fmtDate, fmtTime, useNarrow, useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
-import { POST_FORMATS, POST_PLATFORMS, type Post, type PostVersion } from '@/types'
+import { MEDIA_MAX, POST_FORMATS, POST_PLATFORMS, type MediaItem, type Post, type PostVersion } from '@/types'
 import { Button, Input, SectionTitle } from '../ui'
-import { statusTone } from '@/lib/social'
-import { useMediaUrl, useObjectUrl } from '@/lib/useMedia'
-import { ImageField } from './NewPostDialog'
-import { PhoneFrame } from './PhoneFrame'
+import { statusTone, visibleVersions } from '@/lib/social'
+import { useMediaUrls, useObjectUrls } from '@/lib/useMedia'
+import { FeedPreview } from './FeedPreview'
+import { PostViewer } from './PostViewer'
+import { MediaField } from './MediaField'
+import { ClientAccountsDialog } from './ClientAccountsDialog'
 
 export function StatusChip({ st, className }: { st: Post['status']; className?: string }) {
   const { t } = useStr()
@@ -21,7 +23,11 @@ function when(iso: string, lang: 'ar' | 'en') {
   return `${fmtDate(iso.slice(0, 10), lang, { day: 'numeric', month: 'short' })} · ${fmtTime(iso, lang)}`
 }
 
-/** The post, opened from the board: big preview of the current version, history, and the role's actions. */
+/**
+ * The post, opened from the board: the feed preview of the version being looked at (tap → full screen),
+ * history, and the role's actions. After «يبي تعديل» it opens on the REJECTED version with the client's
+ * note in front of the admin (nothing is lost; the corrected version starts from it).
+ */
 export function PostSheet() {
   const { t, lang } = useStr()
   const s = useData()
@@ -30,18 +36,26 @@ export function PostSheet() {
   const sess = useSession()
   const narrow = useNarrow()
   const post = s.posts.find((p) => p.id === ui.postId)
-  const versions = post ? s.postVersions.filter((v) => v.postId === post.id).sort((a, b) => b.number - a.number) : []
+  const versions = useMemo(() => (post && me ? visibleVersions(s, me, post.id) : []), [s, me, post])
   const current = versions.find((v) => v.number === post?.currentVersion) ?? versions[0]
-  const [shown, setShown] = useState<string | null>(null)
-  const view = versions.find((v) => v.id === shown) ?? current
-  const src = useMediaUrl(view?.imagePath)
+  // «يبي تعديل»: the version the client rejected is the one to look at first
+  const rejected = post?.status === 'changes' ? versions.find((v) => v.decision === 'changes' && v.number === post.currentVersion) : undefined
+  // a manual pick lives only for the post + version it was made on (a new upload or another post resets it)
+  const [pick, setPick] = useState<{ key: string; id: string } | null>(null)
+  const key = `${post?.id}:${post?.currentVersion}`
+  const setShown = (id: string) => setPick({ key, id })
+  const view = (pick?.key === key ? versions.find((v) => v.id === pick.id) : undefined) ?? rejected ?? current
+  const media = useMediaUrls(view?.imagePaths ?? [])
   const [uploading, setUploading] = useState(false)
   const [changing, setChanging] = useState(false)
+  const [full, setFull] = useState(false)
+  const [accounts, setAccounts] = useState(false)
   const [note, setNote] = useState('')
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   if (!post || !me) return null
   const client = s.clients.find((c) => c.id === post.clientId)
+  const account = s.clientAccounts.find((a) => a.id === post.accountId)
   const task = post.taskId ? s.tasks.find((x) => x.id === post.taskId) : undefined
   const admin = me.role === 'admin'
   const team = me.role !== 'client'
@@ -60,6 +74,7 @@ export function PostSheet() {
       setBusy(false)
     }
   }
+  const previewProps = { platform: post.platform, format: post.format, media, caption: view?.caption, account, clientName: client?.name ?? '—' }
 
   return (
     <div
@@ -80,6 +95,7 @@ export function PostSheet() {
           </div>
           <div className="text-[11px] text-fg-secondary truncate">
             {client?.name} · {POST_PLATFORMS[post.platform][lang]} · {POST_FORMATS[post.format][lang]}
+            {account ? ` · @${account.handle}` : ''}
             {task ? ` · ${task.title}` : ''}
           </div>
         </div>
@@ -89,15 +105,20 @@ export function PostSheet() {
         </Button>
       </div>
 
-      <div className={cn('flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 grid gap-5', narrow ? 'grid-cols-1' : 'grid-cols-[320px_1fr]')}>
-        {/* Preview of the version being looked at */}
+      <div className={cn('flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 grid gap-5', narrow ? 'grid-cols-1' : 'grid-cols-[340px_1fr]')}>
+        {/* Preview of the version being looked at — tap the design for full screen */}
         <div className="flex flex-col items-center gap-2">
           {view ? (
             <>
-              <PhoneFrame platform={post.platform} format={post.format} src={src} caption={view.caption} account={client?.name ?? '—'} width={narrow ? 240 : 290} />
-              <div className="text-[11px] text-fg-muted text-center">
-                {t('version')} {view.number}
-                {isCurrent ? ` · ${t('currentVersion')}` : ''} · {when(view.createdAt, lang)}
+              <FeedPreview {...previewProps} width={narrow ? 260 : 320} onOpen={() => setFull(true)} />
+              <div className="flex items-center gap-2 text-[11px] text-fg-muted">
+                <span>
+                  {t('version')} {view.number}
+                  {isCurrent ? ` · ${t('currentVersion')}` : ''} · {when(view.createdAt, lang)}
+                </span>
+                <Button size="sm" variant="ghost" onClick={() => setFull(true)} aria-label={t('openFull')} data-testid="open-full">
+                  <Maximize2 size={13} /> {t('openFull')}
+                </Button>
               </div>
               {view.note && (
                 <div className="w-full rounded-md bg-info-tint text-info text-[12px] px-3 py-2" dir="auto">
@@ -111,6 +132,23 @@ export function PostSheet() {
         </div>
 
         <div className="flex flex-col gap-4 min-w-0">
+          {/* ---- the client asked for changes: their note first, then the fix ---- */}
+          {team && rejected && (
+            <div className="rounded-md border border-danger-dark/30 bg-danger-tint/50 p-4 flex flex-col gap-2" data-testid="changes-banner">
+              <div className="text-[13.5px] font-semibold text-danger-dark">{t('changesBanner', { n: rejected.number })}</div>
+              {rejected.decisionNote && (
+                <div className="text-[13px] whitespace-pre-wrap" dir="auto" data-testid="decision-note">
+                  {rejected.decisionNote}
+                </div>
+              )}
+              {post.status !== 'published' && (
+                <Button variant="dark" className="self-start" disabled={busy} onClick={() => setUploading(true)} data-testid="upload-fixed">
+                  <Upload size={14} /> {t('uploadFixed')}
+                </Button>
+              )}
+            </div>
+          )}
+
           {/* ---- client: the only two choices ---- */}
           {me.role === 'client' && (
             <div className="rounded-md border border-border p-4 flex flex-col gap-3" data-testid="client-decision">
@@ -180,8 +218,13 @@ export function PostSheet() {
                   </Button>
                 )}
                 {post.status !== 'published' && (
-                  <Button variant={post.status === 'changes' || post.currentVersion === 0 ? 'dark' : 'outline'} disabled={busy} onClick={() => setUploading(true)}>
+                  <Button variant={post.currentVersion === 0 ? 'dark' : 'outline'} disabled={busy} onClick={() => setUploading(true)}>
                     <Upload size={14} /> {t('uploadVersion')}
+                  </Button>
+                )}
+                {admin && post.status !== 'published' && (
+                  <Button variant="ghost" size="sm" disabled={busy} onClick={() => setAccounts(true)} data-testid="sheet-accounts">
+                    <Settings2 size={14} /> {account ? `@${account.handle}` : t('accountLabel')}
                   </Button>
                 )}
                 {post.status === 'sent' && post.sentAt && (
@@ -231,7 +274,9 @@ export function PostSheet() {
         </div>
       </div>
 
-      {uploading && <NewVersionDialog post={post} onClose={() => setUploading(false)} />}
+      {uploading && <NewVersionDialog post={post} from={view} onClose={() => setUploading(false)} />}
+      {full && view && <PostViewer {...previewProps} onClose={() => setFull(false)} />}
+      {accounts && <ClientAccountsDialog clientId={post.clientId} platform={post.platform} onClose={() => setAccounts(false)} onPicked={(a) => { if (a.platform === post.platform) void act(() => sess.updatePost(post.id, { accountId: a.id })); setAccounts(false) }} />}
     </div>
   )
 }
@@ -243,12 +288,13 @@ function VersionRow({ v, post, active, onClick }: { v: PostVersion; post: Post; 
   // people are internal: the Supabase client view has no created_by, and the demo store must behave the same
   const by = me?.role !== 'client' && v.createdBy ? s.users.find((u) => u.id === v.createdBy) : undefined
   return (
-    <button type="button" onClick={onClick} className={cn('rounded-md border px-3 py-2 text-start cursor-pointer flex flex-col gap-1', active ? 'border-fg' : 'border-border hover:border-fg-faint')}>
+    <button type="button" onClick={onClick} className={cn('rounded-md border px-3 py-2 text-start cursor-pointer flex flex-col gap-1', active ? 'border-fg' : 'border-border hover:border-fg-faint')} data-testid="version-row">
       <div className="flex items-center gap-2 text-[12.5px] font-semibold">
         <span>
           {t('version')} {v.number}
         </span>
         {v.number === post.currentVersion && <span className="text-[10.5px] font-bold rounded-md px-1.5 py-0.5 bg-muted-bg text-fg-secondary">{t('currentVersion')}</span>}
+        {v.imagePaths.length > 1 && <span className="text-[10.5px] font-medium text-fg-muted">{t('versionImages', { n: v.imagePaths.length })}</span>}
         {v.decision && <span className={cn('text-[10.5px] font-bold rounded-md px-1.5 py-0.5', v.decision === 'approved' ? 'bg-success-tint text-success-dark' : 'bg-danger-tint text-danger-dark')}>{v.decision === 'approved' ? t('postStatusApproved') : t('postStatusChanges')}</span>}
         <span className="ms-auto text-[10.5px] text-fg-muted font-medium" dir="ltr">
           {when(v.createdAt, lang)}
@@ -260,7 +306,7 @@ function VersionRow({ v, post, active, onClick }: { v: PostVersion; post: Post; 
         </div>
       )}
       {v.decisionNote && (
-        <div className="text-[12px] rounded-md bg-danger-tint text-danger-dark px-2.5 py-1.5 whitespace-pre-wrap" dir="auto" data-testid="decision-note">
+        <div className="text-[12px] rounded-md bg-danger-tint text-danger-dark px-2.5 py-1.5 whitespace-pre-wrap" dir="auto" data-testid="version-note">
           <b className="me-1">{t('clientNotes')}:</b>
           {v.decisionNote}
         </div>
@@ -269,24 +315,25 @@ function VersionRow({ v, post, active, onClick }: { v: PostVersion; post: Post; 
   )
 }
 
-function NewVersionDialog({ post, onClose }: { post: Post; onClose: () => void }) {
+/** «نسخة جديدة»: starts from the version being looked at — all its images (kept, no re-upload) and caption. */
+function NewVersionDialog({ post, from, onClose }: { post: Post; from?: PostVersion; onClose: () => void }) {
   const { t } = useStr()
   const s = useData()
   const sess = useSession()
-  const prev = s.postVersions.filter((v) => v.postId === post.id).sort((a, b) => b.number - a.number)[0]
   const client = s.clients.find((c) => c.id === post.clientId)
-  const [file, setFile] = useState<File | null>(null)
-  const [caption, setCaption] = useState(prev?.caption ?? '')
+  const account = s.clientAccounts.find((a) => a.id === post.accountId)
+  const [media, setMedia] = useState<MediaItem[]>(() => (from?.imagePaths ?? []).map((path) => ({ path })))
+  const [caption, setCaption] = useState(from?.caption ?? '')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
-  const preview = useObjectUrl(file)
+  const previews = useObjectUrls(media)
   const field = 'w-full rounded-md border border-border bg-bg px-3 py-2 text-[13px]'
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (!file || busy) return
+    if (media.length === 0 || busy) return
     setBusy(true)
     try {
-      await sess.addPostVersion({ postId: post.id, file, caption: caption.trim(), note: note.trim() || undefined })
+      await sess.addPostVersion({ postId: post.id, media, caption: caption.trim(), note: note.trim() || undefined })
       onClose()
     } catch {
       /* toast shown by the store */
@@ -296,7 +343,7 @@ function NewVersionDialog({ post, onClose }: { post: Post; onClose: () => void }
   }
   return (
     <div className="fixed inset-0 z-[85] bg-black/35 grid place-items-center p-4 anim-fade" onClick={onClose}>
-      <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-[min(760px,100%)] rounded-lg bg-card border border-border p-5 flex flex-col gap-4 anim-sheet max-h-[92dvh] overflow-y-auto no-scrollbar" role="dialog" aria-label={t('uploadVersionTitle')}>
+      <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-[min(820px,100%)] rounded-lg bg-card border border-border p-5 flex flex-col gap-4 anim-sheet max-h-[92dvh] overflow-y-auto no-scrollbar" role="dialog" aria-label={t('uploadVersionTitle')}>
         <div className="flex items-center justify-between">
           <div className="text-[17px] font-semibold tracking-[-0.01em]">
             {t('uploadVersionTitle')} · {post.currentVersion + 1}
@@ -305,10 +352,16 @@ function NewVersionDialog({ post, onClose }: { post: Post; onClose: () => void }
             <X size={16} />
           </Button>
         </div>
-        <div className="-mt-2 text-[12px] text-fg-secondary">{t('uploadVersionHint')}</div>
+        <div className="-mt-2 text-[12px] text-fg-secondary">{from ? t('keepPrevHint') : t('uploadVersionHint')}</div>
+        {from?.decisionNote && (
+          <div className="text-[12.5px] rounded-md bg-danger-tint text-danger-dark px-3 py-2 whitespace-pre-wrap" dir="auto">
+            <b className="me-1">{t('clientNotes')}:</b>
+            {from.decisionNote}
+          </div>
+        )}
         <div className="grid gap-5 md:grid-cols-[1fr_260px]">
           <div className="flex flex-col gap-3">
-            <ImageField file={file} onFile={setFile} />
+            <MediaField items={media} onChange={setMedia} max={MEDIA_MAX[post.platform]} />
             <label className="flex flex-col gap-1.5">
               <SectionTitle>{t('caption')}</SectionTitle>
               <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} placeholder={t('captionPh')} dir="auto" className={cn(field, '-mt-1 resize-y')} />
@@ -318,13 +371,14 @@ function NewVersionDialog({ post, onClose }: { post: Post; onClose: () => void }
               <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('noteToClientPh')} dir="auto" className="-mt-1 py-2 text-[13px]" />
             </label>
           </div>
-          <PhoneFrame platform={post.platform} format={post.format} src={preview} caption={caption} account={client?.name ?? '—'} width={220} />
+          <FeedPreview platform={post.platform} format={post.format} media={previews} caption={caption} account={account} clientName={client?.name ?? '—'} width={230} />
         </div>
+        <div className="text-[11px] text-fg-muted">{t('uploadVersionHint')}</div>
         <div className="flex justify-end gap-2">
           <Button type="button" onClick={onClose}>
             {t('cancel')}
           </Button>
-          <Button type="submit" variant="primary" disabled={!file || busy}>
+          <Button type="submit" variant="primary" disabled={media.length === 0 || busy}>
             {busy ? t('uploading') : t('upload')}
           </Button>
         </div>

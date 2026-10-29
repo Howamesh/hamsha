@@ -1,54 +1,19 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { ImagePlus, X } from 'lucide-react'
+import { Settings2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
-import { POST_FORMATS, POST_PLATFORMS, type PostFormat, type PostPlatform } from '@/types'
-import { useObjectUrl } from '@/lib/useMedia'
+import { MEDIA_MAX, POST_FORMATS, POST_PLATFORMS, type MediaItem, type PostFormat, type PostPlatform } from '@/types'
+import { useObjectUrls } from '@/lib/useMedia'
 import { Button, Input, SectionTitle } from '../ui'
-import { PhoneFrame } from './PhoneFrame'
-
-const MAX_BYTES = 10 * 1024 * 1024
-const TYPES = ['image/png', 'image/jpeg', 'image/webp']
-
-/** Image picker shared by «منشور جديد» and «نسخة جديدة»: validates type + size and previews the file. */
-export function ImageField({ file, onFile }: { file: File | null; onFile: (f: File | null) => void }) {
-  const { t } = useStr()
-  const [err, setErr] = useState<string | null>(null)
-  return (
-    <label className="flex flex-col gap-1.5 cursor-pointer">
-      <SectionTitle>{t('design')}</SectionTitle>
-      <span className={cn('rounded-md border border-dashed px-3 py-3 text-[12.5px] flex items-center gap-2 -mt-1', file ? 'border-success text-success-dark bg-success-tint' : 'border-fg-faint text-fg-secondary hover:border-fg')}>
-        <ImagePlus size={16} />
-        <span className="truncate">{file ? file.name : t('pickImage')}</span>
-        {file && <span className="ms-auto text-[11px] font-semibold">{t('changeImage')}</span>}
-      </span>
-      <input
-        type="file"
-        accept={TYPES.join(',')}
-        data-testid="post-image"
-        className="sr-only"
-        onChange={(e) => {
-          const f = e.target.files?.[0] ?? null
-          if (!f) return
-          if (!TYPES.includes(f.type) || f.size > MAX_BYTES) {
-            setErr(t('imageOnly'))
-            onFile(null)
-            return
-          }
-          setErr(null)
-          onFile(f)
-        }}
-      />
-      <span className={cn('text-[11px]', err ? 'text-accent font-semibold' : 'text-fg-muted')}>{err ?? t('imageOnly')}</span>
-    </label>
-  )
-}
+import { FeedPreview } from './FeedPreview'
+import { MediaField } from './MediaField'
+import { ClientAccountsDialog } from './ClientAccountsDialog'
 
 /**
- * «منشور جديد» (team): post + its first frozen version in one go. The admin may pick any client;
- * a creative sees only clients they work with (the database refuses the rest anyway).
+ * «منشور جديد» (team): post + its first frozen version (one image or a carousel) in one go. The admin may
+ * pick any client and the client's real account on that platform; a creative sees only clients they work with.
  */
 export function NewPostDialog({ clientId: fixedClient, onClose }: { clientId: string | null; onClose: () => void }) {
   const { t, lang } = useStr()
@@ -66,23 +31,27 @@ export function NewPostDialog({ clientId: fixedClient, onClose }: { clientId: st
   const [title, setTitle] = useState('')
   const [platform, setPlatform] = useState<PostPlatform>('instagram')
   const [format, setFormat] = useState<PostFormat>('portrait')
-  const [file, setFile] = useState<File | null>(null)
+  const [accountId, setAccountId] = useState<string>('')
+  const [media, setMedia] = useState<MediaItem[]>([])
   const [caption, setCaption] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
-  const preview = useObjectUrl(file)
+  const [accounts, setAccounts] = useState(false)
   const client = s.clients.find((c) => c.id === clientId)
   const tasks = s.tasks.filter((x) => x.clientId === clientId)
+  const platformAccounts = s.clientAccounts.filter((a) => a.clientId === clientId && a.platform === platform)
+  const account = platformAccounts.find((a) => a.id === accountId) ?? platformAccounts[0]
+  const previews = useObjectUrls(media)
   const field = 'w-full rounded-md border border-border bg-bg px-3 py-2 text-[13px]'
-  const can = !!clientId && !!title.trim() && !!file && !busy
+  const can = !!clientId && !!title.trim() && media.length > 0 && !busy
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (!can || !file) return
+    if (!can) return
     setBusy(true)
     try {
-      const post = await sess.createPost({ clientId, taskId: taskId || undefined, title: title.trim(), platform, format })
-      await sess.addPostVersion({ postId: post.id, file, caption: caption.trim(), note: note.trim() || undefined })
+      const post = await sess.createPost({ clientId, taskId: taskId || undefined, accountId: account?.id, title: title.trim(), platform, format })
+      await sess.addPostVersion({ postId: post.id, media, caption: caption.trim(), note: note.trim() || undefined })
       onClose()
       openPost(post.id)
     } catch {
@@ -94,7 +63,7 @@ export function NewPostDialog({ clientId: fixedClient, onClose }: { clientId: st
 
   return (
     <div className="fixed inset-0 z-[80] bg-black/35 grid place-items-center p-4 anim-fade" onClick={onClose}>
-      <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-[min(860px,100%)] rounded-lg bg-card border border-border p-5 flex flex-col gap-4 anim-sheet max-h-[92dvh] overflow-y-auto no-scrollbar" role="dialog" aria-label={t('newPostTitle')}>
+      <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-[min(900px,100%)] rounded-lg bg-card border border-border p-5 flex flex-col gap-4 anim-sheet max-h-[92dvh] overflow-y-auto no-scrollbar" role="dialog" aria-label={t('newPostTitle')}>
         <div className="flex items-center justify-between">
           <div className="text-[17px] font-semibold tracking-[-0.01em]">{t('newPostTitle')}</div>
           <Button size="icon" variant="ghost" type="button" onClick={onClose} aria-label={t('cancel')}>
@@ -106,7 +75,7 @@ export function NewPostDialog({ clientId: fixedClient, onClose }: { clientId: st
             {!fixedClient && (
               <label className="flex flex-col gap-1.5">
                 <SectionTitle>{t('tabClients')}</SectionTitle>
-                <select value={clientId} onChange={(e) => { setClientId(e.target.value); setTaskId('') }} className={cn(field, '-mt-1 cursor-pointer')} data-testid="post-client">
+                <select value={clientId} onChange={(e) => { setClientId(e.target.value); setTaskId(''); setAccountId('') }} className={cn(field, '-mt-1 cursor-pointer')} data-testid="post-client">
                   {myClients.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -122,7 +91,7 @@ export function NewPostDialog({ clientId: fixedClient, onClose }: { clientId: st
             <div className="grid grid-cols-2 gap-3">
               <label className="flex flex-col gap-1.5">
                 <SectionTitle>{t('platform')}</SectionTitle>
-                <select value={platform} onChange={(e) => setPlatform(e.target.value as PostPlatform)} className={cn(field, '-mt-1 cursor-pointer')}>
+                <select value={platform} onChange={(e) => { setPlatform(e.target.value as PostPlatform); setAccountId('') }} className={cn(field, '-mt-1 cursor-pointer')} data-testid="post-platform">
                   {(Object.keys(POST_PLATFORMS) as PostPlatform[]).map((k) => (
                     <option key={k} value={k}>
                       {POST_PLATFORMS[k][lang]}
@@ -141,6 +110,24 @@ export function NewPostDialog({ clientId: fixedClient, onClose }: { clientId: st
                 </select>
               </label>
             </div>
+            <div className="flex flex-col gap-1.5">
+              <SectionTitle>{t('accountLabel')}</SectionTitle>
+              <div className="flex gap-2 -mt-1">
+                <select value={account?.id ?? ''} onChange={(e) => setAccountId(e.target.value)} className={cn(field, 'cursor-pointer flex-1')} data-testid="post-account" disabled={platformAccounts.length === 0}>
+                  {platformAccounts.length === 0 && <option value="">{t('noAccount')}</option>}
+                  {platformAccounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      @{a.handle} · {a.displayName}
+                    </option>
+                  ))}
+                </select>
+                {(me.role === 'admin' || platformAccounts.length > 0) && (
+                  <Button type="button" size="sm" variant={platformAccounts.length === 0 && me.role === 'admin' ? 'dark' : 'outline'} onClick={() => setAccounts(true)} data-testid="manage-accounts">
+                    <Settings2 size={14} /> {me.role === 'admin' ? t('manageAccounts') : t('accountLabel')}
+                  </Button>
+                )}
+              </div>
+            </div>
             {tasks.length > 0 && (
               <label className="flex flex-col gap-1.5">
                 <SectionTitle>{t('linkedTask')}</SectionTitle>
@@ -154,7 +141,7 @@ export function NewPostDialog({ clientId: fixedClient, onClose }: { clientId: st
                 </select>
               </label>
             )}
-            <ImageField file={file} onFile={setFile} />
+            <MediaField items={media} onChange={setMedia} max={MEDIA_MAX[platform]} />
             <label className="flex flex-col gap-1.5">
               <SectionTitle>{t('caption')}</SectionTitle>
               <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} placeholder={t('captionPh')} dir="auto" className={cn(field, '-mt-1 resize-y')} />
@@ -165,8 +152,8 @@ export function NewPostDialog({ clientId: fixedClient, onClose }: { clientId: st
             </label>
           </div>
           <div className="flex flex-col items-center gap-2">
-            <PhoneFrame platform={platform} format={format} src={preview} caption={caption} account={client?.name ?? '—'} width={240} />
-            <span className="text-[10.5px] text-fg-muted">{t('previewNote')}</span>
+            <FeedPreview platform={platform} format={format} media={previews} caption={caption} account={account} clientName={client?.name ?? '—'} width={260} />
+            {!account && <span className="text-[10.5px] text-fg-muted text-center px-2">{t('previewNoAccount')}</span>}
           </div>
         </div>
         <div className="flex justify-end gap-2">
@@ -178,6 +165,12 @@ export function NewPostDialog({ clientId: fixedClient, onClose }: { clientId: st
           </Button>
         </div>
       </form>
+      {/* outside the <form>: a form cannot nest another form, and clicks inside must not close this dialog */}
+      {accounts && clientId && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ClientAccountsDialog clientId={clientId} platform={platform} onClose={() => setAccounts(false)} onPicked={(a) => { if (a.platform === platform) setAccountId(a.id); setAccounts(false) }} />
+        </div>
+      )}
     </div>
   )
 }

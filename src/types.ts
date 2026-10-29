@@ -132,6 +132,8 @@ export interface Post {
   status: PostStatus
   /** Number of the latest version (0 = nothing uploaded yet). The client's decision binds to this number. */
   currentVersion: number
+  /** The client's platform account this post is for (preview header); optional. */
+  accountId?: string
   sentAt?: string
   publishedUrl?: string
   publishedAt?: string
@@ -141,14 +143,16 @@ export interface Post {
   updatedAt: string
 }
 
-/** A frozen upload: image + caption never change after the insert; the decision is written by decide_post(). */
+/** A frozen upload: images + caption never change after the insert; the decision is written by decide_post(). */
 export interface PostVersion {
   id: string
   postId: string
   number: number
-  /** Storage path (Supabase) or data/blob URL (demo store). Resolve with repo.mediaUrl(). */
-  imagePath: string
+  /** Ordered storage paths (Supabase) or data URLs (demo store); index 0 is the cover. Resolve with repo.mediaUrl(). */
+  imagePaths: string[]
   caption: string
+  /** Server-set when the admin sent THIS version to the client; the client only ever sees sent versions. */
+  sentAt?: string
   /** Team → client note shown with the version */
   note?: string
   decision?: PostDecision
@@ -161,16 +165,45 @@ export interface PostVersion {
 export interface NewPostInput {
   clientId: string
   taskId?: string
+  accountId?: string
   title: string
   platform: PostPlatform
   format: PostFormat
 }
+/** Media of a new version, in display order: a freshly picked File or an existing path kept from the previous version. */
+export type MediaItem = File | { path: string }
 export interface NewVersionInput {
   postId: string
-  file: File
+  media: MediaItem[]
   caption: string
   note?: string
 }
+
+/** The client's real account on one platform — what the preview header shows (no followers, no fake numbers). */
+export interface ClientAccount {
+  id: string
+  clientId: string
+  platform: PostPlatform
+  /** without the @ */
+  handle: string
+  displayName: string
+  /** Storage path (public bucket) or data URL (demo). Resolve with repo.publicUrl(). */
+  avatarPath?: string
+  bio?: string
+}
+export interface ClientAccountInput {
+  id?: string
+  clientId: string
+  platform: PostPlatform
+  handle: string
+  displayName: string
+  bio?: string
+  /** a new picture to upload; `null` removes the current one; undefined keeps it */
+  avatar?: File | null
+}
+
+/** Carousel limits: the database allows up to 20 per version; platforms are stricter. */
+export const MEDIA_MAX: Record<PostPlatform, number> = { instagram: 20, tiktok: 20, snapchat: 20, linkedin: 20, x: 4 }
 
 export const POST_PLATFORMS: Record<PostPlatform, { en: string; ar: string; color: string }> = {
   instagram: { en: 'Instagram', ar: 'إنستقرام', color: '#E1306C' },

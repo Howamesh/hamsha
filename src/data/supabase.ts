@@ -17,7 +17,7 @@
  */
 import { createClient as createSupabaseClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js'
 import type { Repo, Snapshot } from './repo'
-import type { PendingInvite, InviteInput, InviteResult, ChannelId, Client, Message, NewPostInput, NewVersionInput, Post, PostDecision, PostVersion, Presence, Profile, Project, Role, Task, TaskPart, User } from '@/types'
+import type { PendingInvite, InviteInput, InviteResult, ChannelId, Client, ClientAccount, ClientAccountInput, Message, NewPostInput, NewVersionInput, Post, PostDecision, PostVersion, Presence, Profile, Project, Role, Task, TaskPart, User } from '@/types'
 import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
 // ---------- row shapes (snake_case, exactly the columns in 0001/0002) ----------
@@ -30,14 +30,16 @@ interface ClientTaskRow { id: string; client_id: string; project_id: string; tit
 interface PartRow { id: string; task_id: string; label: string; assignee_id: string | null; hours: number; day: string; hand_off: string | null; done: boolean; position: number }
 interface ClientPartRow { id: string; task_id: string; label: string; done: boolean; position: number }
 interface MessageRow { id: string; channel: string; sender_id: string; body: string; created_at: string }
-interface PostRow { id: string; client_id: string; task_id: string | null; title: string; platform: Post['platform']; format: Post['format']; status: Post['status']; current_version: number; sent_at: string | null; published_url: string | null; published_at: string | null; created_by?: string | null; created_at: string; updated_at: string }
-interface VersionRow { id: string; post_id: string; number: number; image_path: string; caption: string; note: string | null; decision: PostVersion['decision'] | null; decision_note: string | null; decided_at: string | null; created_by?: string | null; created_at: string }
+interface PostRow { id: string; client_id: string; task_id: string | null; account_id: string | null; title: string; platform: Post['platform']; format: Post['format']; status: Post['status']; current_version: number; sent_at: string | null; published_url: string | null; published_at: string | null; created_by?: string | null; created_at: string; updated_at: string }
+interface AccountRow { id: string; client_id: string; platform: Post['platform']; handle: string; display_name: string; avatar_path: string | null; bio: string | null }
+interface VersionRow { id: string; post_id: string; number: number; image_paths: string[]; caption: string; note: string | null; sent_at: string | null; decision: PostVersion['decision'] | null; decision_note: string | null; decided_at: string | null; created_by?: string | null; created_at: string }
 
 const PALETTE = ['#D9B600', '#9B7BF2', '#4CB782', '#F06FA7', '#4E9BFA', '#F2994A', '#3B8EA5', '#7FA23B']
 const CLIENT_REFRESH_MS = 60_000
 const MESSAGE_LIMIT = 2000
-const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], posts: [], postVersions: [], presence: {}, profiles: {} }
+const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], posts: [], postVersions: [], clientAccounts: [], presence: {}, profiles: {} }
 const POST_MEDIA_BUCKET = 'post-media'
+const AVATAR_BUCKET = 'client-logos' // public bucket (0006): avatars live under <org>/<client>/accounts/
 const SIGNED_URL_TTL_S = 60 * 60
 
 // ---------- row → domain ----------
@@ -64,14 +66,15 @@ const toPart = (r: PartRow | ClientPartRow): TaskPart => ({
 })
 const toMessage = (r: MessageRow): Message => ({ id: r.id, channel: r.channel as ChannelId, senderId: r.sender_id, body: r.body, at: r.created_at })
 const toPost = (r: PostRow): Post => ({
-  id: r.id, clientId: r.client_id, taskId: r.task_id ?? undefined, title: r.title, platform: r.platform, format: r.format, status: r.status, currentVersion: r.current_version,
+  id: r.id, clientId: r.client_id, taskId: r.task_id ?? undefined, accountId: r.account_id ?? undefined, title: r.title, platform: r.platform, format: r.format, status: r.status, currentVersion: r.current_version,
   sentAt: r.sent_at ?? undefined, publishedUrl: r.published_url ?? undefined, publishedAt: r.published_at ?? undefined, createdBy: r.created_by ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at,
 })
 const toVersion = (r: VersionRow): PostVersion => ({
-  id: r.id, postId: r.post_id, number: r.number, imagePath: r.image_path, caption: r.caption, note: r.note ?? undefined,
+  id: r.id, postId: r.post_id, number: r.number, imagePaths: r.image_paths ?? [], caption: r.caption, note: r.note ?? undefined, sentAt: r.sent_at ?? undefined,
   decision: r.decision ?? undefined, decisionNote: r.decision_note ?? undefined, decidedAt: r.decided_at ?? undefined, createdBy: r.created_by ?? undefined, createdAt: r.created_at,
 })
-const postPatch = (p: Partial<Post>) => strip({ title: p.title, platform: p.platform, format: p.format, status: p.status, published_url: p.publishedUrl, task_id: 'taskId' in p ? (p.taskId ?? null) : undefined })
+const postPatch = (p: Partial<Post>) => strip({ title: p.title, platform: p.platform, format: p.format, status: p.status, published_url: p.publishedUrl, task_id: 'taskId' in p ? (p.taskId ?? null) : undefined, account_id: 'accountId' in p ? (p.accountId ?? null) : undefined })
+const toAccount = (r: AccountRow): ClientAccount => ({ id: r.id, clientId: r.client_id, platform: r.platform, handle: r.handle, displayName: r.display_name, avatarPath: r.avatar_path ?? undefined, bio: r.bio ?? undefined })
 
 // ---------- domain → row (patches): `undefined` = leave unchanged; an explicit key with undefined clientId = unlink ----------
 const clientPatch = (p: Partial<Client>) => strip({ name: p.name, color: p.color, logo_path: p.logo, owner_id: p.ownerId, start_date: p.start, end_date: p.end, contract: p.contract })
@@ -150,7 +153,7 @@ export function createSupabaseRepo(): Repo {
     if (!me) await currentUser()
     if (!me) return EMPTY // no session: nothing to ask the database (anon has no grants anyway)
     const isClient = me.role === 'client'
-    const [users, settings, clients, projects, tasks, parts, messages, posts, versions] = await Promise.all([
+    const [users, settings, clients, projects, tasks, parts, messages, posts, versions, accounts] = await Promise.all([
       sb.from('profiles').select('*').returns<ProfileRow[]>(),
       sb.from('user_settings').select('*').returns<SettingsRow[]>(),
       sb.from('clients').select('*').returns<ClientRow[]>(),
@@ -161,8 +164,9 @@ export function createSupabaseRepo(): Repo {
       sb.from('messages').select('*').order('created_at', { ascending: false }).limit(MESSAGE_LIMIT).returns<MessageRow[]>(),
       sb.from(isClient ? 'client_posts' : 'posts').select('*').returns<PostRow[]>(),
       sb.from(isClient ? 'client_post_versions' : 'post_versions').select('*').returns<VersionRow[]>(),
+      sb.from('client_accounts').select('*').returns<AccountRow[]>(),
     ])
-    for (const [r, what] of [[users, 'profiles'], [settings, 'settings'], [clients, 'clients'], [projects, 'projects'], [tasks, 'tasks'], [parts, 'parts'], [messages, 'messages'], [posts, 'posts'], [versions, 'post_versions']] as const) fail(r.error, what)
+    for (const [r, what] of [[users, 'profiles'], [settings, 'settings'], [clients, 'clients'], [projects, 'projects'], [tasks, 'tasks'], [parts, 'parts'], [messages, 'messages'], [posts, 'posts'], [versions, 'post_versions'], [accounts, 'client_accounts']] as const) fail(r.error, what)
     const presence: Record<string, Presence> = {}
     for (const u of users.data ?? []) presence[u.id] = u.presence
     const profiles: Record<string, Profile> = {}
@@ -176,6 +180,7 @@ export function createSupabaseRepo(): Repo {
       messages: (messages.data ?? []).map(toMessage).reverse(),
       posts: (posts.data ?? []).map(toPost),
       postVersions: (versions.data ?? []).map(toVersion),
+      clientAccounts: (accounts.data ?? []).map(toAccount),
       presence,
       profiles,
     }
@@ -191,7 +196,7 @@ export function createSupabaseRepo(): Repo {
       return
     }
     channel = sb.channel('team-live')
-    for (const table of ['messages', 'tasks', 'task_parts', 'profiles', 'clients', 'projects', 'posts', 'post_versions']) {
+    for (const table of ['messages', 'tasks', 'task_parts', 'profiles', 'clients', 'projects', 'posts', 'post_versions', 'client_accounts']) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleReload)
     }
     channel.subscribe()
@@ -447,7 +452,7 @@ export function createSupabaseRepo(): Repo {
     // ---------- «السوشل» (0007): the database owns the state machine; this only maps rows and uploads files ----------
     async createPost(input: NewPostInput) {
       if (!orgId) throw new Error('no session')
-      const { data, error } = await sb.from('posts').insert({ org_id: orgId, client_id: input.clientId, task_id: input.taskId ?? null, title: input.title.trim(), platform: input.platform, format: input.format }).select('*').single<PostRow>()
+      const { data, error } = await sb.from('posts').insert({ org_id: orgId, client_id: input.clientId, task_id: input.taskId ?? null, account_id: input.accountId ?? null, title: input.title.trim(), platform: input.platform, format: input.format }).select('*').single<PostRow>()
       fail(error, 'createPost')
       const p = toPost(data)
       return commit(p, (s) => ({ ...s, posts: upsert(s.posts, p) }))
@@ -456,18 +461,32 @@ export function createSupabaseRepo(): Repo {
       if (!orgId) throw new Error('no session')
       const post = snap?.posts.find((p) => p.id === input.postId)
       if (!post) throw new Error('not found')
-      const ext = (input.file.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
-      // <org>/<client>/<post>/<n>-<random>.<ext>: the storage policy reads org + client from the path
-      const path = `${orgId}/${post.clientId}/${post.id}/${post.currentVersion + 1}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-      const up = await sb.storage.from(POST_MEDIA_BUCKET).upload(path, input.file, { contentType: input.file.type, upsert: false })
-      fail(up.error, 'upload')
-      const { data, error } = await sb.from('post_versions').insert({ org_id: orgId, post_id: post.id, number: 0, image_path: path, caption: input.caption, note: input.note?.trim() || null }).select('*').single<VersionRow>()
-      if (error) {
-        await sb.storage.from(POST_MEDIA_BUCKET).remove([path]) // never leave an orphan file behind a failed insert
+      if (input.media.length === 0) throw new Error('no media')
+      // kept paths are reused as-is (files are never overwritten); new files get fresh paths
+      // <org>/<client>/<post>/<n>-<i>-<random>.<ext>: the storage policy reads org + client from the path
+      const uploaded: string[] = []
+      const paths: string[] = []
+      try {
+        for (const [i, m] of input.media.entries()) {
+          if (!(m instanceof File)) {
+            paths.push(m.path)
+            continue
+          }
+          const ext = (m.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+          const path = `${orgId}/${post.clientId}/${post.id}/${post.currentVersion + 1}-${i + 1}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+          const up = await sb.storage.from(POST_MEDIA_BUCKET).upload(path, m, { contentType: m.type, upsert: false })
+          fail(up.error, 'upload')
+          uploaded.push(path)
+          paths.push(path)
+        }
+        const { data, error } = await sb.from('post_versions').insert({ org_id: orgId, post_id: post.id, number: 0, image_paths: paths, caption: input.caption, note: input.note?.trim() || null }).select('*').single<VersionRow>()
         fail(error, 'addPostVersion')
+        const v = toVersion(data!)
+        return commit(v, (s) => ({ ...s, postVersions: upsert(s.postVersions, v), posts: s.posts.map((p) => (p.id === v.postId ? { ...p, currentVersion: v.number, status: 'draft', sentAt: undefined, updatedAt: v.createdAt } : p)) }))
+      } catch (e) {
+        if (uploaded.length) await sb.storage.from(POST_MEDIA_BUCKET).remove(uploaded).catch(() => undefined) // never leave orphan files behind a failed insert
+        throw e
       }
-      const v = toVersion(data!)
-      return commit(v, (s) => ({ ...s, postVersions: upsert(s.postVersions, v), posts: s.posts.map((p) => (p.id === v.postId ? { ...p, currentVersion: v.number, status: 'draft', sentAt: undefined, updatedAt: v.createdAt } : p)) }))
     },
     async updatePost(id, patch) {
       const { data, error } = await sb.from('posts').update(postPatch(patch)).eq('id', id).select('*').maybeSingle<PostRow>()
@@ -480,7 +499,7 @@ export function createSupabaseRepo(): Repo {
       return commit(p, (s) => ({ ...s, posts: upsert(s.posts, p) }))
     },
     async deletePost(id) {
-      const paths = (snap?.postVersions ?? []).filter((v) => v.postId === id).map((v) => v.imagePath)
+      const paths = [...new Set((snap?.postVersions ?? []).filter((v) => v.postId === id).flatMap((v) => v.imagePaths))]
       const { error } = await sb.from('posts').delete().eq('id', id)
       fail(error, 'deletePost')
       if (paths.length) void sb.storage.from(POST_MEDIA_BUCKET).remove(paths).catch(() => undefined)
@@ -506,6 +525,38 @@ export function createSupabaseRepo(): Repo {
       fail(error, 'mediaUrl')
       urlCache.set(path, { url: data.signedUrl, exp: Date.now() + (SIGNED_URL_TTL_S - 60) * 1000 })
       return data.signedUrl
+    },
+    publicUrl(path) {
+      return /^(https?:|data:|blob:)/.test(path) ? path : sb.storage.from(AVATAR_BUCKET).getPublicUrl(path).data.publicUrl
+    },
+    // ---------- client accounts (0008): the real account behind the preview ----------
+    async saveClientAccount(input: ClientAccountInput) {
+      if (!orgId) throw new Error('no session')
+      const cur = input.id ? snap?.clientAccounts.find((a) => a.id === input.id) : undefined
+      let avatar_path: string | null | undefined = undefined
+      if (input.avatar === null) avatar_path = null
+      else if (input.avatar) {
+        const ext = (input.avatar.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg')
+        const path = `${orgId}/${input.clientId}/accounts/${Math.random().toString(36).slice(2, 10)}.${ext}`
+        const up = await sb.storage.from(AVATAR_BUCKET).upload(path, input.avatar, { contentType: input.avatar.type, upsert: false })
+        fail(up.error, 'upload')
+        avatar_path = path
+      }
+      const row = strip({ org_id: orgId, client_id: input.clientId, platform: input.platform, handle: input.handle.trim().replace(/^@/, ''), display_name: input.displayName.trim(), bio: input.bio?.trim() || null, avatar_path })
+      const q = input.id ? sb.from('client_accounts').update(row).eq('id', input.id) : sb.from('client_accounts').insert(row)
+      const { data, error } = await q.select('*').single<AccountRow>()
+      if (error && typeof avatar_path === 'string') await sb.storage.from(AVATAR_BUCKET).remove([avatar_path]).catch(() => undefined)
+      fail(error, 'saveClientAccount')
+      if (cur?.avatarPath && avatar_path !== undefined && cur.avatarPath !== avatar_path) void sb.storage.from(AVATAR_BUCKET).remove([cur.avatarPath]).catch(() => undefined)
+      const a = toAccount(data!)
+      return commit(a, (s) => ({ ...s, clientAccounts: upsert(s.clientAccounts, a) }))
+    },
+    async deleteClientAccount(id) {
+      const cur = snap?.clientAccounts.find((a) => a.id === id)
+      const { error } = await sb.from('client_accounts').delete().eq('id', id)
+      fail(error, 'deleteClientAccount')
+      if (cur?.avatarPath) void sb.storage.from(AVATAR_BUCKET).remove([cur.avatarPath]).catch(() => undefined)
+      commit(undefined, (s) => ({ ...s, clientAccounts: without(s.clientAccounts, id), posts: s.posts.map((p) => (p.accountId === id ? { ...p, accountId: undefined } : p)) }))
     },
     async updateProfile(userId, patch) {
       const { data, error } = await sb.from('user_settings').upsert({ user_id: userId, ...settingsPatch(patch) }).select('*').single<SettingsRow>()

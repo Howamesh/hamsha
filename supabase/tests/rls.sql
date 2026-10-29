@@ -118,11 +118,14 @@ select t.run('[soc] creative1 (works with client 1) creates a post', :'C1', 'ins
 select t.run('[soc] creative2 (no task with client 1) cannot', :'C2', 'insert into posts (org_id, client_id, title) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ''x'')', 'error');
 select t.run('[soc] client cannot insert a post', :'K1', 'insert into posts (org_id, client_id, title) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ''x'')', 'error');
 select t.run('[soc] admin cannot send a post with no version', :'A', 'update posts set status = ''sent'' where id = ' || quote_literal(:'P1'), 'error');
-select t.run('[soc] admin uploads version 1 of P1 (number is assigned by the DB)', :'A', 'insert into post_versions (id, org_id, post_id, number, image_path, caption, note) values (' || quote_literal(:'V1') || ', ' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', 77, ''org/c1/p1/1.png'', ''نص المنشور'', ''ملاحظة داخلية للعميل'')', 'rows:1');
+select t.run('[soc] admin uploads version 1 of P1 (number is assigned by the DB)', :'A', 'insert into post_versions (id, org_id, post_id, number, image_paths, caption, note) values (' || quote_literal(:'V1') || ', ' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', 77, array[''org/c1/p1/1.png''], ''نص المنشور'', ''ملاحظة داخلية للعميل'')', 'rows:1');
 select t.run('[soc] …it is number 1 and the post points at it', :'A', 'select 1 from post_versions v join posts p on p.id = v.post_id where v.id = ' || quote_literal(:'V1') || ' and v.number = 1 and p.current_version = 1 and p.status = ''draft''', 'rows:1');
-select t.run('[soc] creative1 uploads a version to P1 (involved via T1)', :'C1', 'insert into post_versions (org_id, post_id, image_path, caption) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', ''org/c1/p1/2.png'', ''v2'')', 'rows:1');
-select t.run('[soc] creative2 cannot upload to P1', :'C2', 'insert into post_versions (org_id, post_id, image_path) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', ''x.png'')', 'error');
-select t.run('[soc] client cannot upload a version', :'K1', 'insert into post_versions (org_id, post_id, image_path) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', ''x.png'')', 'error');
+select t.run('[soc] creative1 uploads a version to P1 (involved via T1)', :'C1', 'insert into post_versions (org_id, post_id, image_paths, caption) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', array[''org/c1/p1/2a.png'', ''org/c1/p1/2b.png''], ''v2'')', 'rows:1');
+select t.run('[soc] creative2 cannot upload to P1', :'C2', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', array[''x.png''])', 'error');
+select t.run('[soc] client cannot upload a version', :'K1', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', array[''x.png''])', 'error');
+select t.run('[soc2] a version with no image is rejected', :'A', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', ''{}'')', 'error');
+select t.run('[soc2] a version with 21 images is rejected (carousel max 20)', :'A', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', (select array_agg(''org/c1/p1/'' || g || ''.png'') from generate_series(1, 21) g))', 'error');
+select t.run('[soc2] a version with an empty path is rejected', :'A', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', array[''ok.png'', ''''])', 'error');
 select t.run('[soc] creative1 cannot send to the client', :'C1', 'update posts set status = ''sent'' where id = ' || quote_literal(:'P1'), 'none');
 select t.run('[soc] creative1 cannot edit a frozen version', :'C1', 'update post_versions set caption = ''x'' where post_id = ' || quote_literal(:'P1'), 'none');
 select t.run('[soc] admin cannot edit a frozen version either (no update policy)', :'A', 'update post_versions set caption = ''x'' where id = ' || quote_literal(:'V1'), 'none');
@@ -131,12 +134,21 @@ select t.run('[soc] creative2 sees no posts', :'C2', 'select * from posts', 'non
 select t.run('[soc] creative1 sees the client-1 posts', :'C1', 'select * from posts', 'rows:3');
 select t.run('[soc] client cannot read the posts table', :'K1', 'select * from posts', 'none');
 select t.run('[soc] client cannot read the versions table', :'K1', 'select * from post_versions', 'none');
-select t.run('[soc] client reads own posts view', :'K1', 'select * from client_posts', 'rows:3');
+select t.run('[soc2] client sees NO drafts in the posts view (3 drafts exist)', :'K1', 'select * from client_posts', 'none');
+select t.run('[soc2] client sees NO unsent versions', :'K1', 'select * from client_post_versions', 'none');
 select t.run('[soc] client view has no people column', :'K1', 'select created_by from client_post_versions', 'error');
 select t.run('[soc] client2 sees nothing of client 1', :'K2', 'select * from client_posts', 'none');
 select t.run('[soc] client cannot decide a draft', :'K1', 'select decide_post(' || quote_literal(:'V1') || ', ''approved'')', 'error');
 select t.run('[soc] admin sends P1 (v2) to the client', :'A', 'update posts set status = ''sent'' where id = ' || quote_literal(:'P1'), 'rows:1');
 select t.run('[soc] …sent_at was stamped', :'A', 'select 1 from posts where id = ' || quote_literal(:'P1') || ' and sent_at is not null', 'rows:1');
+select t.run('[soc2] …and version 2 carries sent_at, version 1 does not', :'A', 'select 1 from post_versions where post_id = ' || quote_literal(:'P1') || ' and number = 2 and sent_at is not null and exists (select 1 from post_versions where post_id = ' || quote_literal(:'P1') || ' and number = 1 and sent_at is null)', 'rows:1');
+select t.run('[soc2] client now sees exactly the sent post', :'K1', 'select * from client_posts', 'rows:1');
+select t.run('[soc2] client sees only the sent version (v2), never v1', :'K1', 'select 1 from client_post_versions where post_id = ' || quote_literal(:'P1') || ' and number = 2 and exists (select 1 from client_post_versions where post_id = ' || quote_literal(:'P1') || ') and not exists (select 1 from client_post_versions where number = 1)', 'rows:1');
+select t.run('[soc2] client version view carries the ordered image set', :'K1', 'select 1 from client_post_versions where number = 2 and image_paths = array[''org/c1/p1/2a.png'', ''org/c1/p1/2b.png'']', 'rows:1');
+select t.run('[soc2] admin withdraws P1 → the post hides from the client again', :'A', 'update posts set status = ''draft'' where id = ' || quote_literal(:'P1'), 'rows:1');
+select t.run('[soc2] …client sees nothing while withdrawn', :'K1', 'select * from client_posts', 'none');
+select t.run('[soc2] …nor its versions', :'K1', 'select * from client_post_versions', 'none');
+select t.run('[soc2] admin re-sends P1', :'A', 'update posts set status = ''sent'' where id = ' || quote_literal(:'P1'), 'rows:1');
 select t.run('[soc] admin cannot jump sent → published', :'A', 'update posts set status = ''published'', published_url = ''https://x'' where id = ' || quote_literal(:'P1'), 'error');
 select t.run('[soc] client2 cannot decide client-1 post', :'K2', 'select decide_post((select id from post_versions where post_id = ' || quote_literal(:'P1') || ' and number = 2), ''approved'')', 'error');
 select t.run('[soc] admin cannot decide for the client', :'A', 'select decide_post((select id from post_versions where post_id = ' || quote_literal(:'P1') || ' and number = 2), ''approved'')', 'error');
@@ -146,19 +158,44 @@ select t.run('[soc] client asks for changes with a note', :'K1', 'select decide_
 select t.run('[soc] …post is in «changes» and the note is on version 2', :'A', 'select 1 from posts p join post_versions v on v.post_id = p.id and v.number = 2 where p.id = ' || quote_literal(:'P1') || ' and p.status = ''changes'' and v.decision = ''changes'' and v.decision_note = ''كبّر الشعار'' and v.decided_by = ' || quote_literal(:'K1'), 'rows:1');
 select t.run('[soc] client cannot decide twice', :'K1', 'select decide_post((select id from client_post_versions where post_id = ' || quote_literal(:'P1') || ' and number = 2), ''approved'')', 'error');
 select t.run('[soc] admin cannot resend the same version after changes', :'A', 'update posts set status = ''sent'' where id = ' || quote_literal(:'P1'), 'error');
-select t.run('[soc] admin uploads version 3', :'A', 'insert into post_versions (id, org_id, post_id, image_path, caption) values (' || quote_literal(:'V3') || ', ' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', ''org/c1/p1/3.png'', ''v3'')', 'rows:1');
+select t.run('[soc] admin uploads version 3', :'A', 'insert into post_versions (id, org_id, post_id, image_paths, caption) values (' || quote_literal(:'V3') || ', ' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', array[''org/c1/p1/3.png''], ''v3'')', 'rows:1');
 select t.run('[soc] …post back to draft at version 3, old decision untouched', :'A', 'select 1 from posts p where p.id = ' || quote_literal(:'P1') || ' and p.status = ''draft'' and p.current_version = 3 and p.sent_at is null and exists (select 1 from post_versions where post_id = p.id and number = 2 and decision = ''changes'')', 'rows:1');
+select t.run('[soc2] new unsent version 3: the client sees nothing of P1 again', :'K1', 'select * from client_post_versions where post_id = ' || quote_literal(:'P1'), 'none');
+select t.run('[soc2] client cannot decide the unsent version 3', :'K1', 'select decide_post(' || quote_literal(:'V3') || ', ''approved'')', 'error');
 select t.run('[soc] admin sends version 3', :'A', 'update posts set status = ''sent'' where id = ' || quote_literal(:'P1'), 'rows:1');
+select t.run('[soc2] client sees the sent versions 2 and 3, still not v1', :'K1', 'select * from client_post_versions where post_id = ' || quote_literal(:'P1'), 'rows:2');
 select t.run('[soc] client approves version 3', :'K1', 'select decide_post(' || quote_literal(:'V3') || ', ''approved'')', 'rows:1');
 select t.run('[soc] admin cannot publish without a link', :'A', 'update posts set status = ''published'' where id = ' || quote_literal(:'P1'), 'error');
 select t.run('[soc] admin publishes with the live link', :'A', 'update posts set status = ''published'', published_url = ''https://instagram.com/p/abc'' where id = ' || quote_literal(:'P1'), 'rows:1');
 select t.run('[soc] client sees the published link in the archive view', :'K1', 'select 1 from client_posts where id = ' || quote_literal(:'P1') || ' and status = ''published'' and published_url = ''https://instagram.com/p/abc'' and published_at is not null', 'rows:1');
-select t.run('[soc] a published post cannot get a new version', :'A', 'insert into post_versions (org_id, post_id, image_path) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', ''x.png'')', 'error');
+select t.run('[soc] a published post cannot get a new version', :'A', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', array[''x.png''])', 'error');
 select t.run('[soc] creative cannot delete a post', :'C1', 'delete from posts where id = ' || quote_literal(:'P2'), 'none');
 select t.run('[soc] client cannot delete a post', :'K1', 'delete from posts where id = ' || quote_literal(:'P2'), 'none');
 select t.run('[soc] anon reads nothing from client_posts', null, 'select * from client_posts', 'none');
 select t.run('[soc] anon cannot call decide_post', null, 'select decide_post(' || quote_literal(:'V3') || ', ''approved'')', 'error');
 select t.run('[soc] admin deletes P2 (versions cascade)', :'A', 'delete from posts where id = ' || quote_literal(:'P2'), 'rows:1');
+
+-- ===== client accounts (0008): the real account behind the preview =====
+\set AC1 80000000-0000-0000-0000-000000000001
+\set AC2 80000000-0000-0000-0000-000000000002
+select t.run('[acc] admin adds an Instagram account for client 1 (@ is stripped)', :'A', 'insert into client_accounts (id, org_id, client_id, platform, handle, display_name, bio) values (' || quote_literal(:'AC1') || ', ' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ''instagram'', ''@sana.sa'', ''سنا'', ''بطاقات أعمال ذكية'')', 'rows:1');
+select t.run('[acc] …stored without the @', :'A', 'select 1 from client_accounts where id = ' || quote_literal(:'AC1') || ' and handle = ''sana.sa''', 'rows:1');
+select t.run('[acc] admin adds an X account for client 2', :'A', 'insert into client_accounts (id, org_id, client_id, platform, handle, display_name) values (' || quote_literal(:'AC2') || ', ' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000002'', ''x'', ''client2'', ''عميل ٢'')', 'rows:1');
+select t.run('[acc] a handle with spaces is rejected', :'A', 'insert into client_accounts (org_id, client_id, platform, handle, display_name) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ''tiktok'', ''bad handle'', ''x'')', 'error');
+select t.run('[acc] the same handle twice on one platform is rejected', :'A', 'insert into client_accounts (org_id, client_id, platform, handle, display_name) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ''instagram'', ''sana.sa'', ''x'')', 'error');
+select t.run('[acc] creative1 (works with client 1) reads its accounts', :'C1', 'select * from client_accounts', 'rows:1');
+select t.run('[acc] creative1 cannot add an account', :'C1', 'insert into client_accounts (org_id, client_id, platform, handle, display_name) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ''tiktok'', ''c1'', ''x'')', 'error');
+select t.run('[acc] creative2 sees nothing of client 1', :'C2', 'select * from client_accounts where client_id = ''20000000-0000-0000-0000-000000000001''', 'none');
+select t.run('[acc] client 1 reads own account only', :'K1', 'select * from client_accounts', 'rows:1');
+select t.run('[acc] client cannot change own handle', :'K1', 'update client_accounts set handle = ''hacked'' where id = ' || quote_literal(:'AC1'), 'none');
+select t.run('[acc] client cannot add an account', :'K1', 'insert into client_accounts (org_id, client_id, platform, handle, display_name) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ''tiktok'', ''k1'', ''x'')', 'error');
+select t.run('[acc] anon reads nothing', null, 'select * from client_accounts', 'none');
+select t.run('[acc] a post may use an account of its client + platform', :'A', 'insert into posts (org_id, client_id, account_id, title, platform) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ' || quote_literal(:'AC1') || ', ''بوست بحساب'', ''instagram'')', 'rows:1');
+select t.run('[acc] a post cannot use another client''s account', :'A', 'insert into posts (org_id, client_id, account_id, title, platform) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ' || quote_literal(:'AC2') || ', ''x'', ''x'')', 'error');
+select t.run('[acc] a post cannot use an account of another platform', :'A', 'insert into posts (org_id, client_id, account_id, title, platform) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ' || quote_literal(:'AC1') || ', ''x'', ''tiktok'')', 'error');
+select t.run('[acc] admin deletes the account → the post keeps living without one', :'A', 'delete from client_accounts where id = ' || quote_literal(:'AC1'), 'rows:1');
+select t.run('[acc] …account_id was cleared', :'A', 'select 1 from posts where title = ''بوست بحساب'' and account_id is null', 'rows:1');
+select t.run('[acc] admin deletes the test post', :'A', 'delete from posts where title = ''بوست بحساب''', 'rows:1');
 
 -- ===== 0004: atomic RPCs + chat cleanup =====
 select t.run('[rpc] admin creates client + first project in one call', :'A', 'select create_client(''عميل ٣'', ''مشروع افتتاحي'', ''#4CB782'')', 'rows:1');

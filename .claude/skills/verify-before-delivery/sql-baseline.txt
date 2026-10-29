@@ -1,7 +1,7 @@
 # 3f2bb17397167b914831904d1e2523a3158dda32  supabase/tests/00_local_shim.sql
 # 6c258b8ca646eec00684fc3581d151a95cde21c4  supabase/tests/10_seed.sql
 # 93243ace9eb331abcc63c105d0406c48d8ce19b4  supabase/tests/20_harness.sql
-# 776a94c876687b2c0eb45ad95f6464d2c75fc4e8  supabase/tests/rls.sql
+# 8d1f4fad4346ba727d70dd5b78363a38e6697968  supabase/tests/rls.sql
 # be29f13300c05cd5bab788e28c478de9c52387fd  supabase/tests/run-ci.sh
 # 9cc4dea2c523159b3999365275536fd937accebf  supabase/tests/run-local.sh
 # cd392dc460b2f6b4a43d897b5c2dbe5401aa1fe3  tests/smoke-client-summary.mjs
@@ -12,7 +12,7 @@
 # a6816e1541a7c5ce759bfe313ef2228b3b89de0f  tests/smoke-regressions.mjs
 # 4fdb93442d5ef0a4b643c53ddd5e3b20a95d7c8f  tests/smoke-review3.mjs
 # 6e0e69bd57a6086a50f8c7f23cc7283dbaf931f6  tests/smoke-roles.mjs
-# 4588ef05ec33eb9d54b7f728b4032118e6f0a1d8  tests/smoke-social.mjs
+# 465f67182421e360b5f802728f658629e52fa048  tests/smoke-social.mjs
 # 72e3e4b649ac988b901ef5294c876339a43d12d0  tests/unit-validate.mjs
 # 854049e717d3764a6e62fe57b517a27d59c28483  package.json:scripts
 admin reads all tasks
@@ -105,6 +105,9 @@ anon reads nothing from profiles
 [soc] creative1 uploads a version to P1 (involved via T1)
 [soc] creative2 cannot upload to P1
 [soc] client cannot upload a version
+[soc2] a version with no image is rejected
+[soc2] a version with 21 images is rejected (carousel max 20)
+[soc2] a version with an empty path is rejected
 [soc] creative1 cannot send to the client
 [soc] creative1 cannot edit a frozen version
 [soc] admin cannot edit a frozen version either (no update policy)
@@ -113,12 +116,21 @@ anon reads nothing from profiles
 [soc] creative1 sees the client-1 posts
 [soc] client cannot read the posts table
 [soc] client cannot read the versions table
-[soc] client reads own posts view
+[soc2] client sees NO drafts in the posts view (3 drafts exist)
+[soc2] client sees NO unsent versions
 [soc] client view has no people column
 [soc] client2 sees nothing of client 1
 [soc] client cannot decide a draft
 [soc] admin sends P1 (v2) to the client
 [soc] …sent_at was stamped
+[soc2] …and version 2 carries sent_at, version 1 does not
+[soc2] client now sees exactly the sent post
+[soc2] client sees only the sent version (v2), never v1
+[soc2] client version view carries the ordered image set
+[soc2] admin withdraws P1 → the post hides from the client again
+[soc2] …client sees nothing while withdrawn
+[soc2] …nor its versions
+[soc2] admin re-sends P1
 [soc] admin cannot jump sent → published
 [soc] client2 cannot decide client-1 post
 [soc] admin cannot decide for the client
@@ -130,7 +142,10 @@ anon reads nothing from profiles
 [soc] admin cannot resend the same version after changes
 [soc] admin uploads version 3
 [soc] …post back to draft at version 3, old decision untouched
+[soc2] new unsent version 3: the client sees nothing of P1 again
+[soc2] client cannot decide the unsent version 3
 [soc] admin sends version 3
+[soc2] client sees the sent versions 2 and 3, still not v1
 [soc] client approves version 3
 [soc] admin cannot publish without a link
 [soc] admin publishes with the live link
@@ -141,6 +156,24 @@ anon reads nothing from profiles
 [soc] anon reads nothing from client_posts
 [soc] anon cannot call decide_post
 [soc] admin deletes P2 (versions cascade)
+[acc] admin adds an Instagram account for client 1 (@ is stripped)
+[acc] …stored without the @
+[acc] admin adds an X account for client 2
+[acc] a handle with spaces is rejected
+[acc] the same handle twice on one platform is rejected
+[acc] creative1 (works with client 1) reads its accounts
+[acc] creative1 cannot add an account
+[acc] creative2 sees nothing of client 1
+[acc] client 1 reads own account only
+[acc] client cannot change own handle
+[acc] client cannot add an account
+[acc] anon reads nothing
+[acc] a post may use an account of its client + platform
+[acc] a post cannot use another client's account
+[acc] a post cannot use an account of another platform
+[acc] admin deletes the account → the post keeps living without one
+[acc] …account_id was cleared
+[acc] admin deletes the test post
 [rpc] admin creates client + first project in one call
 [rpc] …the project exists
 [rpc] creative cannot create a client
