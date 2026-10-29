@@ -16,8 +16,24 @@
 
 -- ---------- 2. carousel: image_path → image_paths[] ----------
 alter table post_versions add column image_paths text[] not null default '{}';
-update post_versions set image_paths = array[image_path];
+-- backfill existing rows (versions are frozen: the trigger lets only internal writes through)
+do $$
+begin
+  perform set_config('hamsha.sys', '1', true);
+  update post_versions set image_paths = array[image_path];
+  perform set_config('hamsha.sys', '', true);
+end $$;
 alter table post_versions add column sent_at timestamptz;                      -- 1. stamped by the status guard, never by a client
+-- versions that were already in front of a client before 0008: any decided version, and the current version
+-- of a post that left draft (sent / approved / changes / published) — the client must keep seeing them
+do $$
+begin
+  perform set_config('hamsha.sys', '1', true);
+  update post_versions v set sent_at = coalesce(v.decided_at, p.sent_at, p.published_at, v.created_at)
+    from posts p where p.id = v.post_id and v.sent_at is null
+      and (v.decision is not null or (p.status <> 'draft' and v.number = p.current_version));
+  perform set_config('hamsha.sys', '', true);
+end $$;
 alter table post_versions add constraint post_versions_media_count check (cardinality(image_paths) between 1 and 20);
 alter table post_versions alter column image_paths drop default;
 
