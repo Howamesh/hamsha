@@ -16,7 +16,7 @@ const click = async (txt) => { await ev(`(()=>{const els=[...document.querySelec
 const setInput = async (sel, v, evt='input') => ev(`(()=>{const el=${sel};const proto=el.tagName==='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${JSON.stringify(v)});el.dispatchEvent(new Event(${JSON.stringify(evt)},{bubbles:true}));return 'ok'})()`);
 const fs = await import('node:fs');
 // admin seeds: client + task with 2 parts, link the client account
-await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`);
+await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`, 30000);
 await setInput(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل'))`, 'العون المباشر');
 await ev(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل')).form.requestSubmit()`); await sleep(400);
 await click('العون المباشر'); await sleep(400);

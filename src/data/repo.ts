@@ -3,7 +3,7 @@
  * Supabase project exists; the Supabase implementation will satisfy the same
  * interface so no screen has to change.
  */
-import type { ChannelId, Client, ClientAccount, ClientAccountInput, InviteInput, InviteResult, Message, NewPostInput, NewVersionInput, PendingInvite, Post, PostDecision, PostVersion, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
+import type { ChannelId, Client, ClientAccount, ClientAccountInput, Contract, ContractContent, ContractDecision, ContractEvent, ContractVersion, InviteInput, InviteResult, Message, NewContractInput, NewPostInput, NewVersionInput, OrgLegal, PendingInvite, Post, PostDecision, PostVersion, Presence, Profile, Project, SignatureInput, Task, TaskPart, User } from '@/types'
 
 export interface Snapshot {
   users: User[]
@@ -15,6 +15,12 @@ export interface Snapshot {
   posts: Post[]
   postVersions: PostVersion[]
   clientAccounts: ClientAccount[]
+  contracts: Contract[]
+  contractVersions: ContractVersion[]
+  /** admin only */
+  contractEvents: ContractEvent[]
+  /** admin only (null = not set yet) */
+  legal: OrgLegal | null
   presence: Record<string, Presence>
   profiles: Record<string, Profile>
 }
@@ -67,6 +73,24 @@ export interface Repo {
   deleteClientAccount(id: string): Promise<void>
   /** Resolves a public-bucket path (avatars) to a URL — synchronous, no signing needed. */
   publicUrl(path: string): string
+
+  // ---------- «العقود» (0009) ----------
+  /** Admin: a contract is born as an empty draft (number assigned by the database). */
+  createContract(input: NewContractInput): Promise<Contract>
+  /** Admin: freezes a new numbered version (hash computed by the database); the contract returns to draft. */
+  saveContractVersion(contractId: string, content: ContractContent, note?: string): Promise<ContractVersion>
+  /** Admin: Hawamish signs the current draft version. */
+  signContractFirst(versionId: string, sig: SignatureInput): Promise<void>
+  /** Admin: send (draft→sent), withdraw (sent/opened→draft), complete (signed→completed), retitle, recolour. */
+  updateContract(id: string, patch: Partial<Pick<Contract, 'status' | 'title' | 'accent'>>): Promise<Contract>
+  /** Admin only; a signed contract cannot be deleted. */
+  deleteContract(id: string): Promise<void>
+  /** Counterparty: first look at the current sent version. */
+  markContractOpened(versionId: string): Promise<void>
+  /** Counterparty: sign (signature + name + capacity), ask for changes (note) or reject. */
+  decideContract(versionId: string, decision: ContractDecision, note?: string, sig?: SignatureInput): Promise<void>
+  /** Admin: Hawamish's legal identity. */
+  saveLegal(legal: OrgLegal): Promise<OrgLegal>
   /** Admin only. */
   deletePost(id: string): Promise<void>
   /** Client: «موافق» / «يبي تعديل» (+ note) on the CURRENT version of a post that was sent. */

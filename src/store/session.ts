@@ -5,7 +5,7 @@ import { fmtDate } from '@/lib/useStr'
 import { partsCount } from '@/lib/i18n'
 import { repo } from '@/data'
 import type { Snapshot } from '@/data/repo'
-import type { PendingInvite, InviteInput, InviteResult, ChannelId, Client, ClientAccountInput, NewPostInput, NewVersionInput, Post, PostDecision, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
+import type { PendingInvite, InviteInput, InviteResult, ChannelId, Client, ClientAccountInput, Contract, ContractContent, ContractDecision, ContractVersion, NewContractInput, NewPostInput, NewVersionInput, OrgLegal, Post, PostDecision, Presence, Profile, Project, SignatureInput, Task, TaskPart, User } from '@/types'
 
 interface SessionState {
   user: User | null
@@ -45,6 +45,15 @@ interface SessionState {
   decidePost: (versionId: string, decision: PostDecision, note?: string) => Promise<void>
   saveClientAccount: (input: ClientAccountInput) => Promise<void>
   deleteClientAccount: (id: string) => Promise<void>
+
+  createContract: (input: NewContractInput) => Promise<Contract>
+  saveContractVersion: (contractId: string, content: ContractContent, note?: string) => Promise<ContractVersion>
+  signContractFirst: (versionId: string, sig: SignatureInput) => Promise<void>
+  updateContract: (id: string, patch: Partial<Pick<Contract, 'status' | 'title' | 'accent'>>) => Promise<void>
+  deleteContract: (id: string) => Promise<void>
+  markContractOpened: (versionId: string) => Promise<void>
+  decideContract: (versionId: string, decision: ContractDecision, note?: string, sig?: SignatureInput) => Promise<void>
+  saveLegal: (legal: OrgLegal) => Promise<void>
 }
 
 /** UI-level permission boundary (the database enforces the same rules with RLS). */
@@ -57,7 +66,7 @@ function adminOnly(get: () => SessionState): User {
 let booting = false
 let unsubscribe: (() => void) | null = null
 
-const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], posts: [], postVersions: [], clientAccounts: [], presence: {}, profiles: {} }
+const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], posts: [], postVersions: [], clientAccounts: [], contracts: [], contractVersions: [], contractEvents: [], legal: null, presence: {}, profiles: {} }
 
 /** Surface repository errors to the user — event handlers and async calls never reach the ErrorBoundary. */
 function report(e: unknown): never {
@@ -254,6 +263,46 @@ export const useSession = create<SessionState>((set, get) => ({
   async deleteClientAccount(id) {
     adminOnly(get)
     await guard(repo.deleteClientAccount(id))
+  },
+
+  // ---------- «العقود»: same boundaries the database enforces (0009_contracts.sql) ----------
+  async createContract(input) {
+    adminOnly(get)
+    return guard(repo.createContract(input))
+  },
+  async saveContractVersion(contractId, content, note) {
+    adminOnly(get)
+    return guard(repo.saveContractVersion(contractId, content, note))
+  },
+  async signContractFirst(versionId, sig) {
+    adminOnly(get)
+    await guard(repo.signContractFirst(versionId, sig))
+  },
+  async updateContract(id, patch) {
+    adminOnly(get)
+    await guard(repo.updateContract(id, patch))
+  },
+  async deleteContract(id) {
+    adminOnly(get)
+    await guard(repo.deleteContract(id))
+  },
+  async markContractOpened(versionId) {
+    const u = get().user
+    if (!u || u.role === 'admin') return
+    try {
+      await repo.markContractOpened(versionId)
+    } catch {
+      /* opening is best-effort */
+    }
+  },
+  async decideContract(versionId, decision, note, sig) {
+    const u = get().user
+    if (!u || u.role === 'admin') throw new Error('forbidden')
+    await guard(repo.decideContract(versionId, decision, note, sig))
+  },
+  async saveLegal(legal) {
+    adminOnly(get)
+    await guard(repo.saveLegal(legal))
   },
 }))
 

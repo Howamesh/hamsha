@@ -17,13 +17,13 @@
  */
 import { createClient as createSupabaseClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js'
 import type { Repo, Snapshot } from './repo'
-import type { PendingInvite, InviteInput, InviteResult, ChannelId, Client, ClientAccount, ClientAccountInput, Message, NewPostInput, NewVersionInput, Post, PostDecision, PostVersion, Presence, Profile, Project, Role, Task, TaskPart, User } from '@/types'
+import type { PendingInvite, InviteInput, InviteResult, ChannelId, Client, ClientAccount, ClientAccountInput, Contract, ContractContent, ContractDecision, ContractEvent, ContractVersion, Message, NewContractInput, NewPostInput, NewVersionInput, OrgLegal, Post, PostDecision, PostVersion, Presence, Profile, Project, Role, Task, TaskPart, User } from '@/types'
 import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
 // ---------- row shapes (snake_case, exactly the columns in 0001/0002) ----------
 interface ProfileRow { id: string; org_id: string; role: Role; name: string; email: string; title: string | null; color: string; client_id: string | null; presence: Presence }
 interface SettingsRow { user_id: string; city: string; wh_start: number; wh_end: number; notes: string; theme: 'light' | 'dark'; lang: 'ar' | 'en'; week_start: 'monday' | 'sunday' }
-interface ClientRow { id: string; name: string; color: string; logo_path: string | null; owner_id: string | null; start_date: string; end_date: string; contract: Client['contract'] }
+interface ClientRow { id: string; name: string; color: string; logo_path: string | null; owner_id: string | null; start_date: string; end_date: string; contract: Client['contract']; contract_block?: boolean }
 interface ProjectRow { id: string; client_id: string; name: string; lead_id: string | null; color: string }
 interface TaskRow { id: string; client_id: string; project_id: string; title: string; type: Task['type']; start_date: string; end_date: string; owner_id: string | null; description: string | null; reference: string | null; milestone: Task['milestone'] | null; approval: Task['approval']; version: number }
 interface ClientTaskRow { id: string; client_id: string; project_id: string; title: string; type: Task['type']; start_date: string; end_date: string; approval: Task['approval']; version: number }
@@ -31,13 +31,17 @@ interface PartRow { id: string; task_id: string; label: string; assignee_id: str
 interface ClientPartRow { id: string; task_id: string; label: string; done: boolean; position: number }
 interface MessageRow { id: string; channel: string; sender_id: string; body: string; created_at: string }
 interface PostRow { id: string; client_id: string; task_id: string | null; account_id: string | null; title: string; platform: Post['platform']; format: Post['format']; status: Post['status']; current_version: number; sent_at: string | null; published_url: string | null; published_at: string | null; created_by?: string | null; created_at: string; updated_at: string }
+interface ContractRow { id: string; number: number; kind: Contract['kind']; party?: Contract['party']; client_id: string | null; creative_id?: string | null; title: string; accent: string; status: Contract['status']; current_version: number; sent_at: string | null; decided_at: string | null; created_by?: string | null; created_at: string; updated_at: string }
+interface CVersionRow { id: string; contract_id: string; number: number; content: ContractContent; content_hash: string; note: string | null; first_signature: string | null; first_signer: string | null; first_capacity: string | null; first_signed_at: string | null; sent_at: string | null; opened_at: string | null; decision: ContractVersion['decision'] | null; decision_note: string | null; signature: string | null; signer_name: string | null; signer_capacity: string | null; decided_at: string | null; created_by?: string | null; created_at: string }
+interface CEventRow { id: number; contract_id: string; version: number | null; actor: string | null; actor_role: string | null; event: string; meta: Record<string, unknown>; at: string }
+interface LegalRow { org_id: string; legal: OrgLegal }
 interface AccountRow { id: string; client_id: string; platform: Post['platform']; handle: string; display_name: string; avatar_path: string | null; bio: string | null }
 interface VersionRow { id: string; post_id: string; number: number; image_paths: string[]; caption: string; note: string | null; sent_at: string | null; decision: PostVersion['decision'] | null; decision_note: string | null; decided_at: string | null; created_by?: string | null; created_at: string }
 
 const PALETTE = ['#D9B600', '#9B7BF2', '#4CB782', '#F06FA7', '#4E9BFA', '#F2994A', '#3B8EA5', '#7FA23B']
 const CLIENT_REFRESH_MS = 60_000
 const MESSAGE_LIMIT = 2000
-const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], posts: [], postVersions: [], clientAccounts: [], presence: {}, profiles: {} }
+const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], posts: [], postVersions: [], clientAccounts: [], contracts: [], contractVersions: [], contractEvents: [], legal: null, presence: {}, profiles: {} }
 const POST_MEDIA_BUCKET = 'post-media'
 const AVATAR_BUCKET = 'client-logos' // public bucket (0006): avatars live under <org>/<client>/accounts/
 const SIGNED_URL_TTL_S = 60 * 60
@@ -45,7 +49,7 @@ const SIGNED_URL_TTL_S = 60 * 60
 // ---------- row → domain ----------
 const toUser = (r: ProfileRow): User => ({ id: r.id, name: r.name, email: r.email, role: r.role, title: r.title ?? undefined, color: r.color, clientId: r.client_id ?? undefined })
 const toProfile = (r: SettingsRow): Profile => ({ userId: r.user_id, city: r.city, whStart: r.wh_start, whEnd: r.wh_end, notes: r.notes, theme: r.theme, lang: r.lang, weekStart: r.week_start })
-const toClient = (r: ClientRow): Client => ({ id: r.id, name: r.name, color: r.color, ownerId: r.owner_id ?? '', logo: r.logo_path ?? undefined, start: r.start_date, end: r.end_date, contract: r.contract })
+const toClient = (r: ClientRow): Client => ({ id: r.id, name: r.name, color: r.color, ownerId: r.owner_id ?? '', logo: r.logo_path ?? undefined, start: r.start_date, end: r.end_date, contract: r.contract, contractBlock: r.contract_block ?? false })
 const toProject = (r: ProjectRow): Project => ({ id: r.id, clientId: r.client_id, name: r.name, leadId: r.lead_id ?? '', color: r.color })
 const toTask = (r: TaskRow | ClientTaskRow): Task => ({
   id: r.id, projectId: r.project_id, clientId: r.client_id, title: r.title, type: r.type, start: r.start_date, end: r.end_date,
@@ -74,10 +78,21 @@ const toVersion = (r: VersionRow): PostVersion => ({
   decision: r.decision ?? undefined, decisionNote: r.decision_note ?? undefined, decidedAt: r.decided_at ?? undefined, createdBy: r.created_by ?? undefined, createdAt: r.created_at,
 })
 const postPatch = (p: Partial<Post>) => strip({ title: p.title, platform: p.platform, format: p.format, status: p.status, published_url: p.publishedUrl, task_id: 'taskId' in p ? (p.taskId ?? null) : undefined, account_id: 'accountId' in p ? (p.accountId ?? null) : undefined })
+const toContract = (r: ContractRow): Contract => ({
+  id: r.id, number: r.number, kind: r.kind, party: r.party ?? 'client', clientId: r.client_id ?? undefined, creativeId: r.creative_id ?? undefined, title: r.title, accent: r.accent, status: r.status,
+  currentVersion: r.current_version, sentAt: r.sent_at ?? undefined, decidedAt: r.decided_at ?? undefined, createdBy: r.created_by ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at,
+})
+const toCVersion = (r: CVersionRow): ContractVersion => ({
+  id: r.id, contractId: r.contract_id, number: r.number, content: r.content, contentHash: r.content_hash, note: r.note ?? undefined,
+  firstSignature: r.first_signature ?? undefined, firstSigner: r.first_signer ?? undefined, firstCapacity: r.first_capacity ?? undefined, firstSignedAt: r.first_signed_at ?? undefined,
+  sentAt: r.sent_at ?? undefined, openedAt: r.opened_at ?? undefined, decision: r.decision ?? undefined, decisionNote: r.decision_note ?? undefined,
+  signature: r.signature ?? undefined, signerName: r.signer_name ?? undefined, signerCapacity: r.signer_capacity ?? undefined, decidedAt: r.decided_at ?? undefined, createdBy: r.created_by ?? undefined, createdAt: r.created_at,
+})
+const toCEvent = (r: CEventRow): ContractEvent => ({ id: String(r.id), contractId: r.contract_id, version: r.version ?? undefined, actor: r.actor ?? undefined, actorRole: r.actor_role ?? undefined, event: r.event, meta: r.meta ?? {}, at: r.at })
 const toAccount = (r: AccountRow): ClientAccount => ({ id: r.id, clientId: r.client_id, platform: r.platform, handle: r.handle, displayName: r.display_name, avatarPath: r.avatar_path ?? undefined, bio: r.bio ?? undefined })
 
 // ---------- domain → row (patches): `undefined` = leave unchanged; an explicit key with undefined clientId = unlink ----------
-const clientPatch = (p: Partial<Client>) => strip({ name: p.name, color: p.color, logo_path: p.logo, owner_id: p.ownerId, start_date: p.start, end_date: p.end, contract: p.contract })
+const clientPatch = (p: Partial<Client>) => strip({ name: p.name, color: p.color, logo_path: p.logo, owner_id: p.ownerId, start_date: p.start, end_date: p.end, contract: p.contract, contract_block: p.contractBlock })
 const projectPatch = (p: Partial<Project>) => strip({ name: p.name, color: p.color, lead_id: p.leadId, client_id: p.clientId })
 const taskPatch = (p: Partial<Task>) => strip({ title: p.title, type: p.type, start_date: p.start, end_date: p.end, owner_id: p.ownerId, project_id: p.projectId, client_id: p.clientId, description: p.description, reference: p.reference, milestone: p.milestone, approval: p.approval })
 const userPatch = (p: Partial<User>) => strip({ name: p.name, title: p.title, color: p.color, role: p.role, client_id: 'clientId' in p ? (p.clientId ?? null) : undefined })
@@ -153,7 +168,8 @@ export function createSupabaseRepo(): Repo {
     if (!me) await currentUser()
     if (!me) return EMPTY // no session: nothing to ask the database (anon has no grants anyway)
     const isClient = me.role === 'client'
-    const [users, settings, clients, projects, tasks, parts, messages, posts, versions, accounts] = await Promise.all([
+    const isAdmin = me.role === 'admin'
+    const [users, settings, clients, projects, tasks, parts, messages, posts, versions, accounts, contracts, cversions, cevents, legal] = await Promise.all([
       sb.from('profiles').select('*').returns<ProfileRow[]>(),
       sb.from('user_settings').select('*').returns<SettingsRow[]>(),
       sb.from('clients').select('*').returns<ClientRow[]>(),
@@ -165,8 +181,12 @@ export function createSupabaseRepo(): Repo {
       sb.from(isClient ? 'client_posts' : 'posts').select('*').returns<PostRow[]>(),
       sb.from(isClient ? 'client_post_versions' : 'post_versions').select('*').returns<VersionRow[]>(),
       sb.from('client_accounts').select('*').returns<AccountRow[]>(),
+      sb.from(isClient ? 'client_contracts' : 'contracts').select('*').returns<ContractRow[]>(),
+      sb.from(isClient ? 'client_contract_versions' : 'contract_versions').select('*').returns<CVersionRow[]>(),
+      isAdmin ? sb.from('contract_events').select('*').order('at', { ascending: false }).limit(2000).returns<CEventRow[]>() : Promise.resolve({ data: [] as CEventRow[], error: null }),
+      isAdmin ? sb.from('org_legal').select('*').maybeSingle<LegalRow>() : Promise.resolve({ data: null as LegalRow | null, error: null }),
     ])
-    for (const [r, what] of [[users, 'profiles'], [settings, 'settings'], [clients, 'clients'], [projects, 'projects'], [tasks, 'tasks'], [parts, 'parts'], [messages, 'messages'], [posts, 'posts'], [versions, 'post_versions'], [accounts, 'client_accounts']] as const) fail(r.error, what)
+    for (const [r, what] of [[users, 'profiles'], [settings, 'settings'], [clients, 'clients'], [projects, 'projects'], [tasks, 'tasks'], [parts, 'parts'], [messages, 'messages'], [posts, 'posts'], [versions, 'post_versions'], [accounts, 'client_accounts'], [contracts, 'contracts'], [cversions, 'contract_versions'], [cevents, 'contract_events'], [legal, 'org_legal']] as const) fail(r.error, what)
     const presence: Record<string, Presence> = {}
     for (const u of users.data ?? []) presence[u.id] = u.presence
     const profiles: Record<string, Profile> = {}
@@ -181,6 +201,10 @@ export function createSupabaseRepo(): Repo {
       posts: (posts.data ?? []).map(toPost),
       postVersions: (versions.data ?? []).map(toVersion),
       clientAccounts: (accounts.data ?? []).map(toAccount),
+      contracts: (contracts.data ?? []).map(toContract),
+      contractVersions: (cversions.data ?? []).map(toCVersion),
+      contractEvents: (cevents.data ?? []).map(toCEvent),
+      legal: legal.data?.legal ?? null,
       presence,
       profiles,
     }
@@ -196,7 +220,7 @@ export function createSupabaseRepo(): Repo {
       return
     }
     channel = sb.channel('team-live')
-    for (const table of ['messages', 'tasks', 'task_parts', 'profiles', 'clients', 'projects', 'posts', 'post_versions', 'client_accounts']) {
+    for (const table of ['messages', 'tasks', 'task_parts', 'profiles', 'clients', 'projects', 'posts', 'post_versions', 'client_accounts', 'contracts', 'contract_versions']) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleReload)
     }
     channel.subscribe()
@@ -557,6 +581,71 @@ export function createSupabaseRepo(): Repo {
       fail(error, 'deleteClientAccount')
       if (cur?.avatarPath) void sb.storage.from(AVATAR_BUCKET).remove([cur.avatarPath]).catch(() => undefined)
       commit(undefined, (s) => ({ ...s, clientAccounts: without(s.clientAccounts, id), posts: s.posts.map((p) => (p.accountId === id ? { ...p, accountId: undefined } : p)) }))
+    },
+    // ---------- «العقود» (0009): the database owns numbering, hashing and the state machine ----------
+    async createContract(input: NewContractInput) {
+      if (!orgId) throw new Error('no session')
+      const { data, error } = await sb.from('contracts').insert({ org_id: orgId, kind: input.kind, party: input.party, client_id: input.clientId ?? null, creative_id: input.creativeId ?? null, title: input.title.trim(), accent: input.accent }).select('*').single<ContractRow>()
+      fail(error, 'createContract')
+      const c = toContract(data)
+      scheduleReload() // the created event
+      return commit(c, (s) => ({ ...s, contracts: upsert(s.contracts, c) }))
+    },
+    async saveContractVersion(contractId, content, note) {
+      if (!orgId) throw new Error('no session')
+      const { data, error } = await sb.from('contract_versions').insert({ org_id: orgId, contract_id: contractId, number: 0, content, content_hash: '', note: note?.trim() || null }).select('*').single<CVersionRow>()
+      fail(error, 'saveContractVersion')
+      const v = toCVersion(data)
+      scheduleReload()
+      return commit(v, (s) => ({ ...s, contractVersions: upsert(s.contractVersions, v), contracts: s.contracts.map((c) => (c.id === contractId ? { ...c, currentVersion: v.number, status: 'draft', sentAt: undefined, decidedAt: undefined, updatedAt: v.createdAt } : c)) }))
+    },
+    async signContractFirst(versionId, sig) {
+      const { error } = await sb.rpc('sign_contract_first', { p_version: versionId, p_signature: sig.signature, p_name: sig.name.trim(), p_capacity: sig.capacity.trim() || null })
+      fail(error, 'signContractFirst')
+      const at = new Date().toISOString()
+      commit(undefined, (s) => ({ ...s, contractVersions: s.contractVersions.map((v) => (v.id === versionId ? { ...v, firstSignature: sig.signature, firstSigner: sig.name.trim(), firstCapacity: sig.capacity.trim() || undefined, firstSignedAt: at } : v)) }))
+      scheduleReload()
+    },
+    async updateContract(id, patch) {
+      const { data, error } = await sb.from('contracts').update(strip({ status: patch.status, title: patch.title, accent: patch.accent })).eq('id', id).select('*').maybeSingle<ContractRow>()
+      fail(error, 'updateContract')
+      if (!data) {
+        scheduleReload()
+        throw new Error('stale')
+      }
+      const c = toContract(data)
+      scheduleReload() // version sent_at + events + clients.contract are set by triggers
+      return commit(c, (s) => ({ ...s, contracts: upsert(s.contracts, c) }))
+    },
+    async deleteContract(id) {
+      const { error } = await sb.from('contracts').delete().eq('id', id)
+      fail(error, 'deleteContract')
+      commit(undefined, (s) => ({ ...s, contracts: without(s.contracts, id), contractVersions: s.contractVersions.filter((v) => v.contractId !== id), contractEvents: s.contractEvents.filter((e) => e.contractId !== id) }))
+    },
+    async markContractOpened(versionId) {
+      const { error } = await sb.rpc('mark_contract_opened', { p_version: versionId })
+      fail(error, 'markContractOpened')
+      scheduleReload()
+    },
+    async decideContract(versionId, decision: ContractDecision, note, sig) {
+      const { error } = await sb.rpc('decide_contract', { p_version: versionId, p_decision: decision, p_note: note?.trim() || null, p_signature: sig?.signature ?? null, p_name: sig?.name.trim() ?? null, p_capacity: sig?.capacity.trim() || null })
+      fail(error, 'decideContract')
+      const at = new Date().toISOString()
+      commit(undefined, (s) => {
+        const v = s.contractVersions.find((x) => x.id === versionId)
+        return {
+          ...s,
+          contractVersions: s.contractVersions.map((x) => (x.id === versionId ? { ...x, decision, decisionNote: note?.trim() || undefined, signature: decision === 'signed' ? sig?.signature : undefined, signerName: decision === 'signed' ? sig?.name : undefined, signerCapacity: decision === 'signed' ? sig?.capacity : undefined, decidedAt: at } : x)),
+          contracts: v ? s.contracts.map((c) => (c.id === v.contractId ? { ...c, status: decision, decidedAt: at, updatedAt: at } : c)) : s.contracts,
+        }
+      })
+      scheduleReload()
+    },
+    async saveLegal(legal) {
+      if (!orgId) throw new Error('no session')
+      const { data, error } = await sb.from('org_legal').upsert({ org_id: orgId, legal }).select('*').single<LegalRow>()
+      fail(error, 'saveLegal')
+      return commit(data.legal, (s) => ({ ...s, legal: data.legal }))
     },
     async updateProfile(userId, patch) {
       const { data, error } = await sb.from('user_settings').upsert({ user_id: userId, ...settingsPatch(patch) }).select('*').single<SettingsRow>()

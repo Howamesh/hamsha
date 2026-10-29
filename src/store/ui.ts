@@ -7,7 +7,7 @@ import { todayIso, type IsoDate } from '@/lib/dates'
 export type View = 'month' | 'week' | 'day'
 export type PanelTab = 'main' | 'messages' | 'alerts' | 'settings' | 'profile'
 /** The big area shows the calendar or the social board (the right-side menu switches it instantly). */
-export type Workspace = 'calendar' | 'social'
+export type Workspace = 'calendar' | 'social' | 'contracts'
 
 interface UiState {
   lang: Lang
@@ -25,6 +25,9 @@ interface UiState {
   workspace: Workspace
   /** Social: the post opened in the sheet (null = none) */
   postId: string | null
+  /** Contracts: the contract opened in the sheet / editor (null = none) */
+  contractId: string | null
+  contractEditing: boolean
 
   setLang: (l: Lang) => void
   setTheme: (t: 'light' | 'dark') => void
@@ -37,6 +40,7 @@ interface UiState {
   openTask: (id: string | null) => void
   setWorkspace: (w: Workspace) => void
   openPost: (id: string | null) => void
+  openContract: (id: string | null, editing?: boolean) => void
   setCheckin: (open: boolean) => void
   /** Clear everything tied to the signed-in user (on sign-out / user switch) */
   resetForUser: () => void
@@ -60,20 +64,23 @@ export const useUi = create<UiState>()(
       checkinOpen: false,
       workspace: 'calendar',
       postId: null,
+      contractId: null,
+      contractEditing: false,
 
       setLang: (lang) => set({ lang }),
       setTheme: (theme) => set({ theme }),
       setWeekStart: (weekStart) => set({ weekStart }),
       setView: (view) => set({ view }),
       setFocus: (focus) => set({ focus }),
-      setCalId: (calId) => set({ calId, panelTab: 'main', taskId: null, postId: null }), // leaving a calendar closes its task/post sheet
+      setCalId: (calId) => set({ calId, panelTab: 'main', taskId: null, postId: null, contractId: null, contractEditing: false }), // leaving a calendar closes its task/post sheet
       togglePanel: (open) => set((s) => ({ panelOpen: open ?? !s.panelOpen })),
       setPanelTab: (panelTab) => set({ panelTab, panelOpen: true }),
       openTask: (taskId) => set((s) => ({ taskId, workspace: taskId ? 'calendar' : s.workspace })), // a task always opens over the calendar
-      setWorkspace: (workspace) => set({ workspace, taskId: null, postId: null }),
+      setWorkspace: (workspace) => set({ workspace, taskId: null, postId: null, contractId: null, contractEditing: false }),
       openPost: (postId) => set({ postId }),
+      openContract: (contractId, editing = false) => set({ contractId, contractEditing: !!contractId && editing }),
       setCheckin: (checkinOpen) => set({ checkinOpen }),
-      resetForUser: () => set({ calId: null, taskId: null, postId: null, workspace: 'calendar', panelTab: 'main', checkinOpen: false }),
+      resetForUser: () => set({ calId: null, taskId: null, postId: null, contractId: null, contractEditing: false, workspace: 'calendar', panelTab: 'main', checkinOpen: false }),
       toast: null,
       toastKind: 'error',
       setToast: (toast, kind = 'error') => set({ toast, toastKind: kind }),

@@ -8,11 +8,13 @@ import { POST_PLATFORMS, type Post } from '@/types'
 import { postsNeedingAction, visiblePosts, visibleVersions } from '@/lib/social'
 import { useMediaUrl } from '@/lib/useMedia'
 import { Button, Segmented } from '../ui'
+import { PostViewer } from './PostViewer'
+import { useMediaUrls } from '@/lib/useMedia'
 import { BrandTile } from '../BrandTile'
 import { NewPostDialog } from './NewPostDialog'
 import { StatusChip } from './PostSheet'
 
-type Filter = 'action' | 'all' | 'archive'
+type Filter = 'action' | 'all' | 'archive' | 'grid'
 
 export function SocialBoard() {
   const { t, lang } = useStr()
@@ -44,6 +46,7 @@ export function SocialBoard() {
             { value: 'action', label: me.role === 'client' ? t('awaitingYou') : t('filterAction') },
             { value: 'all', label: t('filterAll') },
             { value: 'archive', label: t('filterArchive') },
+            { value: 'grid', label: t('filterGrid') },
           ]}
           onChange={setFilter}
         />
@@ -56,6 +59,8 @@ export function SocialBoard() {
       <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4">
         {!clientLinked ? (
           <Empty text={t('notLinkedToClient')} />
+        ) : filter === 'grid' ? (
+          <FeedGrid posts={posts} />
         ) : posts.length === 0 ? (
           <Empty text={team ? t('socialEmptyTeam') : t('socialEmptyClient')} />
         ) : list.length === 0 ? (
@@ -122,5 +127,47 @@ function PostCard({ post, onOpen, lang }: { post: Post; onOpen: () => void; lang
         </div>
       </div>
     </button>
+  )
+}
+
+/** «الشبكة»: the account as a profile grid — approved + published posts, 3 per row, newest first; tap → full screen. */
+function FeedGrid({ posts }: { posts: Post[] }) {
+  const { t } = useStr()
+  const s = useData()
+  const me = useUser()!
+  const items = posts
+    .filter((p) => p.status === 'approved' || p.status === 'published')
+    .sort((a, b) => (b.publishedAt ?? b.updatedAt).localeCompare(a.publishedAt ?? a.updatedAt))
+    .map((p) => ({ post: p, v: visibleVersions(s, me, p.id).find((x) => x.number === p.currentVersion) }))
+    .filter((x) => !!x.v)
+  const covers = useMediaUrls(useMemo(() => items.map((x) => x.v!.imagePaths[0]), [items]))
+  const [open, setOpen] = useState<number | null>(null)
+  const cur = open !== null ? items[open] : null
+  const curMedia = useMediaUrls(useMemo(() => (cur ? cur.v!.imagePaths : []), [cur]))
+  if (items.length === 0) return <Empty text={t('gridEmpty')} />
+  return (
+    <div className="mx-auto w-full max-w-[520px] flex flex-col gap-2" data-testid="feed-grid">
+      <div className="text-[11.5px] text-fg-muted text-center">{t('gridHint')}</div>
+      <div className="grid grid-cols-3 gap-[2px]">
+        {items.map((x, i) => (
+          <button key={x.post.id} type="button" onClick={() => setOpen(i)} className="relative aspect-square bg-muted-bg overflow-hidden cursor-pointer" data-testid="grid-cell" data-status={x.post.status}>
+            {covers[i] ? <img src={covers[i]!} alt="" className="w-full h-full object-cover" draggable={false} /> : null}
+            {x.v!.imagePaths.length > 1 && <Images size={14} className="absolute top-1.5 end-1.5 text-white drop-shadow" />}
+            {x.post.status === 'approved' && <span className="absolute bottom-1 start-1 text-[9.5px] font-bold rounded px-1 py-0.5 bg-black/60 text-white">{t('postStatusApproved')}</span>}
+          </button>
+        ))}
+      </div>
+      {cur && (
+        <PostViewer
+          platform={cur.post.platform}
+          format={cur.post.format}
+          media={curMedia}
+          caption={cur.v!.caption}
+          account={s.clientAccounts.find((a) => a.id === cur.post.accountId)}
+          clientName={s.clients.find((c) => c.id === cur.post.clientId)?.name ?? '—'}
+          onClose={() => setOpen(null)}
+        />
+      )}
+    </div>
   )
 }

@@ -4,7 +4,7 @@
  * localStorage so a reload does not wipe it. Replaced by Supabase later.
  */
 import type { Repo, Snapshot } from './repo'
-import type { ChannelId, Client, ClientAccount, ClientAccountInput, InviteInput, InviteResult, Message, NewPostInput, NewVersionInput, PendingInvite, Post, PostDecision, PostVersion, Presence, Profile, Project, Task, TaskPart, User } from '@/types'
+import type { ChannelId, Client, ClientAccount, ClientAccountInput, Contract, ContractDecision, ContractEvent, ContractVersion, InviteInput, InviteResult, Message, NewContractInput, NewPostInput, NewVersionInput, PendingInvite, Post, PostDecision, PostVersion, Presence, Profile, Project, SignatureInput, Task, TaskPart, User } from '@/types'
 import { addIso, todayIso } from '@/lib/dates'
 import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
@@ -49,11 +49,14 @@ function seed(): Snapshot {
   const posts: Post[] = []
   const postVersions: PostVersion[] = []
   const clientAccounts: ClientAccount[] = []
+  const contracts: Contract[] = []
+  const contractVersions: ContractVersion[] = []
+  const contractEvents: ContractEvent[] = []
 
   const profiles: Record<string, Profile> = {}
   for (const u of users) profiles[u.id] = { userId: u.id, city: 'riyadh', whStart: 9, whEnd: 17, notes: '', theme: 'light', lang: 'ar', weekStart: 'monday' }
 
-  return { users, clients, projects, tasks, parts, messages, posts, postVersions, clientAccounts, presence: {}, profiles }
+  return { users, clients, projects, tasks, parts, messages, posts, postVersions, clientAccounts, contracts, contractVersions, contractEvents, legal: null, presence: {}, profiles }
 }
 
 function read(): Snapshot {
@@ -68,7 +71,7 @@ function read(): Snapshot {
           const old = v as PostVersion & { imagePath?: string }
           return old.imagePaths ? v : { ...v, imagePaths: old.imagePath ? [old.imagePath] : [] }
         })
-        return { posts: [], clientAccounts: [], ...parsed, postVersions: versions } as Snapshot
+        return { posts: [], clientAccounts: [], contracts: [], contractVersions: [], contractEvents: [], legal: null, ...parsed, postVersions: versions } as Snapshot
       }
     }
   } catch {
@@ -113,6 +116,31 @@ export function createMockRepo(): Repo {
   }
   let seq = 1000
   const nid = (p: string) => p + seq++ + Math.random().toString(36).slice(2, 6)
+
+
+  const who = (role: 'admin') => {
+    const me = snap.users.find((u) => u.id === localStorage.getItem(SESSION_KEY))
+    if (!me || me.role !== role) throw new Error('forbidden')
+    return me
+  }
+  const isCounterparty = (c: Contract, me: User) => (c.party === 'client' && me.role === 'client' && !!me.clientId && c.clientId === me.clientId) || (c.party === 'creative' && me.role === 'creative' && c.creativeId === me.id)
+  const logEvent = (contractId: string, version: number, event: string, me: User, meta: Record<string, unknown> = {}) => {
+    snap.contractEvents = [{ id: nid('ce'), contractId, version, actor: me.id, actorRole: me.role, event, meta, at: new Date().toISOString() }, ...snap.contractEvents]
+  }
+  /** clients.contract (calendar stage) follows the latest client contract — same rule as the 0009 trigger */
+  const syncClientContract = (contractId: string, clientIdHint?: string) => {
+    const c = snap.contracts.find((x) => x.id === contractId)
+    const clientId = c?.clientId ?? clientIdHint
+    if (!clientId) return
+    const latest = snap.contracts.filter((x) => x.party === 'client' && x.clientId === clientId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
+    const st = latest?.status
+    const stage: Client['contract'] = st === 'signed' || st === 'completed' ? 'signed' : st === 'sent' || st === 'opened' ? 'sent' : 'draft'
+    snap.clients = snap.clients.map((k) => (k.id === clientId ? { ...k, contract: stage } : k))
+  }
+  const sha256 = async (text: string) => {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  }
 
   return {
     async signIn(email, password) {
@@ -171,6 +199,10 @@ export function createMockRepo(): Repo {
       snap.posts = snap.posts.filter((p) => !goneP.has(p.id))
       snap.postVersions = snap.postVersions.filter((v) => !goneP.has(v.postId))
       snap.clientAccounts = snap.clientAccounts.filter((a) => a.clientId !== id)
+      const goneC = new Set(snap.contracts.filter((c) => c.clientId === id).map((c) => c.id))
+      snap.contracts = snap.contracts.filter((c) => !goneC.has(c.id))
+      snap.contractVersions = snap.contractVersions.filter((v) => !goneC.has(v.contractId))
+      snap.contractEvents = snap.contractEvents.filter((e) => !goneC.has(e.contractId))
       snap.clients = snap.clients.filter((c) => c.id !== id)
       snap.projects = snap.projects.filter((p) => p.clientId !== id)
       const gone = new Set(snap.tasks.filter((t) => t.clientId === id).map((t) => t.id))
@@ -400,6 +432,118 @@ export function createMockRepo(): Repo {
       snap.clientAccounts = snap.clientAccounts.filter((a) => a.id !== id)
       snap.posts = snap.posts.map((p) => (p.accountId === id ? { ...p, accountId: undefined } : p))
       commit()
+    },
+    // ---------- «العقود» — mirrors 0009_contracts.sql ----------
+    async createContract(input: NewContractInput) {
+      const me = who('admin')
+      if (!input.title.trim()) throw new Error('title')
+      if ((input.party === 'client') !== !!input.clientId || (input.party === 'creative') !== !!input.creativeId) throw new Error('counterparty')
+      const now = new Date().toISOString()
+      const number = Math.max(2611, ...snap.contracts.map((c) => c.number)) + 1
+      const c: Contract = { id: nid('ct'), number, kind: input.kind, party: input.party, clientId: input.clientId, creativeId: input.creativeId, title: input.title.trim(), accent: input.accent, status: 'draft', currentVersion: 0, createdBy: me.id, createdAt: now, updatedAt: now }
+      snap.contracts = [...snap.contracts, c]
+      syncClientContract(c.id)
+      logEvent(c.id, 0, 'created', me)
+      commit()
+      return c
+    },
+    async saveContractVersion(contractId, content, note) {
+      const me = who('admin')
+      const c = snap.contracts.find((x) => x.id === contractId)
+      if (!c) throw new Error('not found')
+      if (c.status === 'signed' || c.status === 'completed') throw new Error('a signed contract cannot change — make a new contract')
+      const now = new Date().toISOString()
+      const v: ContractVersion = { id: nid('cv'), contractId, number: c.currentVersion + 1, content: JSON.parse(JSON.stringify(content)), contentHash: await sha256(JSON.stringify(content)), note: note?.trim() || undefined, createdBy: me.id, createdAt: now }
+      snap.contractVersions = [...snap.contractVersions, v]
+      snap.contracts = snap.contracts.map((x) => (x.id === contractId ? { ...x, currentVersion: v.number, status: 'draft', sentAt: undefined, decidedAt: undefined, updatedAt: now } : x))
+      syncClientContract(contractId)
+      logEvent(contractId, v.number, 'version', me, { hash: v.contentHash })
+      commit()
+      return v
+    },
+    async signContractFirst(versionId, sig: SignatureInput) {
+      const me = who('admin')
+      const v = snap.contractVersions.find((x) => x.id === versionId)
+      const c = v && snap.contracts.find((x) => x.id === v.contractId)
+      if (!v || !c) throw new Error('not found')
+      if (c.status !== 'draft' || v.number !== c.currentVersion) throw new Error('only the current draft version can be signed')
+      if (!sig.signature.startsWith('data:image/png;base64,') || !sig.name.trim()) throw new Error('signature required')
+      const at = new Date().toISOString()
+      snap.contractVersions = snap.contractVersions.map((x) => (x.id === versionId ? { ...x, firstSignature: sig.signature, firstSigner: sig.name.trim(), firstCapacity: sig.capacity.trim() || undefined, firstSignedAt: at } : x))
+      logEvent(c.id, v.number, 'first_signed', me, { signer: sig.name.trim() })
+      commit()
+    },
+    async updateContract(id, patch) {
+      const me = who('admin')
+      const cur = snap.contracts.find((c) => c.id === id)
+      if (!cur) throw new Error('not found')
+      const now = new Date().toISOString()
+      const next: Contract = { ...cur, ...patch, id, updatedAt: now }
+      if (patch.status && patch.status !== cur.status) {
+        if (cur.status === 'draft' && patch.status === 'sent') {
+          const v = snap.contractVersions.find((x) => x.contractId === id && x.number === cur.currentVersion)
+          if (!v) throw new Error('save a version before sending')
+          if (!v.firstSignature) throw new Error('Hawamish must sign the version before sending')
+          next.sentAt = now
+          snap.contractVersions = snap.contractVersions.map((x) => (x.id === v.id && !x.sentAt ? { ...x, sentAt: now } : x))
+          logEvent(id, cur.currentVersion, 'sent', me)
+        } else if ((cur.status === 'sent' || cur.status === 'opened') && patch.status === 'draft') {
+          next.sentAt = undefined
+          logEvent(id, cur.currentVersion, 'withdrawn', me)
+        } else if (cur.status === 'signed' && patch.status === 'completed') {
+          logEvent(id, cur.currentVersion, 'completed', me)
+        } else throw new Error(`transition ${cur.status} → ${patch.status} is not allowed`)
+      }
+      snap.contracts = snap.contracts.map((c) => (c.id === id ? next : c))
+      syncClientContract(id)
+      commit()
+      return next
+    },
+    async deleteContract(id) {
+      who('admin')
+      const cur = snap.contracts.find((c) => c.id === id)
+      if (cur && (cur.status === 'signed' || cur.status === 'completed')) throw new Error('a signed contract cannot be deleted')
+      snap.contracts = snap.contracts.filter((c) => c.id !== id)
+      snap.contractVersions = snap.contractVersions.filter((v) => v.contractId !== id)
+      snap.contractEvents = snap.contractEvents.filter((e) => e.contractId !== id)
+      if (cur?.clientId) syncClientContract(id, cur.clientId)
+      commit()
+    },
+    async markContractOpened(versionId) {
+      const me = snap.users.find((u) => u.id === localStorage.getItem(SESSION_KEY))
+      const v = snap.contractVersions.find((x) => x.id === versionId)
+      const c = v && snap.contracts.find((x) => x.id === v.contractId)
+      if (!me || !v || !c || !isCounterparty(c, me)) throw new Error('not your contract')
+      if (c.status !== 'sent' || v.number !== c.currentVersion || !v.sentAt) return
+      const at = new Date().toISOString()
+      snap.contractVersions = snap.contractVersions.map((x) => (x.id === versionId ? { ...x, openedAt: x.openedAt ?? at } : x))
+      snap.contracts = snap.contracts.map((x) => (x.id === c.id ? { ...x, status: 'opened', updatedAt: at } : x))
+      logEvent(c.id, v.number, 'opened', me)
+      commit()
+    },
+    async decideContract(versionId, decision: ContractDecision, note, sig) {
+      const me = snap.users.find((u) => u.id === localStorage.getItem(SESSION_KEY))
+      const v = snap.contractVersions.find((x) => x.id === versionId)
+      const c = v && snap.contracts.find((x) => x.id === v.contractId)
+      if (!me || !v || !c || !isCounterparty(c, me)) throw new Error('not your contract')
+      if (c.status !== 'sent' && c.status !== 'opened') throw new Error('contract is not awaiting your decision')
+      if (v.number !== c.currentVersion || !v.sentAt) throw new Error('only the current sent version can be decided')
+      if (v.decision) throw new Error('already decided')
+      const clean = note?.trim() || undefined
+      if (decision === 'signed' && (!sig?.signature.startsWith('data:image/png;base64,') || !sig.name.trim())) throw new Error('signature required')
+      if (decision === 'changes' && !clean) throw new Error('say what to change')
+      const at = new Date().toISOString()
+      snap.contractVersions = snap.contractVersions.map((x) => (x.id === v.id ? { ...x, decision, decisionNote: clean, signature: decision === 'signed' ? sig!.signature : undefined, signerName: decision === 'signed' ? sig!.name.trim() : undefined, signerCapacity: decision === 'signed' ? sig!.capacity.trim() || undefined : undefined, decidedAt: at } : x))
+      snap.contracts = snap.contracts.map((x) => (x.id === c.id ? { ...x, status: decision, decidedAt: at, updatedAt: at } : x))
+      syncClientContract(c.id)
+      logEvent(c.id, v.number, decision, me, { signer: sig?.name ?? '' })
+      commit()
+    },
+    async saveLegal(legal) {
+      who('admin')
+      snap.legal = JSON.parse(JSON.stringify(legal))
+      commit()
+      return snap.legal!
     },
     async updateProfile(userId, patch) {
       const next = { ...snap.profiles[userId], ...patch, userId }

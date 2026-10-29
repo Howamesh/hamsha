@@ -169,3 +169,61 @@ button:focus-visible {
     animation: none;
   }
 }
+
+/* ---------- «العقود»: the contract as paper (A4) — screen preview + print ---------- */
+.paper { --paper-w: 210mm; --paper-h: 297mm; --accent: #d9b600; color: #111; background: transparent; font-family: var(--font-ar); }
+.paper-page { position: relative; width: var(--paper-w); height: var(--paper-h); background: #fff; margin: 0 auto 10mm; padding: 6mm 7mm 9mm; box-sizing: border-box; box-shadow: 0 10px 30px rgba(0,0,0,.12); display: flex; flex-direction: column; overflow: hidden; break-after: page; page-break-after: always; }
+.paper-head { display: flex; justify-content: flex-start; align-items: center; height: 18mm; }
+.paper-wordmark { font-size: 30px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; line-height: 1; }
+.paper-wordmark-star { width: 14px; height: 14px; }
+.paper-body { flex: 1; display: flex; flex-direction: column; gap: 3.5mm; font-size: 10.5px; line-height: 1.75; }
+.paper-foot { position: absolute; bottom: 4mm; left: 7mm; right: 7mm; display: flex; justify-content: space-between; font-size: 8.5px; color: #444; }
+.paper-cover { padding: 7mm; }
+.paper-cover .paper-body { gap: 0; }
+.paper-cover-card { position: relative; flex: 1; background: var(--accent); border-radius: 7mm; color: #fff; min-height: 230mm; }
+.paper-cover-star { position: absolute; top: 12mm; left: 12mm; width: 18mm; height: 18mm; }
+.paper-cover-name { position: absolute; bottom: 18mm; right: 14mm; left: 14mm; font-size: 64px; font-weight: 700; line-height: 1.1; text-align: right; }
+.paper-cover-rule { height: 1px; background: #111; margin-top: 6mm; }
+.paper-cover-title { text-align: right; font-weight: 700; font-size: 14px; margin-top: 3mm; }
+.paper-bar { display: flex; align-items: center; gap: 3mm; background: var(--accent); color: #fff; font-weight: 700; font-size: 11.5px; padding: 0 3mm; height: 8mm; border-radius: 1mm; }
+.paper-num { font-weight: 800; }
+.paper-bar-sub { margin-inline-start: auto; font-weight: 500; font-size: 10px; }
+.paper-box { background: #f3f3f3; border-radius: 1mm; padding: 3mm 4.5mm; white-space: pre-wrap; }
+.paper-box p { margin: 0; }
+.paper-box .paper-item { margin-top: 1mm; }
+.paper-box-tall { min-height: 80mm; }
+.paper-row { display: flex; align-items: center; justify-content: space-between; gap: 3mm; background: #f3f3f3; border-radius: 1mm; min-height: 8mm; padding: 0 3mm; font-size: 10.5px; }
+.paper-row-head { background: var(--accent); color: #fff; font-weight: 700; justify-content: center; }
+.paper-row-center { justify-content: center; font-weight: 600; }
+.paper-row-split { font-weight: 600; }
+.paper-row-accent { background: var(--accent); color: #fff; font-weight: 700; }
+.paper-row-dark { background: #2b2b2b; color: #fff; font-weight: 700; justify-content: center; }
+.paper-row-light { background: #f3f3f3; font-size: 9.5px; justify-content: center; }
+.paper-row-label { font-weight: 700; }
+.paper-row-value { direction: ltr; text-align: left; }
+.paper-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
+.paper-party { display: flex; flex-direction: column; gap: 2mm; }
+.paper-months { display: flex; justify-content: space-between; gap: 1mm; }
+.paper-month { flex: 1; background: #f3f3f3; border-radius: 1mm; height: 9mm; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
+.paper-month b { font-size: 11px; } .paper-month small { font-size: 7.5px; color: #666; }
+.paper-quarters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm; }
+.paper-quarter { display: flex; flex-direction: column; gap: 2mm; }
+.paper-note { font-size: 9.5px; color: #333; text-align: right; }
+.paper-sign { margin-top: auto; }
+.paper-stamp { position: relative; height: 42mm; background: #f3f3f3; border-radius: 1mm; padding: 2mm 3mm; font-weight: 700; }
+.paper-stamp-label { display: block; }
+.paper-stamp-img { position: absolute; left: 8mm; bottom: 4mm; width: 34mm; height: 34mm; object-fit: contain; opacity: .9; }
+.paper-sig-img { position: absolute; right: 8mm; bottom: 4mm; width: 46mm; height: 26mm; object-fit: contain; }
+.paper-packages { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
+.paper-package { display: flex; flex-direction: column; gap: 2mm; }
+.paper-package-items { list-style: disc; padding-inline-start: 5mm; background: #f3f3f3; border-radius: 1mm; padding-top: 2mm; padding-bottom: 2mm; padding-inline-end: 3mm; margin: 0; min-height: 40mm; font-size: 9.5px; }
+.paper-package-items li { margin: 0.5mm 0; }
+.paper-preview { overflow: auto; background: #e9e9ec; padding: 8mm 0; }
+.print-root { display: none; }
+@media print {
+  @page { size: A4; margin: 0; }
+  html, body { background: #fff !important; }
+  body > *:not(.print-root) { display: none !important; }
+  .print-root { display: block !important; }
+  .print-root .paper-page { margin: 0; box-shadow: none; }
+}

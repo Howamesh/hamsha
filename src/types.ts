@@ -29,6 +29,8 @@ export interface Client {
   start: IsoDate
   end: IsoDate
   contract: 'draft' | 'sent' | 'signed'
+  /** admin: block the client's view until a contract is signed (0009) */
+  contractBlock?: boolean
 }
 
 export interface Project {
@@ -200,6 +202,173 @@ export interface ClientAccountInput {
   bio?: string
   /** a new picture to upload; `null` removes the current one; undefined keeps it */
   avatar?: File | null
+}
+
+// ---------- «العقود» (0009) ----------
+export type ContractKind = 'short' | 'full' | 'offer'
+export type ContractParty = 'client' | 'creative'
+/** draft → sent → opened → signed | changes | rejected → completed. A new version returns to draft. */
+export type ContractStatus = 'draft' | 'sent' | 'opened' | 'signed' | 'changes' | 'rejected' | 'completed'
+export type ContractDecision = 'signed' | 'changes' | 'rejected'
+
+export interface ContractPartyInfo {
+  name: string
+  /** commercial register */
+  cr: string
+  country: string
+  city: string
+  /** «ممثل X» */
+  repTitle: string
+  repName: string
+  phone: string
+  email: string
+  nationalId: string
+}
+export interface ContractSection {
+  num: string
+  title: string
+  /** plain text; lines starting with «1/» are numbered items, «أولاً:» sub-heads */
+  body: string
+  /** part of the fixed core («الدستور»): shown locked in the editor */
+  fixed?: boolean
+}
+export interface ContractTrack {
+  name: string
+  nameEn: string
+  months: number
+  monthly: number
+  /** one milestone per quarter */
+  quarters: [string, string, string, string]
+}
+export interface ContractPackage {
+  name: string
+  subtitle: string
+  price: number
+  per: 'month' | 'once'
+  items: string[]
+}
+export interface ContractInstallment {
+  label: string
+  amount: number
+}
+export interface ContractPricing {
+  mode: 'monthly' | 'project'
+  currency: string
+  monthly: number
+  months: number
+  projectTotal: number
+  installments: ContractInstallment[]
+  lateDays: number
+  supportMonths: number
+}
+export interface ContractBank {
+  owner: string
+  account: string
+  iban: string
+  swift: string
+}
+export interface ContractSigner {
+  name: string
+  capacity: string
+}
+/** Everything the paper shows — frozen with the version. */
+export interface ContractContent {
+  kind: ContractKind
+  title: string
+  project: string
+  /** agreement date (Gregorian ISO); the Hijri line is derived when rendering */
+  date: IsoDate
+  /** which column the counterparty takes (the manager's short contracts put Hawamish first, the full ones put the client first) */
+  counterpartySide: 'first' | 'second'
+  hawamish: ContractPartyInfo
+  counterparty: ContractPartyInfo
+  scope: string
+  sections: ContractSection[]
+  pricing: ContractPricing
+  tracks: ContractTrack[]
+  packages: ContractPackage[]
+  unitName: string
+  unitPrice: number
+  unitItems: string[]
+  bank: ContractBank
+  signers: { hawamish: ContractSigner; counterparty: ContractSigner }
+  vars: { platforms: string; posts: number; designs: number; videos: number }
+  accent: string
+  copyrightYear: number
+  /** Hawamish's round stamp (PNG data URL) frozen with the version so old contracts never change */
+  stamp?: string
+}
+
+export interface Contract {
+  id: string
+  number: number
+  kind: ContractKind
+  party: ContractParty
+  clientId?: string
+  creativeId?: string
+  title: string
+  accent: string
+  status: ContractStatus
+  currentVersion: number
+  sentAt?: string
+  decidedAt?: string
+  createdBy?: string
+  createdAt: string
+  updatedAt: string
+}
+export interface ContractVersion {
+  id: string
+  contractId: string
+  number: number
+  content: ContractContent
+  contentHash: string
+  note?: string
+  firstSignature?: string
+  firstSigner?: string
+  firstCapacity?: string
+  firstSignedAt?: string
+  sentAt?: string
+  openedAt?: string
+  decision?: ContractDecision
+  decisionNote?: string
+  signature?: string
+  signerName?: string
+  signerCapacity?: string
+  decidedAt?: string
+  createdBy?: string
+  createdAt: string
+}
+export interface ContractEvent {
+  id: string
+  contractId: string
+  version?: number
+  actor?: string
+  actorRole?: string
+  event: string
+  meta: Record<string, unknown>
+  at: string
+}
+export interface NewContractInput {
+  kind: ContractKind
+  party: ContractParty
+  clientId?: string
+  creativeId?: string
+  title: string
+  accent: string
+}
+/** Hawamish's legal identity, typed once by an admin (Settings) and copied into every contract version. */
+export interface OrgLegal {
+  party: ContractPartyInfo
+  signer: ContractSigner
+  banks: ContractBank[]
+  /** round stamp PNG as a data URL (optional) */
+  stamp: string
+}
+export interface SignatureInput {
+  /** data:image/png;base64,… */
+  signature: string
+  name: string
+  capacity: string
 }
 
 /** Carousel limits: the database allows up to 20 per version; platforms are stricter. */

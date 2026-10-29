@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Bell, Calendar, ChevronLeft, ChevronRight, LogOut, MessageCircle, PanelRightOpen, PieChart, Settings, Share2, User } from 'lucide-react'
+import { Bell, Calendar, ChevronLeft, ChevronRight, LogOut, MessageCircle, PanelRightOpen, PieChart, Settings, Share2, User, FileSignature } from 'lucide-react'
 import { addDays, addMonths, addWeeks } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { fromIso, toIso, todayIso, weekDays } from '@/lib/dates'
@@ -26,6 +26,9 @@ import { BrandTile } from '@/components/BrandTile'
 import { SocialBoard } from '@/components/social/SocialBoard'
 import { postsNeedingAction, visiblePosts } from '@/lib/social'
 import { PostSheet } from '@/components/social/PostSheet'
+import { ContractsBoard } from '@/components/contracts/ContractsBoard'
+import { ContractSheet } from '@/components/contracts/ContractSheet'
+import { clientBlocked, contractsNeedingAction, visibleContracts } from '@/lib/contracts'
 
 export default function Shell() {
   const me = useUser()
@@ -48,7 +51,10 @@ function App() {
   const tasks = useMemo(() => visibleTasks(s, me, ui.calId), [s, me, ui.calId])
   const presence = s.presence[me.id] ?? 'away'
   const social = ui.workspace === 'social'
+  const contracts = ui.workspace === 'contracts'
   const socialBadge = useMemo(() => postsNeedingAction(visiblePosts(s, me, ui.calId), me.role), [s, me, ui.calId])
+  const contractsBadge = useMemo(() => contractsNeedingAction(visibleContracts(s, me), me.role), [s, me])
+  const blocked = clientBlocked(s, me)
 
   // Close the panel by default on phones
   useEffect(() => {
@@ -114,12 +120,14 @@ function App() {
             options={[
               { value: 'calendar', label: t('calendar') },
               { value: 'social', label: t('social') },
+              { value: 'contracts', label: t('contracts') },
             ]}
             onChange={ui.setWorkspace}
           />
-          {!!socialBadge && !social && <span className="absolute -top-1.5 -end-1.5 min-w-[16px] h-4 px-1 rounded-full bg-accent text-accent-fg text-[10px] font-bold grid place-items-center pointer-events-none" data-testid="social-badge">{socialBadge}</span>}
+          {!!socialBadge && !social && <span className="absolute -top-1.5 end-[30%] min-w-[16px] h-4 px-1 rounded-full bg-accent text-accent-fg text-[10px] font-bold grid place-items-center pointer-events-none" data-testid="social-badge">{socialBadge}</span>}
+          {!!contractsBadge && !contracts && <span className="absolute -top-1.5 -end-1.5 min-w-[16px] h-4 px-1 rounded-full bg-accent text-accent-fg text-[10px] font-bold grid place-items-center pointer-events-none" data-testid="contracts-badge">{contractsBadge}</span>}
         </div>
-        {!social && (
+        {!social && !contracts && (
         <div className="flex items-center gap-1.5">
           <Button size="icon" className="h-8 w-8" onClick={() => shift(-1)} aria-label={t('prev')}>
             {lang === 'ar' ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
@@ -196,8 +204,15 @@ function App() {
         )}
 
         <main className={cn('flex-1 min-w-0 min-h-0 flex flex-col gap-[var(--gap)]', narrow && 'pb-[calc(64px+env(safe-area-inset-bottom,0px))]')}>
+          {blocked && (
+            <div className="rounded-md border border-danger-dark/30 bg-danger-tint/50 text-danger-dark text-[13px] px-4 py-2.5 font-semibold" data-testid="contract-blocked">
+              {t('contractBlockedBanner')}
+            </div>
+          )}
           {social ? (
             <SocialBoard />
+          ) : contracts ? (
+            <ContractsBoard />
           ) : (
             <>
               {ui.view === 'month' && <MonthView tasks={tasks} onCreate={onCreate} emptyMsg={emptyMsg} hint={isAdmin && client ? t('dragHint') : isCreative ? t('hintCreative') : undefined} />}
@@ -225,6 +240,10 @@ function App() {
             <Share2 size={18} /> {t('social')}
             {!!socialBadge && <span className="absolute top-1.5 end-[22%] min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-accent-fg text-[9.5px] font-bold grid place-items-center">{socialBadge}</span>}
           </button>
+          <button type="button" onClick={() => { ui.togglePanel(false); ui.setWorkspace('contracts') }} className={cn('relative flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', !ui.panelOpen && contracts ? 'text-fg' : 'text-fg-secondary')}>
+            <FileSignature size={18} /> {t('contracts')}
+            {!!contractsBadge && <span className="absolute top-1.5 end-[22%] min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-accent-fg text-[9.5px] font-bold grid place-items-center">{contractsBadge}</span>}
+          </button>
           {railTabs.map((r) => (
             <button key={r.id} type="button" onClick={() => ui.setPanelTab(r.id)} className={cn('relative flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', ui.panelOpen && ui.panelTab === r.id ? 'text-fg' : 'text-fg-secondary')}>
               {r.icon}
@@ -237,6 +256,7 @@ function App() {
       {newTask && <NewTaskDialog seed={newTask} clientId={client?.id ?? null} onClose={() => setNewTask(null)} />}
       <TaskSheet />
       <PostSheet />
+      <ContractSheet />
       <Checkin />
       <Toast />
     </div>

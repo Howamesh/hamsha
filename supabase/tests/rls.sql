@@ -193,9 +193,95 @@ select t.run('[acc] anon reads nothing', null, 'select * from client_accounts', 
 select t.run('[acc] a post may use an account of its client + platform', :'A', 'insert into posts (org_id, client_id, account_id, title, platform) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ' || quote_literal(:'AC1') || ', ''بوست بحساب'', ''instagram'')', 'rows:1');
 select t.run('[acc] a post cannot use another client''s account', :'A', 'insert into posts (org_id, client_id, account_id, title, platform) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ' || quote_literal(:'AC2') || ', ''x'', ''x'')', 'error');
 select t.run('[acc] a post cannot use an account of another platform', :'A', 'insert into posts (org_id, client_id, account_id, title, platform) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ' || quote_literal(:'AC1') || ', ''x'', ''tiktok'')', 'error');
+select t.run('[acc] the platform of an account used by a post cannot change', :'A', 'update client_accounts set platform = ''tiktok'' where id = ' || quote_literal(:'AC1'), 'error');
 select t.run('[acc] admin deletes the account → the post keeps living without one', :'A', 'delete from client_accounts where id = ' || quote_literal(:'AC1'), 'rows:1');
 select t.run('[acc] …account_id was cleared', :'A', 'select 1 from posts where title = ''بوست بحساب'' and account_id is null', 'rows:1');
 select t.run('[acc] admin deletes the test post', :'A', 'delete from posts where title = ''بوست بحساب''', 'rows:1');
+
+-- ===== contracts (0009): frozen versions, Hawamish signs first, counterparty decides once =====
+\set CT1 90000000-0000-0000-0000-000000000001
+\set CT2 90000000-0000-0000-0000-000000000002
+\set CT3 90000000-0000-0000-0000-000000000003
+\set CV1 91000000-0000-0000-0000-000000000001
+\set CV2 91000000-0000-0000-0000-000000000002
+\set CV3 91000000-0000-0000-0000-000000000003
+\set SIG 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+select t.run('[ctr] admin creates a client contract (number assigned, born draft)', :'A', 'insert into contracts (id, org_id, party, client_id, kind, title, status, current_version) values (' || quote_literal(:'CT1') || ', ' || quote_literal(:'ORG') || ', ''client'', ''20000000-0000-0000-0000-000000000001'', ''full'', ''عقد إنشاء موقع'', ''signed'', 7)', 'rows:1');
+select t.run('[ctr] …number 2612, draft, version 0', :'A', 'select 1 from contracts where id = ' || quote_literal(:'CT1') || ' and number = 2612 and status = ''draft'' and current_version = 0', 'rows:1');
+select t.run('[ctr] …a created event was logged', :'A', 'select 1 from contract_events where contract_id = ' || quote_literal(:'CT1') || ' and event = ''created''', 'rows:1');
+select t.run('[ctr] admin creates a creative contract for creative1', :'A', 'insert into contracts (id, org_id, party, creative_id, kind, title) values (' || quote_literal(:'CT2') || ', ' || quote_literal(:'ORG') || ', ''creative'', ' || quote_literal(:'C1') || ', ''short'', ''عقد تعاون شهري'')', 'rows:1');
+select t.run('[ctr] …its number is 2613', :'A', 'select 1 from contracts where id = ' || quote_literal(:'CT2') || ' and number = 2613', 'rows:1');
+select t.run('[ctr] a contract with both client and creative is rejected', :'A', 'insert into contracts (org_id, party, client_id, creative_id, title) values (' || quote_literal(:'ORG') || ', ''client'', ''20000000-0000-0000-0000-000000000001'', ' || quote_literal(:'C1') || ', ''x'')', 'error');
+select t.run('[ctr] a creative contract for an admin is rejected', :'A', 'insert into contracts (org_id, party, creative_id, title) values (' || quote_literal(:'ORG') || ', ''creative'', ' || quote_literal(:'A') || ', ''x'')', 'error');
+select t.run('[ctr] creative cannot create a contract', :'C1', 'insert into contracts (org_id, party, client_id, title) values (' || quote_literal(:'ORG') || ', ''client'', ''20000000-0000-0000-0000-000000000001'', ''x'')', 'error');
+select t.run('[ctr] client cannot create a contract', :'K1', 'insert into contracts (org_id, party, client_id, title) values (' || quote_literal(:'ORG') || ', ''client'', ''20000000-0000-0000-0000-000000000001'', ''x'')', 'error');
+select t.run('[ctr] admin cannot send without a version', :'A', 'update contracts set status = ''sent'' where id = ' || quote_literal(:'CT1'), 'error');
+select t.run('[ctr] admin saves version 1 (hash computed by the DB)', :'A', 'insert into contract_versions (id, org_id, contract_id, number, content, content_hash, note) values (' || quote_literal(:'CV1') || ', ' || quote_literal(:'ORG') || ', ' || quote_literal(:'CT1') || ', 9, ''{"title":"عقد","pricing":{"monthly":4000,"months":12}}''::jsonb, ''fake'', ''النسخة الأولى'')', 'rows:1');
+select t.run('[ctr] …number 1, sha256 hash, contract draft at v1', :'A', 'select 1 from contract_versions v join contracts c on c.id = v.contract_id where v.id = ' || quote_literal(:'CV1') || ' and v.number = 1 and v.content_hash = contract_hash(v.content) and length(v.content_hash) = 64 and c.current_version = 1 and c.status = ''draft''', 'rows:1');
+select t.run('[ctr] creative cannot write a version', :'C1', 'insert into contract_versions (org_id, contract_id, content) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'CT1') || ', ''{}''::jsonb)', 'error');
+select t.run('[ctr] admin cannot edit a frozen version (no update policy)', :'A', 'update contract_versions set content = ''{"x":1}''::jsonb where id = ' || quote_literal(:'CV1'), 'none');
+select t.run('[ctr] admin cannot forge the hash (no update policy)', :'A', 'update contract_versions set content_hash = ''x'' where id = ' || quote_literal(:'CV1'), 'none');
+select t.run('[ctr] admin cannot send before Hawamish signed', :'A', 'update contracts set status = ''sent'' where id = ' || quote_literal(:'CT1'), 'error');
+select t.run('[ctr] client cannot sign for Hawamish', :'K1', 'select sign_contract_first(' || quote_literal(:'CV1') || ', ' || quote_literal(:'SIG') || ', ''x'', ''y'')', 'error');
+select t.run('[ctr] a bad signature payload is rejected', :'A', 'select sign_contract_first(' || quote_literal(:'CV1') || ', ''<script>'', ''إبراهيم'', ''المدير'')', 'error');
+select t.run('[ctr] Hawamish signs version 1', :'A', 'select sign_contract_first(' || quote_literal(:'CV1') || ', ' || quote_literal(:'SIG') || ', ''إبراهيم القفاري'', ''رئيس تطوير المنتجات'')', 'rows:1');
+select t.run('[ctr] …stored with signer + time', :'A', 'select 1 from contract_versions where id = ' || quote_literal(:'CV1') || ' and first_signature = ' || quote_literal(:'SIG') || ' and first_signer = ''إبراهيم القفاري'' and first_signed_at is not null', 'rows:1');
+select t.run('[ctr] client sees NO draft contract', :'K1', 'select * from client_contracts', 'none');
+select t.run('[ctr] client sees NO unsent version', :'K1', 'select * from client_contract_versions', 'none');
+select t.run('[ctr] client cannot read the contracts table', :'K1', 'select * from contracts', 'none');
+select t.run('[ctr] client cannot decide a draft', :'K1', 'select decide_contract(' || quote_literal(:'CV1') || ', ''signed'', null, ' || quote_literal(:'SIG') || ', ''زياد'', ''المالك'')', 'error');
+select t.run('[ctr] admin sends CT1', :'A', 'update contracts set status = ''sent'' where id = ' || quote_literal(:'CT1'), 'rows:1');
+select t.run('[ctr] …version 1 stamped sent_at, event logged, clients.contract = sent', :'A', 'select 1 from contract_versions v join contracts c on c.id = v.contract_id join clients k on k.id = c.client_id where v.id = ' || quote_literal(:'CV1') || ' and v.sent_at is not null and c.sent_at is not null and k.contract = ''sent'' and exists (select 1 from contract_events e where e.contract_id = c.id and e.event = ''sent'')', 'rows:1');
+select t.run('[ctr] client now sees the contract and its sent version', :'K1', 'select 1 from client_contracts c join client_contract_versions v on v.contract_id = c.id where c.id = ' || quote_literal(:'CT1') || ' and v.number = 1 and v.first_signer = ''إبراهيم القفاري''', 'rows:1');
+select t.run('[ctr] client view has no internal column', :'K1', 'select created_by from client_contract_versions', 'error');
+select t.run('[ctr] client2 sees nothing', :'K2', 'select * from client_contracts', 'none');
+select t.run('[ctr] creative1 cannot read a client contract', :'C1', 'select * from contracts where id = ' || quote_literal(:'CT1'), 'none');
+select t.run('[ctr] client2 cannot open client-1 contract', :'K2', 'select mark_contract_opened(' || quote_literal(:'CV1') || ')', 'error');
+select t.run('[ctr] client opens it → status opened', :'K1', 'select mark_contract_opened(' || quote_literal(:'CV1') || ')', 'rows:1');
+select t.run('[ctr] …opened_at + event', :'A', 'select 1 from contracts c join contract_versions v on v.contract_id = c.id and v.number = 1 where c.id = ' || quote_literal(:'CT1') || ' and c.status = ''opened'' and v.opened_at is not null and exists (select 1 from contract_events e where e.contract_id = c.id and e.event = ''opened'' and e.actor_role = ''client'')', 'rows:1');
+select t.run('[ctr] admin cannot decide for the client', :'A', 'select decide_contract(' || quote_literal(:'CV1') || ', ''signed'', null, ' || quote_literal(:'SIG') || ', ''x'', ''y'')', 'error');
+select t.run('[ctr] signing without a signature is rejected', :'K1', 'select decide_contract(' || quote_literal(:'CV1') || ', ''signed'', null, null, ''زياد'', ''المالك'')', 'error');
+select t.run('[ctr] «يبي تعديل» without a note is rejected', :'K1', 'select decide_contract(' || quote_literal(:'CV1') || ', ''changes'', ''  '')', 'error');
+select t.run('[ctr] client asks for changes', :'K1', 'select decide_contract(' || quote_literal(:'CV1') || ', ''changes'', ''قللوا المدة إلى 6 أشهر'')', 'rows:1');
+select t.run('[ctr] …status changes, note on v1, decided_at, event', :'A', 'select 1 from contracts c join contract_versions v on v.contract_id = c.id and v.number = 1 where c.id = ' || quote_literal(:'CT1') || ' and c.status = ''changes'' and v.decision = ''changes'' and v.decision_note = ''قللوا المدة إلى 6 أشهر'' and v.decided_by = ' || quote_literal(:'K1') || ' and c.decided_at is not null and exists (select 1 from contract_events e where e.contract_id = c.id and e.event = ''changes'')', 'rows:1');
+select t.run('[ctr] client cannot decide twice', :'K1', 'select decide_contract(' || quote_literal(:'CV1') || ', ''signed'', null, ' || quote_literal(:'SIG') || ', ''زياد'', ''المالك'')', 'error');
+select t.run('[ctr] admin cannot resend the same version after changes', :'A', 'update contracts set status = ''sent'' where id = ' || quote_literal(:'CT1'), 'error');
+select t.run('[ctr] admin saves version 2 (back to draft, old decision kept)', :'A', 'insert into contract_versions (id, org_id, contract_id, content) values (' || quote_literal(:'CV2') || ', ' || quote_literal(:'ORG') || ', ' || quote_literal(:'CT1') || ', ''{"title":"عقد","pricing":{"monthly":4000,"months":6}}''::jsonb)', 'rows:1');
+select t.run('[ctr] …v2 unsigned/unsent, contract draft, v1 decision intact, clients.contract back to draft', :'A', 'select 1 from contracts c join clients k on k.id = c.client_id where c.id = ' || quote_literal(:'CT1') || ' and c.status = ''draft'' and c.current_version = 2 and k.contract = ''draft'' and exists (select 1 from contract_versions where id = ' || quote_literal(:'CV2') || ' and first_signature is null and sent_at is null) and exists (select 1 from contract_versions where id = ' || quote_literal(:'CV1') || ' and decision = ''changes'')', 'rows:1');
+select t.run('[ctr] client sees nothing of the draft again (v1 hidden with it)', :'K1', 'select * from client_contract_versions', 'none');
+select t.run('[ctr] Hawamish signs v2 and sends', :'A', 'select sign_contract_first(' || quote_literal(:'CV2') || ', ' || quote_literal(:'SIG') || ', ''إبراهيم القفاري'', ''رئيس تطوير المنتجات'')', 'rows:1');
+select t.run('[ctr] (send v2)', :'A', 'update contracts set status = ''sent'' where id = ' || quote_literal(:'CT1'), 'rows:1');
+select t.run('[ctr] client sees both sent versions (1 and 2)', :'K1', 'select * from client_contract_versions where contract_id = ' || quote_literal(:'CT1'), 'rows:2');
+select t.run('[ctr] client cannot sign the OLD version 1', :'K1', 'select decide_contract(' || quote_literal(:'CV1') || ', ''signed'', null, ' || quote_literal(:'SIG') || ', ''زياد'', ''المالك'')', 'error');
+select t.run('[ctr] client signs version 2 straight from «sent» (opening is optional)', :'K1', 'select decide_contract(' || quote_literal(:'CV2') || ', ''signed'', null, ' || quote_literal(:'SIG') || ', ''زياد بن محمد الجاسر'', ''مالك الشركة'')', 'rows:1');
+select t.run('[ctr] …signed: signature + signer + capacity stored, clients.contract = signed', :'A', 'select 1 from contracts c join contract_versions v on v.contract_id = c.id and v.number = 2 join clients k on k.id = c.client_id where c.id = ' || quote_literal(:'CT1') || ' and c.status = ''signed'' and v.signature = ' || quote_literal(:'SIG') || ' and v.signer_name = ''زياد بن محمد الجاسر'' and v.signer_capacity = ''مالك الشركة'' and k.contract = ''signed''', 'rows:1');
+select t.run('[ctr] a signed contract cannot get a new version', :'A', 'insert into contract_versions (org_id, contract_id, content) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'CT1') || ', ''{}''::jsonb)', 'error');
+select t.run('[ctr] a signed contract cannot be deleted', :'A', 'delete from contracts where id = ' || quote_literal(:'CT1'), 'error');
+select t.run('[ctr] admin cannot delete a sent/signed version (record is kept)', :'A', 'delete from contract_versions where id = ' || quote_literal(:'CV1'), 'error');
+select t.run('[ctr] anon cannot call log_contract_event', null, 'select log_contract_event(' || quote_literal(:'CT1') || ', 1, ''signed'')', 'error');
+select t.run('[ctr] client cannot call log_contract_event', :'K1', 'select log_contract_event(' || quote_literal(:'CT1') || ', 1, ''signed'')', 'error');
+select t.run('[ctr] admin completes it', :'A', 'update contracts set status = ''completed'' where id = ' || quote_literal(:'CT1'), 'rows:1');
+select t.run('[ctr] client cannot read the audit events', :'K1', 'select * from contract_events', 'none');
+select t.run('[ctr] creative cannot read the audit events', :'C1', 'select * from contract_events', 'none');
+select t.run('[ctr] admin reads the full trail of CT1 (created, version×2, first_signed×2, sent×2, opened, changes, signed, completed)', :'A', 'select * from contract_events where contract_id = ' || quote_literal(:'CT1'), 'rows:11');
+-- creative contract
+select t.run('[ctr] creative1 sees no draft contract of theirs', :'C1', 'select * from contracts', 'none');
+select t.run('[ctr] (v1 + sign + send for the creative contract)', :'A', 'insert into contract_versions (id, org_id, contract_id, content) values (' || quote_literal(:'CV3') || ', ' || quote_literal(:'ORG') || ', ' || quote_literal(:'CT2') || ', ''{"title":"تعاون"}''::jsonb); select sign_contract_first(' || quote_literal(:'CV3') || ', ' || quote_literal(:'SIG') || ', ''إبراهيم'', ''المدير''); update contracts set status = ''sent'' where id = ' || quote_literal(:'CT2'), 'rows:1');
+select t.run('[ctr] creative1 now sees own contract + sent version', :'C1', 'select 1 from contracts c join contract_versions v on v.contract_id = c.id where c.id = ' || quote_literal(:'CT2') || ' and v.number = 1', 'rows:1');
+select t.run('[ctr] creative2 sees nothing', :'C2', 'select * from contracts', 'none');
+select t.run('[ctr] creative1 cannot change status', :'C1', 'update contracts set status = ''draft'' where id = ' || quote_literal(:'CT2'), 'none');
+select t.run('[ctr] client cannot decide a creative contract', :'K1', 'select decide_contract(' || quote_literal(:'CV3') || ', ''rejected'', ''لا'')', 'error');
+select t.run('[ctr] creative1 rejects it', :'C1', 'select decide_contract(' || quote_literal(:'CV3') || ', ''rejected'', ''المبلغ غير مناسب'')', 'rows:1');
+select t.run('[ctr] …rejected with the note, no clients.contract side effect', :'A', 'select 1 from contracts c join contract_versions v on v.contract_id = c.id and v.number = 1 where c.id = ' || quote_literal(:'CT2') || ' and c.status = ''rejected'' and v.decision = ''rejected'' and v.decision_note = ''المبلغ غير مناسب''', 'rows:1');
+select t.run('[ctr] admin deletes the rejected contract (its sent version goes with it)', :'A', 'delete from contracts where id = ' || quote_literal(:'CT2'), 'rows:1');
+select t.run('[ctr] …no orphan versions', :'A', 'select * from contract_versions where contract_id = ' || quote_literal(:'CT2'), 'none');
+select t.run('[ctr] anon reads nothing from client_contracts', null, 'select * from client_contracts', 'none');
+select t.run('[ctr] anon cannot call decide_contract', null, 'select decide_contract(' || quote_literal(:'CV2') || ', ''signed'', null, ' || quote_literal(:'SIG') || ', ''x'', ''y'')', 'error');
+select t.run('[ctr] admin saves the legal profile (CR, bank, stamp live here, not in code)', :'A', 'insert into org_legal (org_id, legal) values (' || quote_literal(:'ORG') || ', ''{"name":"شركة نموذج هوامش","banks":[]}''::jsonb)', 'rows:1');
+select t.run('[ctr] creative cannot read the legal profile', :'C1', 'select * from org_legal', 'none');
+select t.run('[ctr] client cannot read the legal profile', :'K1', 'select * from org_legal', 'none');
+select t.run('[ctr] admin blocks client 1 until signed (flag only)', :'A', 'update clients set contract_block = true where id = ''20000000-0000-0000-0000-000000000001''', 'rows:1');
+select t.run('[ctr] client cannot clear the block', :'K1', 'update clients set contract_block = false where id = ''20000000-0000-0000-0000-000000000001''', 'none');
 
 -- ===== 0004: atomic RPCs + chat cleanup =====
 select t.run('[rpc] admin creates client + first project in one call', :'A', 'select create_client(''عميل ٣'', ''مشروع افتتاحي'', ''#4CB782'')', 'rows:1');

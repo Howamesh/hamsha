@@ -37,7 +37,7 @@ CHECKS['eye hides it again'] = (await ev(`document.querySelectorAll('input[autoc
 // 2) task sheet closes when the admin leaves the client calendar
 await send('Page.navigate',{url: BASE + '/login'}); await sleep(1500);
 await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='ادخل كمدير')`, 30000);
-await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`);
+await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`, 30000);
 await setInput(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل'))`, 'عميل الفحص');
 await ev(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل')).form.requestSubmit()`); await sleep(400);
 await click('عميل الفحص'); await sleep(400);

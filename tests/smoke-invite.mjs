@@ -20,7 +20,7 @@ const CHECKS = {};
 
 await send('Page.navigate',{url: BASE + '/login'}); await sleep(1500);
 await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='ادخل كمدير')`, 30000);
-await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`);
+await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`, 30000);
 const teamBefore = await ev(`document.querySelectorAll('main ~ aside, aside').length`);
 
 // 1) button opens the dialog

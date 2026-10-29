@@ -3,6 +3,7 @@ import { useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
 import { useUi, type View } from '@/store/ui'
 import { Segmented, SectionTitle } from './ui'
+import { LegalSettings } from './contracts/LegalSettings'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -85,6 +86,7 @@ export function SettingsPanel() {
           }}
         />
       </Row>
+      {user?.role === 'admin' && <LegalSettings />}
     </div>
   )
 }

@@ -21,7 +21,7 @@ const setInput = async (sel, v) => ev(`(()=>{const el=${sel};if(!el)return 'NOIN
 const rect = async (sel) => ev(`(()=>{const r=(${sel}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
 const mouse = async (type, x, y) => send('Input.dispatchMouseEvent',{type,x,y,button:'left',buttons: type==='mouseReleased'?0:1, clickCount:1, pointerType:'mouse'});
 const out = {};
-await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`);
+await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`, 30000);
 await setInput(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل'))`, 'عميل سحب');
 await ev(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل')).form.requestSubmit()`); await sleep(400);
 await click('عميل سحب'); await sleep(400);

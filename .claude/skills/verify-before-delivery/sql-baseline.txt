@@ -1,20 +1,21 @@
 # 3f2bb17397167b914831904d1e2523a3158dda32  supabase/tests/00_local_shim.sql
 # 6c258b8ca646eec00684fc3581d151a95cde21c4  supabase/tests/10_seed.sql
 # 93243ace9eb331abcc63c105d0406c48d8ce19b4  supabase/tests/20_harness.sql
-# 8d1f4fad4346ba727d70dd5b78363a38e6697968  supabase/tests/rls.sql
+# 8eb60500bad6be98d511873d1bc40caee9a36345  supabase/tests/rls.sql
 # be29f13300c05cd5bab788e28c478de9c52387fd  supabase/tests/run-ci.sh
 # 9cc4dea2c523159b3999365275536fd937accebf  supabase/tests/run-local.sh
-# cd392dc460b2f6b4a43d897b5c2dbe5401aa1fe3  tests/smoke-client-summary.mjs
-# 35ed2ec37b8e1b9ea5b190d81733f00bce652c70  tests/smoke-drag.mjs
-# 8f25b5682a969430d827a9752ea915fa1f603b3c  tests/smoke-hours.mjs
-# 3b8e928d68e4cf87c8f6fe127c2cc085b5190523  tests/smoke-invite.mjs
-# c3c8e175ec5ed6736fd785f389c65e57f3a60c24  tests/smoke-live-fixes.mjs
-# a6816e1541a7c5ce759bfe313ef2228b3b89de0f  tests/smoke-regressions.mjs
-# 4fdb93442d5ef0a4b643c53ddd5e3b20a95d7c8f  tests/smoke-review3.mjs
-# 6e0e69bd57a6086a50f8c7f23cc7283dbaf931f6  tests/smoke-roles.mjs
-# 465f67182421e360b5f802728f658629e52fa048  tests/smoke-social.mjs
+# b20880a0cd90eb06fcc71fc6b9d8fa6b272b7f54  tests/smoke-client-summary.mjs
+# 68893ab197ce942f00bbe1aa4c748f0c7831721e  tests/smoke-contracts.mjs
+# 6d05b2671dc9912df011a84030fc5d3909fec341  tests/smoke-drag.mjs
+# da3bb249fa5046b45583b96d938c3aaf2c2fcaa9  tests/smoke-hours.mjs
+# dca7a95b896d3125712ef97d1b5941a6e330596e  tests/smoke-invite.mjs
+# 772386ad035bf00a2508f63fb092970c5b7267bf  tests/smoke-live-fixes.mjs
+# 5547e83e433f9bb6179006aa0dcb647d8d2038a9  tests/smoke-regressions.mjs
+# 08012c54cf151322bf18169e9b6557301c38b0fd  tests/smoke-review3.mjs
+# e1f682a7ad54ffe8e0736acff5edf71fddd5f88b  tests/smoke-roles.mjs
+# 6a6606bd2774c1fd59ed8b2874aee02db4c1ba14  tests/smoke-social.mjs
 # 72e3e4b649ac988b901ef5294c876339a43d12d0  tests/unit-validate.mjs
-# 854049e717d3764a6e62fe57b517a27d59c28483  package.json:scripts
+# 87b6f961b40028aa7a993dc0363ac6edea6e5f0b  package.json:scripts
 admin reads all tasks
 admin reads all parts
 admin reads task chat
@@ -171,9 +172,85 @@ anon reads nothing from profiles
 [acc] a post may use an account of its client + platform
 [acc] a post cannot use another client's account
 [acc] a post cannot use an account of another platform
+[acc] the platform of an account used by a post cannot change
 [acc] admin deletes the account → the post keeps living without one
 [acc] …account_id was cleared
 [acc] admin deletes the test post
+[ctr] admin creates a client contract (number assigned, born draft)
+[ctr] …number 2612, draft, version 0
+[ctr] …a created event was logged
+[ctr] admin creates a creative contract for creative1
+[ctr] …its number is 2613
+[ctr] a contract with both client and creative is rejected
+[ctr] a creative contract for an admin is rejected
+[ctr] creative cannot create a contract
+[ctr] client cannot create a contract
+[ctr] admin cannot send without a version
+[ctr] admin saves version 1 (hash computed by the DB)
+[ctr] …number 1, sha256 hash, contract draft at v1
+[ctr] creative cannot write a version
+[ctr] admin cannot edit a frozen version (no update policy)
+[ctr] admin cannot forge the hash (no update policy)
+[ctr] admin cannot send before Hawamish signed
+[ctr] client cannot sign for Hawamish
+[ctr] a bad signature payload is rejected
+[ctr] Hawamish signs version 1
+[ctr] …stored with signer + time
+[ctr] client sees NO draft contract
+[ctr] client sees NO unsent version
+[ctr] client cannot read the contracts table
+[ctr] client cannot decide a draft
+[ctr] admin sends CT1
+[ctr] …version 1 stamped sent_at, event logged, clients.contract = sent
+[ctr] client now sees the contract and its sent version
+[ctr] client view has no internal column
+[ctr] client2 sees nothing
+[ctr] creative1 cannot read a client contract
+[ctr] client2 cannot open client-1 contract
+[ctr] client opens it → status opened
+[ctr] …opened_at + event
+[ctr] admin cannot decide for the client
+[ctr] signing without a signature is rejected
+[ctr] «يبي تعديل» without a note is rejected
+[ctr] client asks for changes
+[ctr] …status changes, note on v1, decided_at, event
+[ctr] client cannot decide twice
+[ctr] admin cannot resend the same version after changes
+[ctr] admin saves version 2 (back to draft, old decision kept)
+[ctr] …v2 unsigned/unsent, contract draft, v1 decision intact, clients.contract back to draft
+[ctr] client sees nothing of the draft again (v1 hidden with it)
+[ctr] Hawamish signs v2 and sends
+[ctr] (send v2)
+[ctr] client sees both sent versions (1 and 2)
+[ctr] client cannot sign the OLD version 1
+[ctr] client signs version 2 straight from «sent» (opening is optional)
+[ctr] …signed: signature + signer + capacity stored, clients.contract = signed
+[ctr] a signed contract cannot get a new version
+[ctr] a signed contract cannot be deleted
+[ctr] admin cannot delete a sent/signed version (record is kept)
+[ctr] anon cannot call log_contract_event
+[ctr] client cannot call log_contract_event
+[ctr] admin completes it
+[ctr] client cannot read the audit events
+[ctr] creative cannot read the audit events
+[ctr] admin reads the full trail of CT1 (created, version×2, first_signed×2, sent×2, opened, changes, signed, completed)
+[ctr] creative1 sees no draft contract of theirs
+[ctr] (v1 + sign + send for the creative contract)
+[ctr] creative1 now sees own contract + sent version
+[ctr] creative2 sees nothing
+[ctr] creative1 cannot change status
+[ctr] client cannot decide a creative contract
+[ctr] creative1 rejects it
+[ctr] …rejected with the note, no clients.contract side effect
+[ctr] admin deletes the rejected contract (its sent version goes with it)
+[ctr] …no orphan versions
+[ctr] anon reads nothing from client_contracts
+[ctr] anon cannot call decide_contract
+[ctr] admin saves the legal profile (CR, bank, stamp live here, not in code)
+[ctr] creative cannot read the legal profile
+[ctr] client cannot read the legal profile
+[ctr] admin blocks client 1 until signed (flag only)
+[ctr] client cannot clear the block
 [rpc] admin creates client + first project in one call
 [rpc] …the project exists
 [rpc] creative cannot create a client

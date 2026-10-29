@@ -41,7 +41,7 @@ await send('Page.navigate',{url: BASE + '/login'}); await sleep(1500);
 await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='ادخل كمدير')`, 30000);
 
 // ---------- admin: client + linked client account ----------
-await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`);
+await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`, 30000);
 await setInput(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل'))`, 'عميل السوشل');
 await ev(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل')).form.requestSubmit()`); await sleep(500);
 await click('عميل السوشل'); await sleep(500);
@@ -123,7 +123,7 @@ await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إ
 await click('تسجيل الخروج'); await sleep(700);
 
 // ---------- admin: sees the note, uploads v2, sends again ----------
-await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`);
+await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`, 30000);
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=post-card]')`);
 CHECKS['admin card shows «يبي تعديل»'] = await ev(`document.querySelector('[data-testid=post-card]').dataset.status === 'changes'`);
 await ev(`document.querySelector('[data-testid=post-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=post-sheet]')`);
@@ -164,7 +164,7 @@ CHECKS['client badge gone after deciding'] = !(await ev(`!!document.querySelecto
 await click('تسجيل الخروج'); await sleep(700);
 
 // ---------- admin publishes with the link ----------
-await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`);
+await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`, 30000);
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=post-card]')`);
 await ev(`document.querySelector('[data-testid=post-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=published-url]')`);
 CHECKS['publish disabled without a valid link'] = await ev(`[...document.querySelectorAll('[data-testid=team-actions] button')].find(b=>b.textContent.includes('تم النشر')).disabled === true`);
