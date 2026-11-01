@@ -1,7 +1,9 @@
-import { AlertTriangle, Clock } from 'lucide-react'
+import { useEffect } from 'react'
+import { AlertTriangle, Clock, FileSignature, Megaphone } from 'lucide-react'
+import { activityFeed, unreadActivity, type Activity } from '@/lib/activity'
 import { cn } from '@/lib/utils'
 import { alerts, visibleTasks } from '@/lib/derive'
-import { fmtDate, useStr } from '@/lib/useStr'
+import { fmtDate, fmtTime, useStr } from '@/lib/useStr'
 import { useData, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
 
@@ -13,13 +15,80 @@ export function useAlerts() {
   return alerts(s, visibleTasks(s, user, calId))
 }
 
+export function useActivity() {
+  const s = useData()
+  const user = useUser()
+  return user ? activityFeed(s, user) : []
+}
+/** The bell's number: late/due tasks + activity nobody has looked at yet (1 Nov). */
+export function useBellCount() {
+  const user = useUser()
+  const alertsN = useAlerts().length
+  const feed = useActivity()
+  const seen = useUi((u) => (user ? u.activitySeen[user.id] : undefined))
+  return alertsN + (user ? unreadActivity(feed, user, seen) : 0)
+}
+
+const ACT_KEY: Record<Activity['kind'], string> = {
+  c_created: 'actContractCreated', c_version: 'actContractVersion', c_first_signed: 'actContractFirstSigned', c_sent: 'actContractSent', c_withdrawn: 'actContractWithdrawn',
+  c_opened: 'actContractOpened', c_signed: 'actContractSigned', c_changes: 'actContractChanges', c_rejected: 'actContractRejected', c_completed: 'actContractCompleted',
+  c_received: 'actContractReceived', p_version: 'actPostVersion', p_sent: 'actPostSent', p_approved: 'actPostApproved', p_changes: 'actPostChanges', p_published: 'actPostPublished',
+}
+
+/** «آخر النشاط»: what happened on contracts and social posts, newest first; tap → opens it. */
+function ActivityList() {
+  const { t, lang } = useStr()
+  const user = useUser()
+  const feed = useActivity()
+  const seen = useUi((u) => (user ? u.activitySeen[user.id] : undefined))
+  const markSeen = useUi((u) => u.markActivitySeen)
+  const setWorkspace = useUi((u) => u.setWorkspace)
+  const openContract = useUi((u) => u.openContract)
+  const openPost = useUi((u) => u.openPost)
+  // looking at the list = seen (after it rendered with the «new» dots)
+  useEffect(() => {
+    if (!user) return
+    const id = setTimeout(() => markSeen(user.id), 1500)
+    return () => clearTimeout(id)
+  }, [user, markSeen, feed.length])
+  if (!user || !feed.length) return null
+  return (
+    <div className="flex flex-col gap-1.5" data-testid="activity">
+      <div className="text-[12px] font-semibold text-fg-secondary mt-2">{t('recentActivity')}</div>
+      {feed.map((a) => {
+        const fresh = (!seen || a.at > seen) && a.actorId !== user.id
+        return (
+          <button key={a.id} type="button" data-testid="activity-item" data-kind={a.kind}
+            onClick={() => {
+              if (a.target.type === 'contract') { setWorkspace('contracts'); openContract(a.target.id) } else { setWorkspace('social'); openPost(a.target.id) }
+            }}
+            className={cn('flex items-start gap-2.5 rounded-md border p-2.5 text-start cursor-pointer hover:border-fg-faint', fresh ? 'border-accent/40 bg-accent/5' : 'border-border bg-bg')}>
+            {a.target.type === 'contract' ? <FileSignature size={15} className="shrink-0 mt-0.5 text-fg-secondary" /> : <Megaphone size={15} className="shrink-0 mt-0.5 text-fg-secondary" />}
+            <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+              <span className="text-[12.5px] leading-snug" dir="auto">{t(ACT_KEY[a.kind] as never, { title: a.title, n: a.n ?? '', who: a.who ?? t('someone') })}</span>
+              {a.note && <span className="text-[11.5px] text-fg-secondary truncate" dir="auto">«{a.note}»</span>}
+              <span className="text-[10.5px] text-fg-muted">{fmtDate(a.at.slice(0, 10), lang, { day: 'numeric', month: 'short' })} · {fmtTime(a.at, lang)}</span>
+            </span>
+            {fresh && <span className="w-2 h-2 rounded-full bg-accent shrink-0 mt-1.5" aria-label={t('newBadge')} />}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function AlertsList() {
   const { t, lang } = useStr()
   const list = useAlerts()
   const openTask = useUi((u) => u.openTask)
   const setFocus = useUi((u) => u.setFocus)
   if (!list.length) {
-    return <div className="rounded-md border border-dashed border-fg-faint p-4 text-[13px] text-fg-secondary text-center">{t('allClearAlerts')}</div>
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="rounded-md border border-dashed border-fg-faint p-4 text-[13px] text-fg-secondary text-center">{t('allClearAlerts')}</div>
+        <ActivityList />
+      </div>
+    )
   }
   return (
     <div className="flex flex-col gap-2">
@@ -42,6 +111,7 @@ export function AlertsList() {
           </span>
         </button>
       ))}
+      <ActivityList />
     </div>
   )
 }

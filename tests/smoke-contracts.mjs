@@ -257,6 +257,12 @@ await click('تسجيل الخروج'); await sleep(700);
 
 // ---------- admin: edits (12 → 6 months), re-sends ----------
 await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`, 30000);
+// 1 Nov: «آخر النشاط» in التنبيهات — the client's request is there, new, and tapping it opens the contract
+await ev(`[...document.querySelectorAll('button')].find(b=>b.textContent.trim().startsWith('التنبيهات'))?.click()`); await sleep(400);
+CHECKS['activity: the client\'s «طلب تعديل» shows in التنبيهات'] = await ev(`[...document.querySelectorAll('[data-testid=activity-item]')].some(x=>x.dataset.kind==='c_changes' && x.innerText.includes('طلب تعديل'))`);
+await ev(`[...document.querySelectorAll('[data-testid=activity-item]')].find(x=>x.dataset.kind==='c_changes').click()`); await sleep(500);
+CHECKS['…tapping it opens that contract'] = await ev(`!!document.querySelector('[data-testid=contract-sheet]')`);
+await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]')?.click()`); await sleep(300);
 await click('العقود'); await waitFor(`!!document.querySelector('[data-testid=contract-card]')`);
 CHECKS['admin card «يبي تعديل»'] = await ev(`document.querySelector('[data-testid=contract-card]').dataset.status === 'changes'`);
 await ev(`document.querySelector('[data-testid=contract-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=contract-sheet]')`);

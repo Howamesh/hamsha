@@ -19,6 +19,9 @@ interface UiState {
   /** Admin: which client calendar is open (null = master) */
   calId: string | null
   panelOpen: boolean
+  /** «آخر النشاط»: when each signed-in user last looked at it (per user, this browser) */
+  activitySeen: Record<string, string>
+  markActivitySeen: (userId: string) => void
   panelTab: PanelTab
   taskId: string | null
   checkinOpen: boolean
@@ -59,6 +62,8 @@ export const useUi = create<UiState>()(
       focus: todayIso(),
       calId: null,
       panelOpen: true,
+      activitySeen: {},
+      markActivitySeen: (userId) => set((s) => ({ activitySeen: { ...s.activitySeen, [userId]: new Date().toISOString() } })),
       panelTab: 'main',
       taskId: null,
       checkinOpen: false,
@@ -88,7 +93,7 @@ export const useUi = create<UiState>()(
     {
       name: 'hamsha.ui',
       // workspace + open contract/editor survive a refresh (1 Nov): he lands back where he was typing
-      partialize: (s) => ({ lang: s.lang, theme: s.theme, weekStart: s.weekStart, view: s.view, panelOpen: s.panelOpen, workspace: s.workspace, contractId: s.contractId, contractEditing: s.contractEditing }),
+      partialize: (s) => ({ lang: s.lang, theme: s.theme, weekStart: s.weekStart, view: s.view, panelOpen: s.panelOpen, workspace: s.workspace, contractId: s.contractId, contractEditing: s.contractEditing, activitySeen: s.activitySeen }),
     },
   ),
 )

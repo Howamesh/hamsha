@@ -21,7 +21,7 @@ import { TaskSheet } from '@/components/TaskSheet'
 import { Checkin } from '@/components/Checkin'
 import { NewTaskDialog, type NewTaskSeed } from '@/components/NewTaskDialog'
 import { Toast } from '@/components/Toast'
-import { useAlerts } from '@/components/Alerts'
+import { useBellCount } from '@/components/Alerts'
 import { BrandTile } from '@/components/BrandTile'
 import { SocialBoard } from '@/components/social/SocialBoard'
 import { postsNeedingAction, visiblePosts } from '@/lib/social'
@@ -43,7 +43,7 @@ function App() {
   const ui = useUi()
   const narrow = useNarrow()
   const sess = useSession()
-  const alertCount = useAlerts().length
+  const alertCount = useBellCount()
   const f = fromIso(ui.focus)
   const isAdmin = me.role === 'admin'
   const isCreative = me.role === 'creative'

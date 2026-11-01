@@ -8,7 +8,7 @@ import { useData, useSession } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
 import { Avatar, Bar, Button, Card, Input, SectionTitle, Segmented } from '../ui'
 import { Chat } from '../Chat'
-import { AlertsList, useAlerts } from '../Alerts'
+import { AlertsList, useBellCount } from '../Alerts'
 import { SettingsPanel } from '../Settings'
 import { InviteDialog } from '../InviteDialog'
 import { PendingInvites } from '../PendingInvites'
@@ -21,7 +21,7 @@ export function AdminPanel() {
   const ui = useUi()
   const calId = ui.calId
   const client = calId ? s.clients.find((c) => c.id === calId) : null
-  const alertCount = useAlerts().length
+  const alertCount = useBellCount()
   const tabs: Array<{ id: PanelTab; label: string; icon: React.ReactNode; badge?: number }> = [
     { id: 'main', label: client ? t('tabSetup') : t('tabClients'), icon: client ? <SlidersHorizontal size={16} /> : <PieChart size={16} /> },
     { id: 'messages', label: t('tabMessages'), icon: <MessageCircle size={16} /> },

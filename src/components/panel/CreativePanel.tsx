@@ -8,14 +8,14 @@ import { useData, useSession, useUser } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
 import { Avatar, Bar, Button, Card, SectionTitle } from '../ui'
 import { Chat } from '../Chat'
-import { AlertsList, useAlerts } from '../Alerts'
+import { AlertsList, useBellCount } from '../Alerts'
 import { SettingsPanel } from '../Settings'
 import { PanelTabs } from './PanelTabs'
 
 export function CreativePanel() {
   const { t } = useStr()
   const ui = useUi()
-  const alertCount = useAlerts().length
+  const alertCount = useBellCount()
   const tabs: Array<{ id: PanelTab; label: string; icon: React.ReactNode; badge?: number }> = [
     { id: 'main', label: t('tabHome'), icon: <Home size={16} /> },
     { id: 'profile', label: t('tabProfile'), icon: <User size={16} /> },
