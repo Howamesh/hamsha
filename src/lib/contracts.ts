@@ -178,6 +178,14 @@ export const OFFER_INTRO =
   'بناءً على ما تم تداوله في الاجتماعات التمهيدية، يقدّم {الطرف_الآخر} هذا العرض إطاراً للتعاون يحدّد نطاق الأعمال ومستوياتها وآلية تنفيذها وسدادها، ويمهّد لشراكة تُبنى على أهداف واضحة وأثر قابل للقياس. يختار {الطرف} الباقة المناسبة، ويتحول هذا العرض عند اعتماده إلى عقد بالقيمة والمدة المختارتين.'
 
 /** Empty = must be typed; the UI shows the empty amount in grey as «مقترح». */
+/** The manager's template text of a clause, when this clause differs from it (1 Nov: a «معدّل» mark — shown to the
+ *  team only, in the form/panel, never on the paper the client gets). */
+export function originalIfChanged(sec: ContractSection): ContractSection | null {
+  const o = FULL_SECTIONS.find((x) => x.num === sec.num)
+  if (!o) return null
+  return o.title.trim() !== sec.title.trim() || o.body.trim() !== sec.body.trim() ? o : null
+}
+
 export function emptyContent(kind: ContractKind, counterparty: ContractPartyInfo, title: string, accent: string, legal: OrgLegal, project = ''): ContractContent {
   const signer: ContractSigner = { ...legal.signer }
   return {

@@ -117,6 +117,9 @@ const sec02 = await ev(`document.querySelector('[data-testid=section-focus-body]
 await setT('section-focus-body', sec02 + '\nسطر تجربة من الشاشة الكاملة'); await sleep(200);
 await clickSel('[data-testid=section-focus-done]');
 CHECKS['full-screen edit lands in the clause + paper'] = !(await ev(`!!document.querySelector('[data-testid=section-focus]')`)) && (await text('[data-testid=contract-paper]')).includes('سطر تجربة من الشاشة الكاملة');
+// 1 Nov: an edited clause gets «معدّل» in the form only — never on the paper the client receives
+CHECKS['edited clause shows «معدّل» in the form'] = await ev(`!!document.querySelector('[data-testid=changed-02]')`) && !(await ev(`!!document.querySelector('[data-testid=changed-03]')`));
+CHECKS['…and nothing of it on the contract paper'] = !(await text('[data-testid=contract-paper]')).includes('معدّل');
 await send('Page.reload'); await sleep(1500);
 CHECKS['refresh: editor reopens with the unsaved edits'] = await waitFor(`!!document.querySelector('[data-testid=contract-editor]') && !!document.querySelector('[data-testid=draft-restored]') && document.querySelector('[data-testid=pricing-months]')?.value === '12'`, 20000).then(()=>true).catch(()=>false)
   && (await text('[data-testid=contract-paper]')).includes('سطر تجربة من الشاشة الكاملة') && (await ev(`document.querySelector('[data-testid=platform-TikTok]').getAttribute('aria-pressed')`)) === 'true';
@@ -164,6 +167,10 @@ await ev(`document.querySelector('.paper-preview [data-pick="sec:10"]').click()`
 CHECKS['tap a clause on the small paper → big paper opens ON it, panel open'] = await ev(`(()=>{const sc=document.querySelector('[data-testid=paper-big-scroll]').getBoundingClientRect();const el=document.querySelector('[data-testid=paper-big] [data-pick="sec:10"]').getBoundingClientRect();return el.top>=sc.top-2 && el.top<sc.bottom && !!document.querySelector('[data-testid=paper-panel] [data-testid=panel-body]') && document.querySelector('[data-testid=paper-big] .paper-pick-active')?.dataset.pick==='sec:10'})()`);
 await clickSel('[data-testid=paper-big-close]'); await sleep(400);
 CHECKS['closing without edits: no toast, form still lands on the clause'] = !(await ev(`!!document.querySelector('[role=alert]')`)) && await ev(`(()=>{const f=document.querySelector('[data-anchor="sec:10"]');const r=f.getBoundingClientRect();return f.classList.contains('form-flash') && r.top>=0 && r.top<window.innerHeight})()`);
+await clickSel('[data-testid=changed-02]'); await sleep(200);
+CHECKS['«معدّل» opens the original text'] = (await text('[data-testid=changed-02-original]')).includes('النص الأصلي');
+await clickSel('[data-testid=changed-02-restore]'); await sleep(300);
+CHECKS['«رجّع النص الأصلي» puts the template back (mark gone)'] = !(await ev(`!!document.querySelector('[data-testid=changed-02]')`)) && !(await text('[data-testid=contract-paper]')).includes('سطر تجربة من الشاشة الكاملة');
 await clickSel('[data-testid=save-version]');
 CHECKS['version 1 saved'] = await toastHas('انحفظت النسخة 1'); await closeToast();
 CHECKS['saved → draft cleared'] = await ev(`!document.querySelector('[data-testid=draft-restored]') && !Object.keys(localStorage).some(k=>k.startsWith('hamsha.contractDraft.'))`);

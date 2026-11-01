@@ -5,7 +5,7 @@ import { fmtTime, useNarrow, useStr } from '@/lib/useStr'
 import { useData, useSession } from '@/store/session'
 import { useUi } from '@/store/ui'
 import type { Contract, ContractContent, ContractPartyInfo, ContractVersion } from '@/types'
-import { CURRENCIES, EMPTY_LEGAL, amountWords, contractTotal, currencyWord, emptyContent, fmtAmount, missingFields, partyFromClient, partyFromCreative } from '@/lib/contracts'
+import { CURRENCIES, EMPTY_LEGAL, amountWords, contractTotal, currencyWord, emptyContent, fmtAmount, missingFields, originalIfChanged, partyFromClient, partyFromCreative } from '@/lib/contracts'
 import { deepLatin, toLatin } from '@/lib/latinDigits'
 import { clearDraft, loadDraft, saveDraft } from '@/lib/contractDraft'
 import { Button, Input, SectionTitle } from '../ui'
@@ -398,6 +398,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
                     </Button>
                   )}
                 </div>
+                <ChangedNote original={originalIfChanged(sec)} onRestore={(o) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: o.title, body: o.body } : x)) })} testId={`changed-${sec.num}`} />
                 {sec.num === '04' ? (
                   <div className="text-[11.5px] text-fg-secondary">{t('secPricing')} ← {t('secPricing')}</div>
                 ) : (
@@ -458,6 +459,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           locked={!!sec.fixed && !unlocked.has(sec.num)}
           onUnlock={() => toggleLock(sec.num)}
           onExpand={() => setFocusSec(sec.num)}
+          changedNote={<ChangedNote original={originalIfChanged(sec)} onRestore={(o) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: o.title, body: o.body } : x)) })} testId={`panel-changed-${sec.num}`} />}
           onTitle={(v) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: v } : x)) })}
           onBody={(v) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, body: v } : x)) })}
         />
@@ -684,8 +686,30 @@ function PlatformPicker({ value, onChange }: { value: string; onChange: (v: stri
   )
 }
 
+/** «معدّل»: this clause differs from the manager's template. Team-only (form + side panel) — never on the paper. Tap to
+ *  see the original text and put it back. */
+function ChangedNote({ original, onRestore, testId }: { original: { num: string; title: string; body: string; fixed?: boolean } | null; onRestore: (o: { title: string; body: string }) => void; testId: string }) {
+  const { t } = useStr()
+  const [open, setOpen] = useState(false)
+  if (!original) return null
+  return (
+    <div className="flex flex-col gap-1.5">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="self-start rounded-md bg-warning-tint text-warning-dark text-[11px] font-bold px-2 py-0.5 cursor-pointer" aria-expanded={open} data-testid={testId}>
+        ✎ {t('changedFromTemplate')} {open ? '▴' : '▾'}
+      </button>
+      {open && (
+        <div className="rounded-md border border-border bg-muted-bg p-2.5 flex flex-col gap-2 text-[12px]" data-testid={`${testId}-original`}>
+          <div className="font-semibold text-fg-secondary">{t('originalText')} · {original.title}</div>
+          <div className="whitespace-pre-wrap leading-relaxed text-fg-secondary max-h-[220px] overflow-y-auto" dir="auto">{original.body}</div>
+          <Button size="sm" variant="ghost" className="self-start" onClick={() => { onRestore(original); setOpen(false) }} data-testid={`${testId}-restore`}>{t('restoreOriginal')}</Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** A clause in the big-paper side panel: raw text with its {placeholders}, the paper beside it updates as he types. */
-function SectionPanel({ title, body, fixed, locked, onUnlock, onExpand, onTitle, onBody }: { title: string; body: string; fixed: boolean; locked: boolean; onUnlock: () => void; onExpand: () => void; onTitle: (v: string) => void; onBody: (v: string) => void }) {
+function SectionPanel({ title, body, fixed, locked, onUnlock, onExpand, onTitle, onBody, changedNote }: { title: string; body: string; fixed: boolean; locked: boolean; onUnlock: () => void; onExpand: () => void; onTitle: (v: string) => void; onBody: (v: string) => void; changedNote?: React.ReactNode }) {
   const { t } = useStr()
   return (
     <div className="flex flex-col gap-3 min-h-full">
@@ -707,6 +731,7 @@ function SectionPanel({ title, body, fixed, locked, onUnlock, onExpand, onTitle,
           <Maximize2 size={14} /> {t('expandSection')}
         </Button>
       </div>
+      {changedNote}
       <Input value={title} onChange={(e) => onTitle(e.target.value)} disabled={locked} dir="auto" className="py-2 text-[16px] font-semibold" data-testid="panel-title" />
       <textarea value={body} onChange={(e) => onBody(e.target.value)} readOnly={locked} dir="auto" className={cn(field, 'flex-1 min-h-[50vh] text-[16px] leading-[1.95] resize-none', locked && 'opacity-70')} data-testid="panel-body" />
       <div className="text-[11px] text-fg-secondary leading-relaxed">{t('sectionsNote')}</div>
