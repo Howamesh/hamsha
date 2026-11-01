@@ -84,6 +84,11 @@ const typeKeys = async (testid, chars) => { await setT(testid, ''); await ev(`do
 { const [v, f] = await typeKeys('vars-posts', ['1', '٢']); CHECKS['number field keeps focus while typing + Arabic digits (1٢ → 12)'] = v === '12' && f === 'vars-posts'; }
 { const prev = await ev(`document.querySelector('[data-testid=counterparty-rep]').value`); const [v, f] = await typeKeys('counterparty-rep', ['س', 'ع', 'د']); CHECKS['party field keeps focus while typing'] = v === 'سعد' && f === 'counterparty-rep'; await setT('counterparty-rep', prev); }
 await setT('vars-posts', '8'); await sleep(300);
+// «كل الأرقام إنجليزي» (1 Nov): Arabic digits typed into ANY text field become Latin, caret stays in place
+{ const prev = await ev(`document.querySelector('[data-testid=counterparty-rep]').value`); const [v] = await typeKeys('counterparty-rep', ['ع', '١', '٢']);
+  await setT('counterparty-rep', 'ab'); await ev(`(()=>{const e=document.querySelector('[data-testid=counterparty-rep]');e.focus();e.setSelectionRange(1,1)})()`); await send('Input.insertText', { text: '٣' }); await sleep(150);
+  const [v2, caret] = await ev(`(()=>{const e=document.querySelector('[data-testid=counterparty-rep]');return [e.value, e.selectionStart]})()`);
+  CHECKS['Arabic digits become English in text fields (ع١٢ → ع12, caret kept)'] = v === 'ع12' && v2 === 'a3b' && caret === 2; await setT('counterparty-rep', prev); }
 // the unit («شهر») sits beside the number, not on top of it (1 Nov: it covered «12»)
 CHECKS['unit label does not overlap the number field'] = await ev(`(()=>{const i=document.querySelector('[data-testid=pricing-months]').getBoundingClientRect();const u=document.querySelector('[data-testid=pricing-months-unit]')?.getBoundingClientRect();return !!u && (u.right<=i.left || u.left>=i.right)})()`);
 CHECKS['arithmetic: 4,000 × 12 = 48,000 in words'] = (await text('[data-testid=pricing-total]')).includes('(48,000) ثمانية وأربعون ألف ريال سعودي');

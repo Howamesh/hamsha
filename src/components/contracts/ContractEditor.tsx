@@ -6,13 +6,12 @@ import { useData, useSession } from '@/store/session'
 import { useUi } from '@/store/ui'
 import type { Contract, ContractContent, ContractPartyInfo, ContractVersion } from '@/types'
 import { CURRENCIES, EMPTY_LEGAL, amountWords, contractTotal, currencyWord, emptyContent, fmtAmount, missingValues, partyFromClient, partyFromCreative } from '@/lib/contracts'
+import { toLatin } from '@/lib/latinDigits'
 import { Button, Input, SectionTitle } from '../ui'
 import { ContractPaper } from './ContractPaper'
 import { SignDialog } from './SignDialog'
 
 const field = 'w-full rounded-md border border-border bg-bg px-3 py-2 text-[13px]'
-// Arabic-Indic (٠-٩) and Persian (۰-۹) digits count too — an Arabic keyboard types them
-const toLatin = (v: string) => v.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6f0)).replace(/٫/g, '.')
 const num = (v: string) => (v === '' ? 0 : Math.max(0, Number(toLatin(v).replace(/[^\d.]/g, '')) || 0))
 
 /**
