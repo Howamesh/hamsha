@@ -201,6 +201,9 @@ button:focus-visible {
 .paper-row-light { background: #f3f3f3; font-size: 9.5px; justify-content: center; }
 .paper-row-label { font-weight: 700; }
 .paper-row-value { direction: ltr; text-align: left; }
+/* closing the big paper: the form part he edited flashes once */
+@keyframes form-flash { 0%, 35% { background: color-mix(in srgb, var(--warning-tint, #fff4dc) 90%, transparent); box-shadow: 0 0 0 2px #e11d48; } 100% { background: transparent; box-shadow: 0 0 0 2px transparent; } }
+.form-flash { animation: form-flash 2.4s ease-out; }
 /* big paper (tap a part to edit it beside the paper) — wrappers vanish from layout unless picking */
 .paper-pick-static { display: contents; }
 .paper-pick { display: flex; flex-direction: column; gap: 3.5mm; cursor: pointer; border-radius: 1.5mm; outline: 2px dashed transparent; outline-offset: 1.2mm; transition: outline-color .15s, background-color .15s; }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Lock, Maximize2, Minimize2, Minus, Plus, Save, Send, Trash2, Unlock, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fmtTime, useNarrow, useStr } from '@/lib/useStr'
@@ -56,10 +56,61 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   const [pick, setPick] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
   const [overflow, setOverflow] = useState<PaperOverflow[]>([])
+  // 1 Nov notes: the big paper opens WHERE he was (or on the part he tapped), and closing it brings the form to the
+  // part he edited, highlighted, with a word that the edit is in (and kept as a draft)
+  const formScroll = useRef<HTMLDivElement>(null)
+  const smallScroll = useRef<HTMLDivElement>(null)
+  const bigScroll = useRef<HTMLDivElement>(null)
+  const openAt = useRef<{ pick: string | null; ratio: number }>({ pick: null, ratio: 0 })
+  const bigSession = useRef<{ edited: boolean; lastPick: string | null }>({ edited: false, lastPick: null })
+  const openPaper = (target?: EventTarget | null) => {
+    const el = target instanceof Element ? target.closest<HTMLElement>('[data-pick]') : null
+    const sc = smallScroll.current
+    openAt.current = { pick: el?.dataset.pick ?? null, ratio: sc && sc.scrollHeight ? sc.scrollTop / sc.scrollHeight : 0 }
+    bigSession.current = { edited: false, lastPick: el?.dataset.pick ?? null }
+    setPick(el?.dataset.pick ?? null)
+    setPaperBig(true)
+  }
   const closePaper = () => {
+    const big = bigScroll.current
+    const ratio = big && big.scrollHeight ? big.scrollTop / big.scrollHeight : 0
+    const target = bigSession.current.lastPick
+    const changed = bigSession.current.edited
     setPaperBig(false)
     setPick(null)
+    // on a narrow screen the form is a tab: show it so he sees the part he just edited
+    if (narrow && target) setTab('form')
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (smallScroll.current) smallScroll.current.scrollTop = ratio * smallScroll.current.scrollHeight
+      const anchor = target && formScroll.current?.querySelector<HTMLElement>(`[data-anchor="${target}"]`)
+      if (anchor && formScroll.current) {
+        formScroll.current.scrollTop += anchor.getBoundingClientRect().top - formScroll.current.getBoundingClientRect().top - 12
+        anchor.classList.remove('form-flash')
+        void anchor.offsetWidth
+        anchor.classList.add('form-flash')
+      }
+    }))
+    if (changed) ui.setToast(t('paperEditApplied'), 'info')
   }
+  useEffect(() => {
+    if (pick) bigSession.current.lastPick = pick
+  }, [pick])
+  // any typing while the big paper is open counts as «he edited» (even if he typed it back)
+  const seenC = useRef(c)
+  useEffect(() => {
+    if (paperBig && seenC.current !== c) bigSession.current.edited = true
+    seenC.current = c
+  }, [c, paperBig])
+  // place the big paper where he was: on the tapped part, or at the same relative height as the small preview
+  useLayoutEffect(() => {
+    if (!paperBig) return
+    const big = bigScroll.current
+    if (!big) return
+    const el = openAt.current.pick ? big.querySelector<HTMLElement>(`[data-pick="${openAt.current.pick}"]`) : null
+    // not scrollIntoView: the part sits inside an overflow:hidden page and the browser would scroll THAT box
+    if (el) big.scrollTop += el.getBoundingClientRect().top - big.getBoundingClientRect().top - 80
+    else big.scrollTop = openAt.current.ratio * big.scrollHeight
+  }, [paperBig])
   const [busy, setBusy] = useState(false)
   const [signing, setSigning] = useState(false)
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set())
@@ -150,7 +201,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
 
   // the form in named blocks: the full form uses them all; the big-paper side panel shows only the block for what was tapped
   const blkBasics = (
-      <Group title={t('secBasics')}>
+      <Group title={t('secBasics')} anchor="basics">
         <label className="flex flex-col gap-1"><SectionTitle>{t('contractTitleLabel')}</SectionTitle><Input value={c.title} onChange={(e) => up({ title: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
         <label className="flex flex-col gap-1"><SectionTitle>{t('fProject')}</SectionTitle><Input value={c.project} onChange={(e) => up({ project: e.target.value })} placeholder="مثال: تعزيز الحضور الرقمي وبناء هوية إعلامية" dir="auto" className="py-1.5 text-[13px]" data-testid="contract-project" /></label>
         <div className="grid grid-cols-3 gap-2">
@@ -167,7 +218,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   )
   const blkParties = (
     <>
-      <Group title={t('secCounterparty')}>
+      <Group title={t('secCounterparty')} anchor="parties">
         <PartyFields k="counterparty" p={c.counterparty} full={c.kind !== 'short'} onChange={upParty} />
       </Group>
       <Group title={t('secHawamish')} hint={!legal.party.cr ? t('missingValues') : undefined}>
@@ -186,7 +237,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         </Group>
       )
   const blkPricing = c.kind === 'full' && (
-        <Group title={t('secPricing')}>
+        <Group title={t('secPricing')} anchor="pricing">
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col gap-1"><SectionTitle>{t('secPricing')}</SectionTitle>
               <select value={c.pricing.mode} onChange={(e) => upPricing({ mode: e.target.value as 'monthly' | 'project' })} className={cn(field, 'py-1.5 cursor-pointer')} data-testid="pricing-mode">
@@ -229,7 +280,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         </Group>
       )
   const blkTracks = c.kind === 'short' && (
-        <Group title={t('secTracks')}>
+        <Group title={t('secTracks')} anchor="tracks">
           <label className="flex flex-col gap-1"><SectionTitle>{t('fCurrency')}</SectionTitle>
             <select value={c.pricing.currency} onChange={(e) => upPricing({ currency: e.target.value })} className={cn(field, 'py-1.5 cursor-pointer w-[220px]')}>
               {Object.keys(CURRENCIES).map((k) => <option key={k} value={k}>{k} · {CURRENCIES[k].word}</option>)}
@@ -256,7 +307,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         </Group>
       )
   const blkPackages = c.kind === 'offer' && (
-        <Group title={t('secPackages')}>
+        <Group title={t('secPackages')} anchor="packages">
           {c.packages.map((p, k) => (
             <div key={k} className="rounded-md border border-border p-3 flex flex-col gap-2">
               <div className="grid grid-cols-3 gap-2">
@@ -277,7 +328,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         </Group>
       )
   const blkScope = c.kind !== 'full' && (
-        <Group title={c.kind === 'offer' ? 'تمهيد' : t('secScope')}>
+        <Group title={c.kind === 'offer' ? 'تمهيد' : t('secScope')} anchor="scope">
           <div className="relative">
             <textarea value={c.scope} onChange={(e) => up({ scope: e.target.value })} rows={7} dir="auto" className={cn(field, 'resize-y leading-relaxed pe-10')} data-testid="contract-scope" />
             <Button size="icon" variant="ghost" className="absolute top-1 end-1" onClick={() => setFocusSec('scope')} aria-label={t('expandSection')} title={t('expandSection')} data-testid="section-expand-scope">
@@ -291,7 +342,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           {c.sections.map((sec, k) => {
             const locked = !!sec.fixed && !unlocked.has(sec.num)
             return (
-              <div key={sec.num} className="rounded-md border border-border p-3 flex flex-col gap-2" data-testid="section-editor">
+              <div key={sec.num} className="rounded-md border border-border p-3 flex flex-col gap-2" data-testid="section-editor" data-anchor={sec.num === '04' ? undefined : `sec:${sec.num}`}>
                 <div className="flex items-center gap-2">
                   <span className="text-[12px] font-bold tabular-nums">{sec.num}</span>
                   <Input value={sec.title} onChange={(e) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: e.target.value } : x)) })} dir="auto" className="py-1 text-[13px] flex-1" disabled={locked} />
@@ -317,7 +368,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         </Group>
       )
   const blkBank = (
-      <Group title={t('secBank')}>
+      <Group title={t('secBank')} anchor="bank">
         <div className="grid grid-cols-2 gap-2">
           {legal.banks.length > 1 && (
             <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('secBank')}</SectionTitle>
@@ -334,7 +385,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
       </Group>
   )
   const blkSigners = (
-      <Group title={t('secSigners')}>
+      <Group title={t('secSigners')} anchor="signers">
         <div className="grid grid-cols-2 gap-2">
           <label className="flex flex-col gap-1"><SectionTitle>{t('secHawamish')} · {t('signerName')}</SectionTitle><Input value={c.signers.hawamish.name} onChange={(e) => up({ signers: { ...c.signers, hawamish: { ...c.signers.hawamish, name: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /></label>
           <label className="flex flex-col gap-1"><SectionTitle>{t('signerCapacity')}</SectionTitle><Input value={c.signers.hawamish.capacity} onChange={(e) => up({ signers: { ...c.signers, hawamish: { ...c.signers.hawamish, capacity: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /></label>
@@ -410,12 +461,12 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         </div>
       )}
       <div className={cn('flex-1 min-h-0 grid', narrow ? 'grid-cols-1' : 'grid-cols-[minmax(380px,520px)_1fr]')}>
-        <div className={cn('min-h-0 overflow-y-auto no-scrollbar p-4 border-e border-border', narrow && tab !== 'form' && 'hidden')}>
+        <div ref={formScroll} className={cn('min-h-0 overflow-y-auto no-scrollbar p-4 border-e border-border', narrow && tab !== 'form' && 'hidden')}>
           <div className="text-[11.5px] text-fg-secondary mb-3">{t('saveVersionHint')}</div>
           {form}
         </div>
-        <div className={cn('min-h-0 paper-preview relative cursor-zoom-in', narrow && tab !== 'paper' && 'hidden')} onClick={() => setPaperBig(true)} title={t('openPaperBig')}>
-          <Button size="sm" className="sticky top-3 z-[2] ms-3 mt-3 shadow" onClick={(e) => { e.stopPropagation(); setPaperBig(true) }} data-testid="open-paper-big">
+        <div ref={smallScroll} className={cn('min-h-0 paper-preview relative cursor-zoom-in', narrow && tab !== 'paper' && 'hidden')} onClick={(e) => openPaper(e.target)} title={t('openPaperBig')}>
+          <Button size="sm" className="sticky top-3 z-[2] ms-3 mt-3 shadow" onClick={(e) => { e.stopPropagation(); openPaper() }} data-testid="open-paper-big">
             <Maximize2 size={14} /> {t('openPaperBig')}
           </Button>
           <ContractPaper content={c} number={contract.number} version={current && !dirtyContent ? current : undefined} stamp={legal.stamp || undefined} scale={narrow ? 0.45 : 0.62} onOverflow={paperBig ? undefined : setOverflow} />
@@ -446,7 +497,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
                 <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-5">{panelFor(pick)}</div>
               </aside>
             )}
-            <div className="flex-1 min-w-0 overflow-auto py-6" onClick={() => setPick(null)}>
+            <div ref={bigScroll} className="flex-1 min-w-0 overflow-auto py-6" onClick={() => setPick(null)} data-testid="paper-big-scroll">
               <ContractPaper content={c} number={contract.number} version={current && !dirtyContent ? current : undefined} stamp={legal.stamp || undefined} scale={zoom} onPick={setPick} active={pick} onOverflow={setOverflow} />
             </div>
           </div>
@@ -608,9 +659,9 @@ function SectionFocus({ num, title, body, locked, onUnlock, onTitle, onBody, onC
   )
 }
 
-function Group({ title, hint, note, children }: { title: string; hint?: string; note?: string; children: React.ReactNode }) {
+function Group({ title, hint, note, anchor, children }: { title: string; hint?: string; note?: string; anchor?: string; children: React.ReactNode }) {
   return (
-    <section className="flex flex-col gap-2.5">
+    <section className="flex flex-col gap-2.5 rounded-md" data-anchor={anchor}>
       <div className="text-[13px] font-semibold border-b border-border pb-1">{title}</div>
       {hint && <div className="text-[11px] text-warning-dark">{hint}</div>}
       {note && <div className="text-[11.5px] text-fg-secondary leading-relaxed">{note}</div>}

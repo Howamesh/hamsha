@@ -485,6 +485,7 @@ export const STR = {
   doneEditing: { en: 'Done', ar: 'تم' },
   openPaperBig: { en: 'Open the paper full size', ar: 'افتح الورقة بحجم كامل' },
   paperBigHint: { en: 'Tap any part of the contract to edit it beside the paper.', ar: 'اضغط أي جزء في العقد يطلع لك تعديله جنب الورقة.' },
+  paperEditApplied: { en: 'Your edit is in the contract (kept as a draft). Press «Save version» when you are done.', ar: 'تعديلك انطبق على العقد وانحفظ تلقائياً كمسودة. لما تخلص اضغط «احفظ نسخة».' },
   zoomIn: { en: 'Zoom in', ar: 'كبّر' },
   zoomOut: { en: 'Zoom out', ar: 'صغّر الورقة' },
   overflowWarn: { en: 'Text runs past the page: {pages} — shorten it', ar: 'نص زايد عن الصفحة: صفحة {pages} — قصّره' },

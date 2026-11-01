@@ -129,6 +129,14 @@ await clickSel('[data-testid=paper-big] [data-pick=pricing]'); await sleep(250);
 CHECKS['tap the amount → pricing fields in the panel'] = await ev(`!!document.querySelector('[data-testid=paper-panel] [data-testid=pricing-months]')`);
 await clickSel('[data-testid=paper-big-close]');
 CHECKS['«صغّر» closes the big paper'] = !(await ev(`!!document.querySelector('[data-testid=paper-big]')`));
+// his 2 notes (1 Nov): closing says the edit is in + brings the form to the edited part; opening lands where he tapped
+CHECKS['closing: «انطبق» toast + form jumps to the edited part (flash)'] = await toastHas('انطبق') && await ev(`(()=>{const a=document.querySelector('[data-anchor=pricing]');return !!a && a.classList.contains('form-flash')})()`);
+await closeToast();
+await click('افتح العقد'); await sleep(300); // narrow window: the small paper is the second tab
+await ev(`document.querySelector('.paper-preview [data-pick="sec:10"]').click()`); await waitFor(`!!document.querySelector('[data-testid=paper-big]')`); await sleep(300);
+CHECKS['tap a clause on the small paper → big paper opens ON it, panel open'] = await ev(`(()=>{const sc=document.querySelector('[data-testid=paper-big-scroll]').getBoundingClientRect();const el=document.querySelector('[data-testid=paper-big] [data-pick="sec:10"]').getBoundingClientRect();return el.top>=sc.top-2 && el.top<sc.bottom && !!document.querySelector('[data-testid=paper-panel] [data-testid=panel-body]') && document.querySelector('[data-testid=paper-big] .paper-pick-active')?.dataset.pick==='sec:10'})()`);
+await clickSel('[data-testid=paper-big-close]'); await sleep(400);
+CHECKS['closing without edits: no toast, form still lands on the clause'] = !(await ev(`!!document.querySelector('[role=alert]')`)) && await ev(`(()=>{const f=document.querySelector('[data-anchor="sec:10"]');const r=f.getBoundingClientRect();return f.classList.contains('form-flash') && r.top>=0 && r.top<window.innerHeight})()`);
 await clickSel('[data-testid=save-version]');
 CHECKS['version 1 saved'] = await toastHas('انحفظت النسخة 1'); await closeToast();
 CHECKS['saved → draft cleared'] = await ev(`!document.querySelector('[data-testid=draft-restored]') && !Object.keys(localStorage).some(k=>k.startsWith('hamsha.contractDraft.'))`);
