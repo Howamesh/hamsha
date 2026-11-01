@@ -8,7 +8,7 @@ Paste the generated file into the PRODUCTION SQL editor in one go. Either everyt
 Rehearse first: supabase/release/rehearse.sh (a private Postgres shaped like production, with old data)."""
 import pathlib, re
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-MIG = ["0007_social.sql", "0008_social_v2.sql", "0009_contracts.sql", "0010_hardening.sql", "0011_hardening2.sql"]
+MIG = ["0007_social.sql", "0008_social_v2.sql", "0009_contracts.sql", "0010_hardening.sql", "0011_hardening2.sql", "0012_keep_sent_visible.sql"]
 OLD = ["organizations", "profiles", "clients", "projects", "tasks", "task_parts", "messages", "invitations", "attachments"]
 
 head = f"""-- ============================================================================================
@@ -68,7 +68,7 @@ begin
   end if;
 end $$;
 
-select 'Hamsha release 0007–0011 OK' as result,
+select 'Hamsha release 0007–0012 OK' as result,
        (select count(*) from profiles) as profiles, (select count(*) from clients) as clients, (select count(*) from tasks) as tasks;
 commit;
 """

@@ -14,6 +14,9 @@ type Filter = 'action' | 'all' | 'archive'
 
 export function ContractStatusChip({ st, className }: { st: Contract['status']; className?: string }) {
   const { t } = useStr()
+  // a counterparty never sees a «draft»: a contract it already received shows as «قيد التعديل» (0012)
+  const role = useUser()?.role
+  if (st === 'draft' && role && role !== 'admin') return <span className={cn('text-[11px] font-bold rounded-md px-2 py-1 whitespace-nowrap bg-warning-tint text-warning-dark', className)} data-status="revising">{t('beingRevised')}</span>
   const key = (`cstatus${st.charAt(0).toUpperCase()}${st.slice(1)}`) as 'cstatusDraft' | 'cstatusSent' | 'cstatusOpened' | 'cstatusSigned' | 'cstatusChanges' | 'cstatusRejected' | 'cstatusCompleted'
   return <span className={cn('text-[11px] font-bold rounded-md px-2 py-1 whitespace-nowrap', contractStatusTone(st), className)} data-status={st}>{t(key)}</span>
 }

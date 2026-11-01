@@ -148,6 +148,19 @@ CHECKS['back to draft at v2'] = (await status()) === 'draft' && (await text('[da
 CHECKS['old decision kept on v1'] = (await text('[data-testid=versions]')).includes('كبّر الشعار');
 CHECKS['v2 is a 2-image carousel'] = (await text('[data-testid=versions]')).includes('2 صور') && (await text('[data-testid=post-sheet] [data-testid=carousel-counter]')).trim() === '1/2';
 CHECKS['banner gone once a new version exists'] = !(await ev(`!!document.querySelector('[data-testid=changes-banner]')`));
+// 0012 (his decision 1 Nov): while v2 is unsent, the client KEEPS the post it received, marked «قيد التعديل», with v1 only
+await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
+await click('تسجيل الخروج'); await sleep(700);
+await click('ادخل كعميل'); await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='السوشل')`, 20000); await sleep(300);
+await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=post-card]')`, 8000).catch(()=>{});
+CHECKS['client keeps the post while the team revises it («قيد التعديل»)'] = await ev(`!!document.querySelector('[data-testid=post-card] [data-status=revising]')`);
+await ev(`document.querySelector('[data-testid=post-card]')?.click()`); await sleep(500);
+CHECKS['…revising banner, no decision buttons, only the sent v1'] = await ev(`!!document.querySelector('[data-testid=revising-banner]') && ![...document.querySelectorAll('[data-testid=client-decision] button')].some(b=>['موافق','يبي تعديل'].includes(b.textContent.trim())) && !(document.querySelector('[data-testid=versions]')?.innerText||'').includes('النسخة 2')`);
+await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إلغاء"]')?.click()`); await sleep(300);
+await click('تسجيل الخروج'); await sleep(700);
+await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`, 30000);
+await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=post-card]')`);
+await ev(`document.querySelector('[data-testid=post-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=post-sheet]')`);
 await click('أرسل للعميل'); await toastHas('أُرسل للعميل'); await closeToast();
 CHECKS['status sent again'] = (await status()) === 'sent';
 await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);

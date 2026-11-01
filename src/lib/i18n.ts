@@ -285,6 +285,8 @@ export const STR = {
   versionElsewhere: { en: 'Version {n} was just saved somewhere else. Your edits here are kept on top of it as a draft — review before saving.', ar: 'انحفظت النسخة {n} من مكان ثاني الحين. تعديلاتك هنا باقية فوقها كمسودة — راجعها قبل الحفظ.' },
   takeTheirVersion: { en: 'Use the new version', ar: 'خذ النسخة الجديدة' },
   keepMine: { en: 'Keep my edits', ar: 'خلّ تعديلاتي' },
+  beingRevised: { en: 'Being revised', ar: 'قيد التعديل' },
+  revisingBanner: { en: 'The team is revising this. You are seeing the last version sent to you; the new one reaches you when it is ready.', ar: 'الفريق يعدّل على هذا الحين. تشوف هنا آخر نسخة وصلتك، والنسخة الجديدة توصلك أول ما تجهز.' },
   sheetDraftHint: { en: 'You have edits on this contract that are not saved as a version yet — open the editor to continue.', ar: 'عندك تعديلات على هالعقد ما انحفظت نسخة بعد — اضغط هنا وكمّل التعديل.' },
   imageLoading: { en: 'Loading the design…', ar: 'يحمّل التصميم…' },
   uploading: { en: 'Uploading…', ar: 'جارٍ الرفع…' },

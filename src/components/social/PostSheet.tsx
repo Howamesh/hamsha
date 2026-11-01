@@ -15,6 +15,9 @@ import { ClientAccountsDialog } from './ClientAccountsDialog'
 
 export function StatusChip({ st, className }: { st: Post['status']; className?: string }) {
   const { t } = useStr()
+  // the client never sees a «draft»: a post it already received shows as «قيد التعديل» (0012)
+  const role = useUser()?.role
+  if (st === 'draft' && role === 'client') return <span className={cn('text-[11px] font-bold rounded-md px-2 py-1 whitespace-nowrap bg-warning-tint text-warning-dark', className)} data-status="revising">{t('beingRevised')}</span>
   const key = (`postStatus${st.charAt(0).toUpperCase()}${st.slice(1)}`) as 'postStatusDraft' | 'postStatusSent' | 'postStatusApproved' | 'postStatusChanges' | 'postStatusPublished'
   return <span className={cn('text-[11px] font-bold rounded-md px-2 py-1 whitespace-nowrap', statusTone(st), className)} data-status={st}>{t(key)}</span>
 }
@@ -150,6 +153,9 @@ export function PostSheet() {
           )}
 
           {/* ---- client: the only two choices ---- */}
+          {me.role === 'client' && post.status === 'draft' && (
+            <div className="rounded-md border border-warning-dark/30 bg-warning-tint/40 p-3 text-[12.5px] text-warning-dark" data-testid="revising-banner">{t('revisingBanner')}</div>
+          )}
           {me.role === 'client' && (
             <div className="rounded-md border border-border p-4 flex flex-col gap-3" data-testid="client-decision">
               {clientCanDecide ? (

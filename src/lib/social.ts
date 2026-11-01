@@ -5,7 +5,8 @@ import type { Post, PostVersion, User } from '@/types'
 export function visiblePosts(s: Snapshot, user: User, calId: string | null): Post[] {
   if (user.role === 'admin') return calId ? s.posts.filter((p) => p.clientId === calId) : s.posts
   // a client never sees drafts (the Supabase view hides them; the demo store must behave the same)
-  if (user.role === 'client') return s.posts.filter((p) => p.clientId === user.clientId && p.status !== 'draft')
+  // 0012 (his decision 1 Nov): a post the client ever RECEIVED stays listed while the team revises it («قيد التعديل»)
+  if (user.role === 'client') return s.posts.filter((p) => p.clientId === user.clientId && (p.status !== 'draft' || s.postVersions.some((v) => v.postId === p.id && !!v.sentAt)))
   const myClients = new Set(s.tasks.filter((t) => t.ownerId === user.id || s.parts.some((p) => p.taskId === t.id && p.assigneeId === user.id)).map((t) => t.clientId))
   return s.posts.filter((p) => p.createdBy === user.id || myClients.has(p.clientId))
 }

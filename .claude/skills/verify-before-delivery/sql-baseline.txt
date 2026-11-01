@@ -1,7 +1,7 @@
 # 3f2bb17397167b914831904d1e2523a3158dda32  supabase/tests/00_local_shim.sql
 # 6c258b8ca646eec00684fc3581d151a95cde21c4  supabase/tests/10_seed.sql
 # 93243ace9eb331abcc63c105d0406c48d8ce19b4  supabase/tests/20_harness.sql
-# 47366087428cd17cb6f84ad6dcc3a8fcb93716f6  supabase/tests/rls.sql
+# 4d0cfd735ae2c090048a03cd3ddfda10993c7480  supabase/tests/rls.sql
 # be29f13300c05cd5bab788e28c478de9c52387fd  supabase/tests/run-ci.sh
 # 9cc4dea2c523159b3999365275536fd937accebf  supabase/tests/run-local.sh
 # caea3633e44c3bbf9141d67158499b5333438604  tests/smoke-client-summary.mjs
@@ -13,7 +13,7 @@
 # 0dd999968e761de5d53d4530c307c68f8ecbd3fe  tests/smoke-regressions.mjs
 # bb6fa8286d42f9b479a3d63433aa56623bb91178  tests/smoke-review3.mjs
 # 4824c77a46e21b49c17456f9921924f0f8168cad  tests/smoke-roles.mjs
-# bbaad0849ece8a5af695e84eabf1be18911aa351  tests/smoke-social.mjs
+# 94548251c27d0e2ca42739cad5a6862f9e8cbd19  tests/smoke-social.mjs
 # 72e3e4b649ac988b901ef5294c876339a43d12d0  tests/unit-validate.mjs
 # 87b6f961b40028aa7a993dc0363ac6edea6e5f0b  package.json:scripts
 admin reads all tasks
@@ -128,9 +128,9 @@ anon reads nothing from profiles
 [soc2] client now sees exactly the sent post
 [soc2] client sees only the sent version (v2), never v1
 [soc2] client version view carries the ordered image set
-[soc2] admin withdraws P1 → the post hides from the client again
-[soc2] …client sees nothing while withdrawn
-[soc2] …nor its versions
+[keep] admin withdraws P1 (back to draft)
+[keep] …the client still sees the post it already received (shown «قيد التعديل»)
+[keep] …with only its SENT version 2 (never the unsent v1)
 [soc2] admin re-sends P1
 [soc] admin cannot jump sent → published
 [soc] client2 cannot decide client-1 post
@@ -143,7 +143,7 @@ anon reads nothing from profiles
 [soc] admin cannot resend the same version after changes
 [soc] admin uploads version 3
 [soc] …post back to draft at version 3, old decision untouched
-[soc2] new unsent version 3: the client sees nothing of P1 again
+[keep] new unsent version 3: the client keeps v2 and never sees v3
 [soc2] client cannot decide the unsent version 3
 [soc] admin sends version 3
 [soc2] client sees the sent versions 2 and 3, still not v1
@@ -240,7 +240,8 @@ anon reads nothing from profiles
 [ctr] admin cannot resend the same version after changes
 [ctr] admin saves version 2 (back to draft, old decision kept)
 [ctr] …v2 unsigned/unsent, contract draft, v1 decision intact, clients.contract back to draft
-[ctr] client sees nothing of the draft again (v1 hidden with it)
+[keep] contract under revision: the client keeps the SENT v1 (its own «changes» request) and sees no unsent v2
+[keep] …and the contract stays listed for the client as draft («قيد التعديل»)
 [ctr] Hawamish signs v2 and sends
 [ctr] (send v2)
 [ctr] client sees both sent versions (1 and 2)

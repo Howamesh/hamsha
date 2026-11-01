@@ -125,6 +125,9 @@ export function ContractSheet() {
         </div>
 
         <div className="min-h-0 overflow-y-auto no-scrollbar p-4 flex flex-col gap-4 border-s border-border">
+          {counterparty && contract.status === 'draft' && (
+            <div className="rounded-md border border-warning-dark/30 bg-warning-tint/40 p-3 text-[12.5px] text-warning-dark" data-testid="revising-banner">{t('revisingBanner')}</div>
+          )}
           {rejectedV && (
             <div className="rounded-md border border-danger-dark/30 bg-danger-tint/50 p-3 flex flex-col gap-1.5" data-testid="contract-changes-banner">
               <div className="text-[13px] font-semibold text-danger-dark">{contract.status === 'changes' ? t('contractChangesBanner', { n: rejectedV.number }) : t('contractRejectedBanner', { n: rejectedV.number })}</div>

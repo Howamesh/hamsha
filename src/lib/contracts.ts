@@ -303,8 +303,10 @@ export function contractStatusTone(st: Contract['status']): string {
 /** Contracts a user may see on the board (the database enforces the same with RLS / the client views). */
 export function visibleContracts(s: Snapshot, user: User): Contract[] {
   if (user.role === 'admin') return s.contracts
-  if (user.role === 'client') return s.contracts.filter((c) => c.party === 'client' && c.clientId === user.clientId && c.status !== 'draft')
-  return s.contracts.filter((c) => c.party === 'creative' && c.creativeId === user.id && c.status !== 'draft')
+  // 0012 (his decision 1 Nov): a contract the counterparty ever RECEIVED stays listed while it is revised («قيد التعديل»)
+  const received = (c: Contract) => c.status !== 'draft' || s.contractVersions.some((v) => v.contractId === c.id && !!v.sentAt)
+  if (user.role === 'client') return s.contracts.filter((c) => c.party === 'client' && c.clientId === user.clientId && received(c))
+  return s.contracts.filter((c) => c.party === 'creative' && c.creativeId === user.id && received(c))
 }
 export function visibleContractVersions(s: Snapshot, user: User, contractId: string): ContractVersion[] {
   return s.contractVersions.filter((v) => v.contractId === contractId && (user.role === 'admin' || !!v.sentAt)).sort((a, b) => b.number - a.number)
