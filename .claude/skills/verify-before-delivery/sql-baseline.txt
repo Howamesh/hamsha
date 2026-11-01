@@ -5,7 +5,7 @@
 # be29f13300c05cd5bab788e28c478de9c52387fd  supabase/tests/run-ci.sh
 # 9cc4dea2c523159b3999365275536fd937accebf  supabase/tests/run-local.sh
 # caea3633e44c3bbf9141d67158499b5333438604  tests/smoke-client-summary.mjs
-# b16f0dbd253bc25fea89e9d2256d1ff0df25aa2d  tests/smoke-contracts.mjs
+# 56b0be0d249cc5a4dec78833967a0f7b5895c1e2  tests/smoke-contracts.mjs
 # 12e7bff7f0a468d538ba11b9648a2b6849fb6f0b  tests/smoke-drag.mjs
 # e892520a89ca654ccda8cdf618c2abb7afdaa4d9  tests/smoke-hours.mjs
 # 735ec7063579889cd5f2ddfaa186a4da7b4fd24a  tests/smoke-invite.mjs

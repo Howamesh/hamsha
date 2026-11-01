@@ -454,8 +454,10 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         <SectionPanel
           title={sec.title}
           body={sec.body}
+          fixed={!!sec.fixed}
           locked={!!sec.fixed && !unlocked.has(sec.num)}
           onUnlock={() => toggleLock(sec.num)}
+          onExpand={() => setFocusSec(sec.num)}
           onTitle={(v) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: v } : x)) })}
           onBody={(v) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, body: v } : x)) })}
         />
@@ -683,7 +685,7 @@ function PlatformPicker({ value, onChange }: { value: string; onChange: (v: stri
 }
 
 /** A clause in the big-paper side panel: raw text with its {placeholders}, the paper beside it updates as he types. */
-function SectionPanel({ title, body, locked, onUnlock, onTitle, onBody }: { title: string; body: string; locked: boolean; onUnlock: () => void; onTitle: (v: string) => void; onBody: (v: string) => void }) {
+function SectionPanel({ title, body, fixed, locked, onUnlock, onExpand, onTitle, onBody }: { title: string; body: string; fixed: boolean; locked: boolean; onUnlock: () => void; onExpand: () => void; onTitle: (v: string) => void; onBody: (v: string) => void }) {
   const { t } = useStr()
   return (
     <div className="flex flex-col gap-3 min-h-full">
@@ -694,6 +696,17 @@ function SectionPanel({ title, body, locked, onUnlock, onTitle, onBody }: { titl
           <Button size="sm" onClick={onUnlock} data-testid="panel-unlock">{t('unlockNow')}</Button>
         </div>
       )}
+      {/* 1 Nov: once unlocked there was no way back, and no full-screen like in the form */}
+      <div className="flex items-center gap-2 justify-end">
+        {fixed && !locked && (
+          <Button size="sm" variant="ghost" onClick={onUnlock} data-testid="panel-relock">
+            <Lock size={14} /> {t('lockAgain')}
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={onExpand} data-testid="panel-expand">
+          <Maximize2 size={14} /> {t('expandSection')}
+        </Button>
+      </div>
       <Input value={title} onChange={(e) => onTitle(e.target.value)} disabled={locked} dir="auto" className="py-2 text-[16px] font-semibold" data-testid="panel-title" />
       <textarea value={body} onChange={(e) => onBody(e.target.value)} readOnly={locked} dir="auto" className={cn(field, 'flex-1 min-h-[50vh] text-[16px] leading-[1.95] resize-none', locked && 'opacity-70')} data-testid="panel-body" />
       <div className="text-[11px] text-fg-secondary leading-relaxed">{t('sectionsNote')}</div>

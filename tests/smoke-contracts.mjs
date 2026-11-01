@@ -138,6 +138,11 @@ CHECKS['big paper opens + zoom 110%'] = (await text('[data-testid=paper-zoom]'))
 await clickSel('[data-testid=paper-big] [data-pick="sec:05"]'); await waitFor(`!!document.querySelector('[data-testid=paper-panel] [data-testid=panel-body]')`);
 CHECKS['tap a clause → its text beside the paper (locked until unlocked)'] = await ev(`document.querySelector('[data-testid=panel-body]').readOnly === true && !!document.querySelector('[data-testid=paper-big] .paper-pick-active')`);
 await clickSel('[data-testid=panel-unlock]');
+// 1 Nov: an unlocked clause in the panel can be locked again and opened full screen
+CHECKS['panel: «اقفله مرة ثانية» + «كبّر» appear once unlocked'] = await ev(`!!document.querySelector('[data-testid=panel-relock]') && !!document.querySelector('[data-testid=panel-expand]')`);
+await clickSel('[data-testid=panel-expand]'); await sleep(300);
+CHECKS['panel «كبّر» opens the clause full screen over the big paper'] = await ev(`!!document.querySelector('[data-testid=section-focus]') && document.querySelector('[data-testid=section-focus-body]').readOnly === false`);
+await clickSel('[data-testid=section-focus-done]'); await sleep(200);
 const sec05 = await ev(`document.querySelector('[data-testid=panel-body]').value`);
 await setT('panel-body', sec05 + '\nإضافة من الورقة الكبيرة'); await sleep(250);
 CHECKS['panel edit shows on the big paper + the form'] = (await text('[data-testid=paper-big] [data-testid=contract-paper]')).includes('إضافة من الورقة الكبيرة') && await ev(`[...document.querySelectorAll('[data-testid=section-editor] textarea')].some(t=>t.value.includes('إضافة من الورقة الكبيرة'))`);
@@ -145,6 +150,8 @@ await setT('panel-body', sec05 + '\n' + 'سطر طويل جداً لاختبار
 CHECKS['text past the page is flagged (paper + header)'] = await ev(`!!document.querySelector('[data-testid=paper-big] .paper-page[data-overflow]') && !!document.querySelector('[data-testid=overflow-warning]')`);
 await setT('panel-body', sec05); await sleep(400);
 CHECKS['flag clears once it fits again'] = await ev(`!document.querySelector('[data-testid=paper-big] .paper-page[data-overflow]') && !document.querySelector('[data-testid=overflow-warning]')`);
+await clickSel('[data-testid=panel-relock]'); await sleep(200);
+CHECKS['panel «اقفله مرة ثانية» locks it back'] = await ev(`document.querySelector('[data-testid=panel-body]').readOnly === true && !!document.querySelector('[data-testid=panel-unlock]')`);
 await clickSel('[data-testid=paper-big] [data-pick=pricing]'); await sleep(250);
 CHECKS['tap the amount → pricing fields in the panel'] = await ev(`!!document.querySelector('[data-testid=paper-panel] [data-testid=pricing-months]')`);
 await clickSel('[data-testid=paper-big-close]');

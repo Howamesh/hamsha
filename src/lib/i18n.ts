@@ -502,6 +502,7 @@ export const STR = {
   overflowWarn: { en: 'Text runs past the page: {pages} — shorten it', ar: 'نص زايد عن الصفحة: صفحة {pages} — قصّره' },
   clause: { en: 'clause', ar: 'البند' },
   lockedExplain: { en: 'A fixed clause from the manager’s template, locked so it does not change by mistake.', ar: 'بند ثابت من نموذج المدير، مقفول عشان ما يتغير بالغلط.' },
+  lockAgain: { en: 'Lock again', ar: 'اقفله مرة ثانية' },
   unlockNow: { en: 'Unlock', ar: 'افتح القفل' },
   collapseSection: { en: 'Shrink back', ar: 'صغّر' },
   draftRestored: { en: 'Your unsaved edits are back (last change {time}). Save a version to keep them for good.', ar: 'رجّعنا تعديلاتك اللي ما انحفظت (آخر تعديل {time}). اضغط «احفظ نسخة» عشان تثبت.' },
