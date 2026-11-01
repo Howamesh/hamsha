@@ -84,6 +84,8 @@ const typeKeys = async (testid, chars) => { await setT(testid, ''); await ev(`do
 { const [v, f] = await typeKeys('vars-posts', ['1', '٢']); CHECKS['number field keeps focus while typing + Arabic digits (1٢ → 12)'] = v === '12' && f === 'vars-posts'; }
 { const prev = await ev(`document.querySelector('[data-testid=counterparty-rep]').value`); const [v, f] = await typeKeys('counterparty-rep', ['س', 'ع', 'د']); CHECKS['party field keeps focus while typing'] = v === 'سعد' && f === 'counterparty-rep'; await setT('counterparty-rep', prev); }
 await setT('vars-posts', '8'); await sleep(300);
+// the unit («شهر») sits beside the number, not on top of it (1 Nov: it covered «12»)
+CHECKS['unit label does not overlap the number field'] = await ev(`(()=>{const i=document.querySelector('[data-testid=pricing-months]').getBoundingClientRect();const u=document.querySelector('[data-testid=pricing-months-unit]')?.getBoundingClientRect();return !!u && (u.right<=i.left || u.left>=i.right)})()`);
 CHECKS['arithmetic: 4,000 × 12 = 48,000 in words'] = (await text('[data-testid=pricing-total]')).includes('(48,000) ثمانية وأربعون ألف ريال سعودي');
 CHECKS['paper shows the draft number + the amount'] = await ev(`(()=>{const p=document.querySelector('[data-testid=contract-paper]');return !!p && p.innerText.includes('مسودة #2612') && p.innerText.includes('(48,000)') && p.innerText.includes('اثني عشر (12) شهراً') && p.innerText.includes('1448')})()`);
 CHECKS['paper has the Hijri date line'] = /يوم .+ \d{2}\/\d{2}\/14\d{2}هـ الموافق \d{2}\/\d{2}\/\d{4}م/.test(await text('[data-testid=contract-paper]'));

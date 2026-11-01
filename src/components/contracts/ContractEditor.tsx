@@ -322,9 +322,10 @@ function Num({ label, value, onChange, suffix, testId }: { label: string; value:
   return (
     <label className="flex flex-col gap-1.5 min-w-0">
       <SectionTitle>{label}</SectionTitle>
-      <div className="relative -mt-1">
-        <Input value={value === 0 ? '' : String(value)} onChange={(e) => onChange(num(e.target.value))} placeholder="0" dir="ltr" inputMode="numeric" className={cn('py-2 text-[13px] tabular-nums', value === 0 && 'border-warning-dark/50 bg-warning-tint/30')} data-testid={testId} />
-        {suffix && <span className="absolute inset-y-0 end-3 grid place-items-center text-[11px] text-fg-muted pointer-events-none">{suffix}</span>}
+      {/* the unit sits BESIDE the field, never inside it: inside, it covered the LTR number (1 Nov) */}
+      <div className="flex items-center gap-2 -mt-1">
+        <Input value={value === 0 ? '' : String(value)} onChange={(e) => onChange(num(e.target.value))} placeholder="0" dir="ltr" inputMode="numeric" className={cn('flex-1 min-w-0 py-2 text-[13px] tabular-nums', value === 0 && 'border-warning-dark/50 bg-warning-tint/30')} data-testid={testId} />
+        {suffix && <span className="shrink-0 whitespace-nowrap text-[11px] text-fg-muted" data-testid={testId ? `${testId}-unit` : undefined}>{suffix}</span>}
       </div>
       {value === 0 && <span className="text-[10.5px] text-warning-dark">{t('suggested')}</span>}
     </label>
