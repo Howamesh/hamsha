@@ -3,9 +3,13 @@
 const PROFILE = (await import('node:fs')).mkdtempSync('/tmp/hamsha-chrome-run-');
 // Review round 3: Escape cancels, Feb 30 rejected with a visible message, shortening a task keeps parts inside.
 import { spawn } from 'node:child_process';
-const port = 9950 + Math.floor(Math.random()*40);
+let port = 0;
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  ['--headless=new','--disable-gpu',`--remote-debugging-port=${port}`,`--user-data-dir=${PROFILE}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
+  ['--headless=new','--disable-gpu',`--remote-debugging-port=0`,`--user-data-dir=${PROFILE}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
+for (const sig of ['exit', 'SIGINT', 'SIGTERM']) process.on(sig, () => { try { chrome.kill() } catch {} if (sig !== 'exit') process.exit(1) }) // never leave a browser behind
+// port 0 = Chrome picks a free port and writes it to DevToolsActivePort (1 Nov: a leftover browser on a fixed/random
+// port made a new run talk to the OLD browser and its old data)
+for (let i = 0; i < 150 && !port; i++) { try { port = Number((await import('node:fs')).readFileSync(`${PROFILE}/DevToolsActivePort`, 'utf8').split('\n')[0]) || 0 } catch {} if (!port) await new Promise((r) => setTimeout(r, 100)) }
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 let tabs; for (let i=0;i<50;i++){ try{ tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if(tabs.find(t=>t.type==='page')) break;}catch{} await sleep(200);}
 const ws = new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);

@@ -505,6 +505,7 @@ export const STR = {
   changedFromTemplate: { en: 'Edited', ar: 'معدّل' },
   originalText: { en: 'Original text', ar: 'النص الأصلي' },
   restoreOriginal: { en: 'Put the original text back', ar: 'رجّع النص الأصلي' },
+  recallHint: { en: 'Put back what this field held in this contract', ar: 'رجّع اللي كان مكتوب هنا في هذا العقد' },
   lockAgain: { en: 'Lock again', ar: 'اقفله مرة ثانية' },
   unlockNow: { en: 'Unlock', ar: 'افتح القفل' },
   collapseSection: { en: 'Shrink back', ar: 'صغّر' },

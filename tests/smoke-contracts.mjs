@@ -7,8 +7,12 @@ const PROFILE = (await import('node:fs')).mkdtempSync('/tmp/hamsha-chrome-run-')
 // client signs (drawn) → admin completes; creative contract → rejected; block banner; social grid tab.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
-const port = 9980 + Math.floor(Math.random()*9);
-const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu',`--remote-debugging-port=${port}`,`--user-data-dir=${PROFILE}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
+let port = 0;
+const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu',`--remote-debugging-port=0`,`--user-data-dir=${PROFILE}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
+for (const sig of ['exit', 'SIGINT', 'SIGTERM']) process.on(sig, () => { try { chrome.kill() } catch {} if (sig !== 'exit') process.exit(1) }) // never leave a browser behind
+// port 0 = Chrome picks a free port and writes it to DevToolsActivePort (1 Nov: a leftover browser on a fixed/random
+// port made a new run talk to the OLD browser and its old data)
+for (let i = 0; i < 150 && !port; i++) { try { port = Number((await import('node:fs')).readFileSync(`${PROFILE}/DevToolsActivePort`, 'utf8').split('\n')[0]) || 0 } catch {} if (!port) await new Promise((r) => setTimeout(r, 100)) }
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 let tabs; for (let i=0;i<50;i++){ try{ tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if(tabs.find(t=>t.type==='page')) break;}catch{} await sleep(200);}
 const ws = new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl); await new Promise(r=>ws.onopen=r);
@@ -122,6 +126,12 @@ CHECKS['posts count flows into section 02'] = (await text('[data-testid=contract
 CHECKS['fixed sections locked'] = await ev(`[...document.querySelectorAll('[data-testid=section-editor] textarea')].filter(t=>t.disabled).length >= 6`);
 CHECKS['parties block: the bar asks for what the paper prints (CR or ID, phone, e-mail…)'] = /(الطرف الآخر|هوامش)/.test(await text('[data-testid=missing-values]'));
 CHECKS['bar-guided filling completes the contract'] = await fillMissing();
+// «ذاكرة العقد» (1 Nov): empty a field → its value from THIS contract is one tap away
+const phone0 = await ev(`document.querySelector('[data-testid=counterparty-phone]').value`);
+await setT('counterparty-phone', '05'); await sleep(120); await setT('counterparty-phone', '0'); await sleep(120); await setT('counterparty-phone', ''); await sleep(250);
+CHECKS['emptied field offers back its full value (not the half-deleted one)'] = await ev(`(()=>{const b=document.querySelector('[data-testid=counterparty-phone]').closest('label').querySelector('[data-testid=recall]');return !!b && b.textContent.includes(${JSON.stringify(phone0)})})()`);
+await ev(`document.querySelector('[data-testid=counterparty-phone]').closest('label').querySelector('[data-testid=recall]').click()`); await sleep(200);
+CHECKS['…one tap puts it back'] = (await ev(`document.querySelector('[data-testid=counterparty-phone]').value`)) === phone0;
 CHECKS['missing flag gone once typed'] = !(await ev(`!!document.querySelector('[data-testid=missing-values]')`));
 // 1 Nov notes: platforms are chips · hints on the two unclear fields · a clause opens full screen · edits survive a refresh
 CHECKS['platform chips → paper text «Instagram · TikTok»'] = (await text('[data-testid=contract-paper]')).includes('Instagram · TikTok') && (await ev(`document.querySelector('[data-testid=platform-Instagram]').getAttribute('aria-pressed')`)) === 'true';
@@ -293,6 +303,7 @@ await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label
 // a second (draft) client contract + the block flag
 await clickSel('[data-testid=new-contract]'); await waitFor(`!!document.querySelector('[role=dialog][aria-label="عقد جديد"]')`);
 await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`, 20000);
+CHECKS['a NEW contract starts blank (no memory from other contracts)'] = (await ev(`document.querySelectorAll('[data-testid=recall]').length`)) === 0;
 // council 1 Nov: a version whose text runs past a page can be SAVED but never signed or sent — editor AND sheet
 await setT('pricing-monthly', '3000'); await setT('pricing-months', '3'); await sleep(200);
 await ev(`document.querySelector('[data-anchor="sec:05"] button[title]').click()`); await sleep(150);

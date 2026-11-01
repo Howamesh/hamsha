@@ -179,6 +179,29 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
     setUndo({ c, note })
     setC(next)
   }
+  // «ذاكرة العقد» (1 Nov, his idea): a field he empties offers back what it held IN THIS CONTRACT (its saved versions + what
+  // was typed this session). A new contract starts blank — nothing comes from other contracts.
+  const [sessionMem, setSessionMem] = useState<Record<string, string>>({})
+  useEffect(() => {
+    const now = recallValues(c)
+    setSessionMem((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const [k, v] of Object.entries(now)) {
+        // deleting character by character leaves prefixes of the remembered value: never remember those
+        if (next[k] !== v && !(next[k] ?? '').startsWith(v)) {
+          next[k] = v
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [c])
+  const mem = useMemo(() => {
+    const m: Record<string, string> = {}
+    s.contractVersions.filter((v) => v.contractId === contract.id).sort((a, b) => a.number - b.number).forEach((v) => Object.assign(m, recallValues(v.content)))
+    return { ...m, ...sessionMem }
+  }, [s.contractVersions, contract.id, sessionMem])
   const discardDraft = () => {
     clearDraft(contract.id)
     ownDraftAt.current = null
@@ -244,7 +267,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   const blkBasics = (
       <Group title={t('secBasics')} anchor="basics">
         <label className="flex flex-col gap-1"><SectionTitle>{t('contractTitleLabel')}</SectionTitle><Input value={c.title} onChange={(e) => up({ title: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
-        <label className="flex flex-col gap-1"><SectionTitle>{t('fProject')}</SectionTitle><Input value={c.project} onChange={(e) => up({ project: e.target.value })} placeholder="مثال: تعزيز الحضور الرقمي وبناء هوية إعلامية" dir="auto" className="py-1.5 text-[13px]" data-testid="contract-project" /></label>
+        <label className="flex flex-col gap-1"><SectionTitle>{t('fProject')}</SectionTitle><Input value={c.project} onChange={(e) => up({ project: e.target.value })} placeholder="مثال: تعزيز الحضور الرقمي وبناء هوية إعلامية" dir="auto" className="py-1.5 text-[13px]" data-testid="contract-project" /><Recall value={c.project} memo={mem.project} onPick={(v) => up({ project: v })} /></label>
         <div className="grid grid-cols-3 gap-2">
           <label className="flex flex-col gap-1"><SectionTitle>{t('fDate')}</SectionTitle><Input type="date" value={c.date} onChange={(e) => up({ date: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>
           <label className="flex flex-col gap-1"><SectionTitle>{t('accentColor')}</SectionTitle><input type="color" value={c.accent} onChange={(e) => up({ accent: e.target.value })} className="h-9 w-full rounded cursor-pointer border border-border bg-bg" /></label>
@@ -260,10 +283,10 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   const blkParties = (
     <>
       <Group title={t('secCounterparty')} anchor="parties">
-        <PartyFields k="counterparty" p={c.counterparty} full={c.kind !== 'short'} onChange={upParty} />
+        <PartyFields k="counterparty" p={c.counterparty} full={c.kind !== 'short'} onChange={upParty} mem={mem} />
       </Group>
       <Group title={t('secHawamish')} hint={!legal.party.cr ? t('missingValues') : undefined}>
-        <PartyFields k="hawamish" p={c.hawamish} full={c.kind !== 'short'} onChange={upParty} />
+        <PartyFields k="hawamish" p={c.hawamish} full={c.kind !== 'short'} onChange={upParty} mem={mem} />
       </Group>
     </>
   )
@@ -419,20 +442,20 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
               </select>
             </label>
           )}
-          <label className="flex flex-col gap-1"><SectionTitle>صاحب الحساب</SectionTitle><Input value={c.bank.owner} onChange={(e) => up({ bank: { ...c.bank, owner: e.target.value } })} dir="auto" className="py-1.5 text-[13px]" /></label>
-          <label className="flex flex-col gap-1"><SectionTitle>رقم الحساب</SectionTitle><Input value={c.bank.account} onChange={(e) => up({ bank: { ...c.bank, account: e.target.value } })} dir="ltr" className="py-1.5 text-[13px]" /></label>
-          <label className="flex flex-col gap-1"><SectionTitle>IBAN</SectionTitle><Input value={c.bank.iban} onChange={(e) => up({ bank: { ...c.bank, iban: e.target.value } })} dir="ltr" className="py-1.5 text-[13px]" data-testid="bank-iban" /></label>
-          <label className="flex flex-col gap-1"><SectionTitle>Swift</SectionTitle><Input value={c.bank.swift} onChange={(e) => up({ bank: { ...c.bank, swift: e.target.value } })} dir="ltr" className="py-1.5 text-[13px]" /></label>
+          <label className="flex flex-col gap-1"><SectionTitle>صاحب الحساب</SectionTitle><Input value={c.bank.owner} onChange={(e) => up({ bank: { ...c.bank, owner: e.target.value } })} dir="auto" className="py-1.5 text-[13px]" /><Recall value={c.bank.owner} memo={mem['bank.owner']} onPick={(v) => up({ bank: { ...c.bank, owner: v } })} /></label>
+          <label className="flex flex-col gap-1"><SectionTitle>رقم الحساب</SectionTitle><Input value={c.bank.account} onChange={(e) => up({ bank: { ...c.bank, account: e.target.value } })} dir="ltr" className="py-1.5 text-[13px]" /><Recall value={c.bank.account} memo={mem['bank.account']} onPick={(v) => up({ bank: { ...c.bank, account: v } })} /></label>
+          <label className="flex flex-col gap-1"><SectionTitle>IBAN</SectionTitle><Input value={c.bank.iban} onChange={(e) => up({ bank: { ...c.bank, iban: e.target.value } })} dir="ltr" className="py-1.5 text-[13px]" data-testid="bank-iban" /><Recall value={c.bank.iban} memo={mem['bank.iban']} onPick={(v) => up({ bank: { ...c.bank, iban: v } })} /></label>
+          <label className="flex flex-col gap-1"><SectionTitle>Swift</SectionTitle><Input value={c.bank.swift} onChange={(e) => up({ bank: { ...c.bank, swift: e.target.value } })} dir="ltr" className="py-1.5 text-[13px]" /><Recall value={c.bank.swift} memo={mem['bank.swift']} onPick={(v) => up({ bank: { ...c.bank, swift: v } })} /></label>
         </div>
       </Group>
   )
   const blkSigners = (
       <Group title={t('secSigners')} anchor="signers">
         <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col gap-1"><SectionTitle>{t('secHawamish')} · {t('signerName')}</SectionTitle><Input value={c.signers.hawamish.name} onChange={(e) => up({ signers: { ...c.signers, hawamish: { ...c.signers.hawamish, name: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" data-testid="signer-hawamish-name" /></label>
-          <label className="flex flex-col gap-1"><SectionTitle>{t('signerCapacity')}</SectionTitle><Input value={c.signers.hawamish.capacity} onChange={(e) => up({ signers: { ...c.signers, hawamish: { ...c.signers.hawamish, capacity: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /></label>
-          <label className="flex flex-col gap-1"><SectionTitle>{t('secCounterparty')} · {t('signerName')}</SectionTitle><Input value={c.signers.counterparty.name} onChange={(e) => up({ signers: { ...c.signers, counterparty: { ...c.signers.counterparty, name: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /></label>
-          <label className="flex flex-col gap-1"><SectionTitle>{t('signerCapacity')}</SectionTitle><Input value={c.signers.counterparty.capacity} onChange={(e) => up({ signers: { ...c.signers, counterparty: { ...c.signers.counterparty, capacity: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /></label>
+          <label className="flex flex-col gap-1"><SectionTitle>{t('secHawamish')} · {t('signerName')}</SectionTitle><Input value={c.signers.hawamish.name} onChange={(e) => up({ signers: { ...c.signers, hawamish: { ...c.signers.hawamish, name: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" data-testid="signer-hawamish-name" /><Recall value={c.signers.hawamish.name} memo={mem['signers.hawamish.name']} onPick={(v) => up({ signers: { ...c.signers, hawamish: { ...c.signers.hawamish, name: v } } })} /></label>
+          <label className="flex flex-col gap-1"><SectionTitle>{t('signerCapacity')}</SectionTitle><Input value={c.signers.hawamish.capacity} onChange={(e) => up({ signers: { ...c.signers, hawamish: { ...c.signers.hawamish, capacity: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /><Recall value={c.signers.hawamish.capacity} memo={mem['signers.hawamish.capacity']} onPick={(v) => up({ signers: { ...c.signers, hawamish: { ...c.signers.hawamish, capacity: v } } })} /></label>
+          <label className="flex flex-col gap-1"><SectionTitle>{t('secCounterparty')} · {t('signerName')}</SectionTitle><Input value={c.signers.counterparty.name} onChange={(e) => up({ signers: { ...c.signers, counterparty: { ...c.signers.counterparty, name: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /><Recall value={c.signers.counterparty.name} memo={mem['signers.counterparty.name']} onPick={(v) => up({ signers: { ...c.signers, counterparty: { ...c.signers.counterparty, name: v } } })} /></label>
+          <label className="flex flex-col gap-1"><SectionTitle>{t('signerCapacity')}</SectionTitle><Input value={c.signers.counterparty.capacity} onChange={(e) => up({ signers: { ...c.signers, counterparty: { ...c.signers.counterparty, capacity: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /><Recall value={c.signers.counterparty.capacity} memo={mem['signers.counterparty.capacity']} onPick={(v) => up({ signers: { ...c.signers, counterparty: { ...c.signers.counterparty, capacity: v } } })} /></label>
         </div>
       </Group>
   )
@@ -606,6 +629,31 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   )
 }
 
+/** The text fields «ذاكرة العقد» covers, flattened to keys like «counterparty.phone». Empty values are skipped. */
+const PARTY_KEYS = ['name', 'cr', 'country', 'city', 'repTitle', 'repName', 'phone', 'email', 'nationalId'] as const
+function recallValues(x: ContractContent): Record<string, string> {
+  const o: Record<string, string> = {}
+  const add = (k: string, v?: string) => {
+    if (v && v.trim()) o[k] = v
+  }
+  for (const side of ['counterparty', 'hawamish'] as const) for (const f of PARTY_KEYS) add(`${side}.${f}`, x[side]?.[f])
+  add('project', x.project)
+  for (const f of ['owner', 'account', 'iban', 'swift'] as const) add(`bank.${f}`, x.bank?.[f])
+  for (const who of ['hawamish', 'counterparty'] as const) for (const f of ['name', 'capacity'] as const) add(`signers.${who}.${f}`, x.signers?.[who]?.[f])
+  return o
+}
+
+/** Under an EMPTY field that held something in this contract: one tap puts it back. */
+function Recall({ value, memo, onPick }: { value: string; memo?: string; onPick: (v: string) => void }) {
+  const { t } = useStr()
+  if (value.trim() || !memo) return null
+  return (
+    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(memo)} className="self-start max-w-full truncate rounded-md border border-border bg-muted-bg px-2 py-0.5 text-[11.5px] text-fg-secondary hover:border-fg-faint cursor-pointer" title={t('recallHint')} data-testid="recall" dir="auto">
+      ↩ {memo}
+    </button>
+  )
+}
+
 // module-level (not inside ContractEditor) so the input keeps focus while typing
 function Num({ label, value, onChange, suffix, testId, hint, optional }: { label: string; value: number; onChange: (n: number) => void; suffix?: string; testId?: string; hint?: string; optional?: boolean }) {
   const { t } = useStr()
@@ -623,19 +671,19 @@ function Num({ label, value, onChange, suffix, testId, hint, optional }: { label
   )
 }
 
-function PartyFields({ k, p, full, onChange: upParty }: { k: 'hawamish' | 'counterparty'; p: ContractPartyInfo; full: boolean; onChange: (k: 'hawamish' | 'counterparty', patch: Partial<ContractPartyInfo>) => void }) {
+function PartyFields({ k, p, full, onChange: upParty, mem }: { k: 'hawamish' | 'counterparty'; p: ContractPartyInfo; full: boolean; onChange: (k: 'hawamish' | 'counterparty', patch: Partial<ContractPartyInfo>) => void; mem: Record<string, string> }) {
   const { t } = useStr()
   return (
     <div className="grid grid-cols-2 gap-2">
-      <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fName')}</SectionTitle><Input value={p.name} onChange={(e) => upParty(k, { name: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-name`} /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fCr')}</SectionTitle><Input value={p.cr} onChange={(e) => upParty(k, { cr: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" data-testid={`${k}-cr`} /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fCountry')}</SectionTitle><Input value={p.country} onChange={(e) => upParty(k, { country: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
-      {full && <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fCity')}</SectionTitle><Input value={p.city} onChange={(e) => upParty(k, { city: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-city`} /></label>}
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fRepTitle')}</SectionTitle><Input value={p.repTitle} onChange={(e) => upParty(k, { repTitle: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fRepName')}</SectionTitle><Input value={p.repName} onChange={(e) => upParty(k, { repName: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-rep`} /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fPhone')}</SectionTitle><Input value={p.phone} onChange={(e) => upParty(k, { phone: e.target.value })} dir="ltr" inputMode="tel" className="py-1.5 text-[13px]" data-testid={`${k}-phone`} /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fEmail')}</SectionTitle><Input value={p.email} onChange={(e) => upParty(k, { email: e.target.value })} dir="ltr" inputMode="email" className="py-1.5 text-[13px]" data-testid={`${k}-email`} /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fNationalId')}</SectionTitle><Input value={p.nationalId} onChange={(e) => upParty(k, { nationalId: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" data-testid={`${k}-nid`} /></label>
+      <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fName')}</SectionTitle><Input value={p.name} onChange={(e) => upParty(k, { name: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-name`} /><Recall value={p.name} memo={mem[`${k}.name`]} onPick={(v) => upParty(k, { name: v })} /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fCr')}</SectionTitle><Input value={p.cr} onChange={(e) => upParty(k, { cr: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" data-testid={`${k}-cr`} /><Recall value={p.cr} memo={mem[`${k}.cr`]} onPick={(v) => upParty(k, { cr: v })} /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fCountry')}</SectionTitle><Input value={p.country} onChange={(e) => upParty(k, { country: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /><Recall value={p.country} memo={mem[`${k}.country`]} onPick={(v) => upParty(k, { country: v })} /></label>
+      {full && <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fCity')}</SectionTitle><Input value={p.city} onChange={(e) => upParty(k, { city: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-city`} /><Recall value={p.city} memo={mem[`${k}.city`]} onPick={(v) => upParty(k, { city: v })} /></label>}
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fRepTitle')}</SectionTitle><Input value={p.repTitle} onChange={(e) => upParty(k, { repTitle: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /><Recall value={p.repTitle} memo={mem[`${k}.repTitle`]} onPick={(v) => upParty(k, { repTitle: v })} /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fRepName')}</SectionTitle><Input value={p.repName} onChange={(e) => upParty(k, { repName: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-rep`} /><Recall value={p.repName} memo={mem[`${k}.repName`]} onPick={(v) => upParty(k, { repName: v })} /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fPhone')}</SectionTitle><Input value={p.phone} onChange={(e) => upParty(k, { phone: e.target.value })} dir="ltr" inputMode="tel" className="py-1.5 text-[13px]" data-testid={`${k}-phone`} /><Recall value={p.phone} memo={mem[`${k}.phone`]} onPick={(v) => upParty(k, { phone: v })} /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fEmail')}</SectionTitle><Input value={p.email} onChange={(e) => upParty(k, { email: e.target.value })} dir="ltr" inputMode="email" className="py-1.5 text-[13px]" data-testid={`${k}-email`} /><Recall value={p.email} memo={mem[`${k}.email`]} onPick={(v) => upParty(k, { email: v })} /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fNationalId')}</SectionTitle><Input value={p.nationalId} onChange={(e) => upParty(k, { nationalId: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" data-testid={`${k}-nid`} /><Recall value={p.nationalId} memo={mem[`${k}.nationalId`]} onPick={(v) => upParty(k, { nationalId: v })} /></label>
     </div>
   )
 }
