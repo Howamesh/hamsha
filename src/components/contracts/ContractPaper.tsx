@@ -80,7 +80,8 @@ const Party = ({ p, title, full }: { p: ContractPartyInfo; title: string; full: 
     <div className="paper-row paper-row-head">{title}</div>
     <div className="paper-row paper-row-center">{p.name || '…'}</div>
     <div className="paper-row paper-row-center" dir="rtl">
-      <span>س.ت: {p.cr || '########'}</span>
+      {/* a person has no CR: print the ID instead of «########» (1 Nov) */}
+      <span>{p.cr ? `س.ت: ${p.cr}` : p.nationalId ? `الهوية: ${p.nationalId}` : 'س.ت: ########'}</span>
       <span className="mx-2">{p.country}</span>
     </div>
     {full && <div className="paper-row paper-row-center">{p.city || '…'}</div>}

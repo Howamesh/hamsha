@@ -630,12 +630,12 @@ function PartyFields({ k, p, full, onChange: upParty }: { k: 'hawamish' | 'count
       <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fName')}</SectionTitle><Input value={p.name} onChange={(e) => upParty(k, { name: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-name`} /></label>
       <label className="flex flex-col gap-1"><SectionTitle>{t('fCr')}</SectionTitle><Input value={p.cr} onChange={(e) => upParty(k, { cr: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" data-testid={`${k}-cr`} /></label>
       <label className="flex flex-col gap-1"><SectionTitle>{t('fCountry')}</SectionTitle><Input value={p.country} onChange={(e) => upParty(k, { country: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
-      {full && <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fCity')}</SectionTitle><Input value={p.city} onChange={(e) => upParty(k, { city: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>}
+      {full && <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fCity')}</SectionTitle><Input value={p.city} onChange={(e) => upParty(k, { city: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-city`} /></label>}
       <label className="flex flex-col gap-1"><SectionTitle>{t('fRepTitle')}</SectionTitle><Input value={p.repTitle} onChange={(e) => upParty(k, { repTitle: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
       <label className="flex flex-col gap-1"><SectionTitle>{t('fRepName')}</SectionTitle><Input value={p.repName} onChange={(e) => upParty(k, { repName: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-rep`} /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fPhone')}</SectionTitle><Input value={p.phone} onChange={(e) => upParty(k, { phone: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fEmail')}</SectionTitle><Input value={p.email} onChange={(e) => upParty(k, { email: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>
-      {full && <label className="flex flex-col gap-1"><SectionTitle>{t('fNationalId')}</SectionTitle><Input value={p.nationalId} onChange={(e) => upParty(k, { nationalId: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>}
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fPhone')}</SectionTitle><Input value={p.phone} onChange={(e) => upParty(k, { phone: e.target.value })} dir="ltr" inputMode="tel" className="py-1.5 text-[13px]" data-testid={`${k}-phone`} /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fEmail')}</SectionTitle><Input value={p.email} onChange={(e) => upParty(k, { email: e.target.value })} dir="ltr" inputMode="email" className="py-1.5 text-[13px]" data-testid={`${k}-email`} /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fNationalId')}</SectionTitle><Input value={p.nationalId} onChange={(e) => upParty(k, { nationalId: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" data-testid={`${k}-nid`} /></label>
     </div>
   )
 }

@@ -23,6 +23,21 @@ const click = async (txt) => { const r = await ev(`(()=>{const els=[...document.
 const clickSel = async (sel) => { const r = await ev(`(()=>{const el=document.querySelector(${JSON.stringify(sel)});if(!el)return 'NOTFOUND';el.click();return 'ok'})()`); await sleep(400); return r; };
 const setInput = async (sel, v) => ev(`(()=>{const el=${sel};if(!el)return 'NOINPUT';const proto=el.tagName==='SELECT'?HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${JSON.stringify(v)});el.dispatchEvent(new Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));return 'ok'})()`);
 const setT = (testid, v) => setInput(`document.querySelector('[data-testid=${testid}]')`, v);
+// follows the «ناقص: … — ودّني لها» bar like a person: tap it, fill the field it focuses, repeat (1 Nov rules)
+const fillMissing = async () => {
+  for (let i = 0; i < 30; i++) {
+    if (!(await ev(`!!document.querySelector('[data-testid=missing-values]')`))) return true;
+    await ev(`document.querySelector('[data-testid=missing-values]').click()`); await sleep(250);
+    const id = await ev(`document.activeElement?.dataset?.testid || ''`);
+    if (/platform/.test(id)) { await ev(`document.querySelector('[data-testid=platform-Instagram]').click()`); await sleep(150); continue; }
+    const v = /email/.test(id) ? 'contact@example.sa' : /phone/.test(id) ? '0500000000' : /-cr$|nid/.test(id) ? '1010101010' : /city/.test(id) ? 'الرياض'
+      : /-rep$/.test(id) ? 'ممثل الطرف' : /-name$/.test(id) ? 'اسم الطرف' : /project/.test(id) ? 'مشروع الاختبار' : /posts|designs|videos|months/.test(id) ? '4'
+      : /monthly|price|total|installment/.test(id) ? '3000' : /iban/.test(id) ? 'SA0000000000000000000000' : '';
+    if (!id || !v) return false;
+    await setT(id, v); await sleep(150);
+  }
+  return false;
+};
 const text = async (sel) => ev(`document.querySelector(${JSON.stringify(sel)})?.innerText || ''`);
 const status = async () => ev(`document.querySelector('[data-testid=contract-sheet] [data-status]')?.dataset.status || 'NONE'`);
 const toastHas = async (t) => waitFor(`!!document.querySelector('[role=alert]') && document.querySelector('[role=alert]').innerText.includes(${JSON.stringify(t)})`).then(()=>true).catch(()=>false);
@@ -86,7 +101,7 @@ await setT('contract-project', 'تعزيز الحضور الرقمي وبناء 
 await setT('counterparty-rep', 'زياد بن محمد الجاسر');
 await clickSel('[data-testid=platform-Instagram]'); await clickSel('[data-testid=platform-TikTok]'); await setT('vars-posts', '8'); await setT('vars-designs', '4');
 // 1 Nov: counts the contract text uses are required too — after posts + designs the bar moves on to the money
-CHECKS['bar now asks for the monthly amount (posts/designs filled)'] = (await text('[data-testid=missing-values]')).includes('ناقص: المبلغ الشهري');
+CHECKS['bar no longer asks for posts/designs once filled'] = !/(المنشورات|التصاميم)/.test(await text('[data-testid=missing-values]'));
 await setT('pricing-monthly', '4000'); await setT('pricing-months', '12'); await sleep(300);
 // real typing, one key at a time (1 Nov: inner components remounted every keystroke → the field lost focus after one character; Arabic digits counted as 0)
 const typeKeys = async (testid, chars) => { await setT(testid, ''); await ev(`document.querySelector('[data-testid=${testid}]').focus()`); for (const ch of chars) { await send('Input.insertText', { text: ch }); await sleep(60); } await sleep(150); return ev(`[document.querySelector('[data-testid=${testid}]').value, document.activeElement?.dataset?.testid || '']`); };
@@ -105,6 +120,8 @@ CHECKS['paper shows the draft number + the amount'] = await ev(`(()=>{const p=do
 CHECKS['paper has the Hijri date line'] = /يوم .+ \d{2}\/\d{2}\/14\d{2}هـ الموافق \d{2}\/\d{2}\/\d{4}م/.test(await text('[data-testid=contract-paper]'));
 CHECKS['posts count flows into section 02'] = (await text('[data-testid=contract-paper]')).includes('بواقع 8 منشوراً');
 CHECKS['fixed sections locked'] = await ev(`[...document.querySelectorAll('[data-testid=section-editor] textarea')].filter(t=>t.disabled).length >= 6`);
+CHECKS['parties block: the bar asks for what the paper prints (CR or ID, phone, e-mail…)'] = /(الطرف الآخر|هوامش)/.test(await text('[data-testid=missing-values]'));
+CHECKS['bar-guided filling completes the contract'] = await fillMissing();
 CHECKS['missing flag gone once typed'] = !(await ev(`!!document.querySelector('[data-testid=missing-values]')`));
 // 1 Nov notes: platforms are chips · hints on the two unclear fields · a clause opens full screen · edits survive a refresh
 CHECKS['platform chips → paper text «Instagram · TikTok»'] = (await text('[data-testid=contract-paper]')).includes('Instagram · TikTok') && (await ev(`document.querySelector('[data-testid=platform-Instagram]').getAttribute('aria-pressed')`)) === 'true';
@@ -266,17 +283,8 @@ await setT('contract-party', 'creative'); await sleep(200);
 CHECKS['creative select appears'] = await ev(`!!document.querySelector('[data-testid=contract-creative]')`);
 await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`, 20000);
 await setT('track-0-monthly', '3000'); await setT('counterparty-rep', 'المبدع'); await sleep(200);
-// the short template's text uses the project/platforms/counts too: fill whatever the bar asks for (1 Nov rule)
-for (let i = 0; i < 6 && await ev(`!!document.querySelector('[data-testid=missing-values]')`); i++) {
-  const ask = await text('[data-testid=missing-values]');
-  if (ask.includes('المشروع')) await setT('contract-project', 'تطوير المحتوى');
-  else if (ask.includes('المنصات')) await clickSel('[data-testid=platform-Instagram]');
-  else if (ask.includes('المنشورات')) await setT('vars-posts', '8');
-  else if (ask.includes('التصاميم')) await setT('vars-designs', '4');
-  else if (ask.includes('الفيديوهات')) await setT('vars-videos', '2');
-  else break;
-  await sleep(150);
-}
+// the short contract asks for what its paper prints too: follow the bar
+await fillMissing();
 CHECKS['short contract: nothing missing once its text words are filled'] = !(await ev(`!!document.querySelector('[data-testid=missing-values]')`));
 CHECKS['short paper: track price + total'] = (await text('[data-testid=contract-paper]')).includes('3,000 ريال شهرياً') && (await text('[data-testid=contract-paper]')).includes('36,000');
 await clickSel('[data-testid=sign-send]'); CHECKS['creative contract signed + sent'] = await signFlow(); await toastHas('أُرسل'); await closeToast();

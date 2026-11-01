@@ -235,11 +235,24 @@ export function contractTotal(c: ContractContent): number {
 export type MissingField = { label: string; field: string }
 export function missingFields(c: ContractContent): MissingField[] {
   const out: MissingField[] = []
-  // 1 Nov («ليش بس على الفلوس؟»): every automatic word the contract TEXT actually uses must be filled, or the paper
-  // prints «…» there. If a clause does not mention videos, 0 videos is fine; if it does, it must be a real number.
+  // 1 Nov («ليش بس على الفلوس؟» + «ليش بيانات الطرف الآخر ما تطلع ناقص؟»): whatever the PAPER prints must be filled,
+  // in the order of the form. Unused counts (a word the text never uses) stay optional.
   const text = [...(c.kind === 'full' ? c.sections.map((x) => x.body) : [c.scope]), c.kind === 'short' ? SHORT_FOOTNOTE : ''].join('\n')
   const uses = (w: string) => text.includes(`{${w}}`)
+  const full = c.kind !== 'short'
   if (uses('الهدف') && !c.project.trim()) out.push({ label: 'المشروع', field: 'contract-project' })
+  // the parties' block prints name, CR (or ID for a person), city (full), representative, phone, e-mail
+  const party = (k: 'counterparty' | 'hawamish', who: string) => {
+    const p = c[k]
+    if (!p.name.trim()) out.push({ label: `اسم ${who}`, field: `${k}-name` })
+    if (!p.cr.trim() && !p.nationalId.trim()) out.push({ label: `السجل التجاري أو الهوية (${who})`, field: `${k}-cr` })
+    if (full && !p.city.trim()) out.push({ label: `المدينة (${who})`, field: `${k}-city` })
+    if (!p.repName.trim()) out.push({ label: `الممثل (${who})`, field: `${k}-rep` })
+    if (!p.phone.trim()) out.push({ label: `رقم التواصل (${who})`, field: `${k}-phone` })
+    if (!p.email.trim()) out.push({ label: `إيميل التواصل (${who})`, field: `${k}-email` })
+  }
+  party('counterparty', 'الطرف الآخر')
+  party('hawamish', 'هوامش')
   if (uses('المنصات') && !c.vars.platforms.trim()) out.push({ label: 'المنصات', field: 'platform-Instagram' })
   if (uses('المنشورات') && !(c.vars.posts > 0)) out.push({ label: 'عدد المنشورات شهرياً', field: 'vars-posts' })
   if (uses('التصاميم') && !(c.vars.designs > 0)) out.push({ label: 'عدد التصاميم شهرياً', field: 'vars-designs' })
@@ -261,8 +274,6 @@ export function missingFields(c: ContractContent): MissingField[] {
     const k = c.pricing.installments.findIndex((i) => !(i.amount > 0))
     if (k >= 0) out.push({ label: 'مبالغ الدفعات', field: `installment-${k}` })
   }
-  if (!c.counterparty.name.trim()) out.push({ label: 'اسم الطرف الآخر', field: 'counterparty-name' })
-  if (!c.hawamish.cr.trim()) out.push({ label: 'السجل التجاري لهوامش', field: 'hawamish-cr' })
   if (!c.bank.iban.trim()) out.push({ label: 'الآيبان (الحساب البنكي)', field: 'bank-iban' })
   if (!c.signers.hawamish.name.trim()) out.push({ label: 'اسم موقّع هوامش', field: 'signer-hawamish-name' })
   return out
