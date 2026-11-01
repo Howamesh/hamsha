@@ -77,7 +77,7 @@ CHECKS['Hawamish party prefilled from the legal profile'] = (await ev(`document.
 CHECKS['sign-send disabled while values are missing'] = await ev(`document.querySelector('[data-testid=sign-send]').disabled === true`);
 await setT('contract-project', 'تعزيز الحضور الرقمي وبناء هوية إعلامية');
 await setT('counterparty-rep', 'زياد بن محمد الجاسر');
-await setT('vars-platforms', 'Instagram · TikTok'); await setT('vars-posts', '8');
+await clickSel('[data-testid=platform-Instagram]'); await clickSel('[data-testid=platform-TikTok]'); await setT('vars-posts', '8');
 await setT('pricing-monthly', '4000'); await setT('pricing-months', '12'); await sleep(300);
 // real typing, one key at a time (1 Nov: inner components remounted every keystroke → the field lost focus after one character; Arabic digits counted as 0)
 const typeKeys = async (testid, chars) => { await setT(testid, ''); await ev(`document.querySelector('[data-testid=${testid}]').focus()`); for (const ch of chars) { await send('Input.insertText', { text: ch }); await sleep(60); } await sleep(150); return ev(`[document.querySelector('[data-testid=${testid}]').value, document.activeElement?.dataset?.testid || '']`); };
@@ -97,9 +97,33 @@ CHECKS['paper has the Hijri date line'] = /يوم .+ \d{2}\/\d{2}\/14\d{2}هـ �
 CHECKS['posts count flows into section 02'] = (await text('[data-testid=contract-paper]')).includes('بواقع 8 منشوراً');
 CHECKS['fixed sections locked'] = await ev(`[...document.querySelectorAll('[data-testid=section-editor] textarea')].filter(t=>t.disabled).length >= 6`);
 CHECKS['missing flag gone once typed'] = !(await ev(`!!document.querySelector('[data-testid=missing-values]')`));
+// 1 Nov notes: platforms are chips · hints on the two unclear fields · a clause opens full screen · edits survive a refresh
+CHECKS['platform chips → paper text «Instagram · TikTok»'] = (await text('[data-testid=contract-paper]')).includes('Instagram · TikTok') && (await ev(`document.querySelector('[data-testid=platform-Instagram]').getAttribute('aria-pressed')`)) === 'true';
+CHECKS['late-days + support fields explained'] = (await text('[data-testid=contract-editor]')).includes('يتوقف الشغل لين يدفع') && (await text('[data-testid=contract-editor]')).includes('أشهر دعم مجاني');
+await clickSel('[data-testid=section-expand-02]'); await waitFor(`!!document.querySelector('[data-testid=section-focus]')`);
+CHECKS['clause opens full screen in big type'] = await ev(`(()=>{const b=document.querySelector('[data-testid=section-focus-body]');return parseFloat(getComputedStyle(b).fontSize)>=20 && b.value.includes('يلتزم')})()`);
+const sec02 = await ev(`document.querySelector('[data-testid=section-focus-body]').value`);
+await setT('section-focus-body', sec02 + '\nسطر تجربة من الشاشة الكاملة'); await sleep(200);
+await clickSel('[data-testid=section-focus-done]');
+CHECKS['full-screen edit lands in the clause + paper'] = !(await ev(`!!document.querySelector('[data-testid=section-focus]')`)) && (await text('[data-testid=contract-paper]')).includes('سطر تجربة من الشاشة الكاملة');
+await send('Page.reload'); await sleep(1500);
+CHECKS['refresh: editor reopens with the unsaved edits'] = await waitFor(`!!document.querySelector('[data-testid=contract-editor]') && !!document.querySelector('[data-testid=draft-restored]') && document.querySelector('[data-testid=pricing-months]')?.value === '12'`, 20000).then(()=>true).catch(()=>false)
+  && (await text('[data-testid=contract-paper]')).includes('سطر تجربة من الشاشة الكاملة') && (await ev(`document.querySelector('[data-testid=platform-TikTok]').getAttribute('aria-pressed')`)) === 'true';
 await clickSel('[data-testid=save-version]');
 CHECKS['version 1 saved'] = await toastHas('انحفظت النسخة 1'); await closeToast();
+CHECKS['saved → draft cleared'] = await ev(`!document.querySelector('[data-testid=draft-restored]') && !Object.keys(localStorage).some(k=>k.startsWith('hamsha.contractDraft.'))`);
 CHECKS['save disabled when nothing changed'] = await ev(`document.querySelector('[data-testid=save-version]').disabled === true`);
+// Codex review (council 20261101-130516-b33f): a tab never clears another tab's newer draft; a note alone is not a draft
+{ await setT('vars-posts', '9'); await sleep(250);
+  const key = await ev(`Object.keys(localStorage).find(k=>k.startsWith('hamsha.contractDraft.'))||''`);
+  const K = JSON.stringify(key);
+  await ev(`(()=>{const d=JSON.parse(localStorage.getItem(${K}));d.at='2099-01-01T00:00:00.000Z';localStorage.setItem(${K},JSON.stringify(d))})()`); // «another tab» writes later
+  await setT('vars-posts', '8'); await sleep(250);
+  CHECKS['other tab\'s newer draft is not wiped'] = !!key && (await ev(`JSON.parse(localStorage.getItem(${K})||'{}').at`)) === '2099-01-01T00:00:00.000Z';
+  await ev(`localStorage.removeItem(${K})`);
+  await setT('editor-note', 'ملاحظة فقط'); await sleep(250);
+  CHECKS['a note alone is not stored as a draft'] = !(await ev(`Object.keys(localStorage).some(k=>k.startsWith('hamsha.contractDraft.'))`));
+  await setT('editor-note', ''); await sleep(150); }
 await clickSel('[data-testid=sign-send]');
 CHECKS['Hawamish sign dialog prefilled'] = await waitFor(`document.querySelector('[data-testid=sign-name]')?.value === 'إبراهيم القفاري'`).then(()=>true).catch(()=>false);
 CHECKS['confirm disabled until drawn + acknowledged'] = await ev(`document.querySelector('[data-testid=sign-confirm]').disabled === true`);

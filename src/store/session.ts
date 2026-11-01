@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { clearAllDrafts } from '@/lib/contractDraft'
 import { useUi } from './ui'
 import { errorMessage } from '@/lib/errors'
 import { fmtDate } from '@/lib/useStr'
@@ -107,6 +108,7 @@ export const useSession = create<SessionState>((set, get) => ({
     await repo.signOut()
     set({ user: null, data: null })
     useUi.getState().resetForUser()
+    clearAllDrafts()
   },
   async requestPasswordReset(email) {
     await repo.requestPasswordReset(email.trim())

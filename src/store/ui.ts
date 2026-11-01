@@ -87,7 +87,8 @@ export const useUi = create<UiState>()(
     }),
     {
       name: 'hamsha.ui',
-      partialize: (s) => ({ lang: s.lang, theme: s.theme, weekStart: s.weekStart, view: s.view, panelOpen: s.panelOpen }),
+      // workspace + open contract/editor survive a refresh (1 Nov): he lands back where he was typing
+      partialize: (s) => ({ lang: s.lang, theme: s.theme, weekStart: s.weekStart, view: s.view, panelOpen: s.panelOpen, workspace: s.workspace, contractId: s.contractId, contractEditing: s.contractEditing }),
     },
   ),
 )

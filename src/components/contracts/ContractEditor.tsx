@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Lock, Plus, Save, Send, Trash2, Unlock, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Lock, Maximize2, Plus, Save, Send, Trash2, Unlock, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useNarrow, useStr } from '@/lib/useStr'
+import { fmtTime, useNarrow, useStr } from '@/lib/useStr'
 import { useData, useSession } from '@/store/session'
 import { useUi } from '@/store/ui'
 import type { Contract, ContractContent, ContractPartyInfo, ContractVersion } from '@/types'
 import { CURRENCIES, EMPTY_LEGAL, amountWords, contractTotal, currencyWord, emptyContent, fmtAmount, missingValues, partyFromClient, partyFromCreative } from '@/lib/contracts'
 import { toLatin } from '@/lib/latinDigits'
+import { clearDraft, loadDraft, saveDraft } from '@/lib/contractDraft'
 import { Button, Input, SectionTitle } from '../ui'
 import { ContractPaper } from './ContractPaper'
 import { SignDialog } from './SignDialog'
@@ -20,7 +21,7 @@ const num = (v: string) => (v === '' ? 0 : Math.max(0, Number(toLatin(v).replace
  * numbered version; «وقّع وأرسل» = Hawamish's signature on that version, then the contract goes out.
  */
 export function ContractEditor({ contract, current, onClose }: { contract: Contract; current?: ContractVersion; onClose: () => void }) {
-  const { t } = useStr()
+  const { t, lang } = useStr()
   const s = useData()
   const sess = useSession()
   const ui = useUi()
@@ -34,18 +35,57 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
     const u = s.users.find((x) => x.id === contract.creativeId)
     return u ? partyFromCreative(u) : { ...EMPTY_LEGAL.party, name: '' }
   }, [s, contract])
-  const [c, setC] = useState<ContractContent>(() => (current ? JSON.parse(JSON.stringify(current.content)) : emptyContent(contract.kind, counterpartyInfo, contract.title, contract.accent, legal)))
-  const [note, setNote] = useState('')
+  const fresh = (): ContractContent => (current ? JSON.parse(JSON.stringify(current.content)) : emptyContent(contract.kind, counterpartyInfo, contract.title, contract.accent, legal))
+  // unsaved edits from before a refresh come back — only if they were made on this same version
+  const [draft] = useState(() => {
+    const d = loadDraft(contract.id)
+    return d && d.base === (current?.id ?? null) ? d : null
+  })
+  const [c, setC] = useState<ContractContent>(() => draft?.content ?? fresh())
+  const [note, setNote] = useState(() => draft?.note ?? '')
+  const [restoredAt, setRestoredAt] = useState<string | null>(draft?.at ?? null)
+  const [draftFailed, setDraftFailed] = useState(false)
+  // the draft this tab wrote last (or adopted on restore): a tab only ever clears ITS OWN draft, never another tab's newer one
+  const ownDraftAt = useRef<string | null>(draft?.at ?? null)
+  // the form as it was when «احفظ نسخة» was pressed: typing that continues while the save is in flight must survive it
+  const sentFrom = useRef<string | null>(null)
+  const [focusSec, setFocusSec] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [signing, setSigning] = useState(false)
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set())
   const [tab, setTab] = useState<'form' | 'paper'>('form')
+  // a NEW version (saved here or elsewhere) replaces the form; the first render keeps a restored draft
+  const seenVersion = useRef(current?.id)
   useEffect(() => {
-    if (!current) return
-    setC(JSON.parse(JSON.stringify(current.content)))
+    if (!current || seenVersion.current === current.id) return
+    seenVersion.current = current.id
+    const typedSince = sentFrom.current !== null && sentFrom.current !== JSON.stringify(c)
+    sentFrom.current = null
+    setRestoredAt(null)
+    if (!typedSince) setC(JSON.parse(JSON.stringify(current.content))) // else: keep the newer typing, now a draft on top of this version
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id])
   const dirtyContent = !current || JSON.stringify(current.content) !== JSON.stringify(c)
+  // every change is kept in this browser at once (no debounce: a refresh right after typing loses nothing)
+  // (a note alone is not a draft: on its own it cannot be saved as a version)
+  useEffect(() => {
+    if (dirtyContent) {
+      const at = new Date().toISOString()
+      const ok = saveDraft(contract.id, { base: current?.id ?? null, content: c, note, at })
+      if (ok) ownDraftAt.current = at
+      setDraftFailed(!ok)
+    } else if (ownDraftAt.current && loadDraft(contract.id)?.at === ownDraftAt.current) {
+      clearDraft(contract.id)
+      ownDraftAt.current = null
+    }
+  }, [c, note, dirtyContent, current?.id, contract.id])
+  const discardDraft = () => {
+    clearDraft(contract.id)
+    ownDraftAt.current = null
+    setC(fresh())
+    setNote('')
+    setRestoredAt(null)
+  }
   // after «يبي تعديل» / «مرفوض» the decided version can never be re-sent: re-sending always freezes a new one
   const mustFreeze = contract.status === 'changes' || contract.status === 'rejected'
   const dirty = dirtyContent || mustFreeze
@@ -54,17 +94,21 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   const cur = currencyWord(c.pricing.currency)
   const up = (patch: Partial<ContractContent>) => setC((x) => ({ ...x, ...patch }))
   const upParty = (k: 'hawamish' | 'counterparty', patch: Partial<ContractPartyInfo>) => setC((x) => ({ ...x, [k]: { ...x[k], ...patch } }))
+  const toggleLock = (num: string) => setUnlocked((u) => { const n = new Set(u); if (n.has(num)) n.delete(num); else n.add(num); return n })
   const upPricing = (patch: Partial<ContractContent['pricing']>) => setC((x) => ({ ...x, pricing: { ...x.pricing, ...patch } }))
 
   /** Freezes a version and returns exactly the row the store created (never «the newest in the list»). */
   async function saveInner(): Promise<ContractVersion | undefined> {
     if (!dirty) return current
+    const sentNote = note
+    sentFrom.current = JSON.stringify(c)
     try {
-      const v = await sess.saveContractVersion(contract.id, { ...c, stamp: c.stamp || legal.stamp || undefined }, note.trim() || undefined)
+      const v = await sess.saveContractVersion(contract.id, { ...c, stamp: c.stamp || legal.stamp || undefined }, sentNote.trim() || undefined)
       ui.setToast(t('contractSaved', { n: v.number }), 'info')
-      setNote('')
+      setNote((n) => (n === sentNote ? '' : n))
       return v
     } catch {
+      sentFrom.current = null
       return undefined
     }
   }
@@ -121,7 +165,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
       {c.kind !== 'offer' && (
         <Group title={t('secVars')}>
           <div className="grid grid-cols-2 gap-2">
-            <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fPlatforms')}</SectionTitle><Input value={c.vars.platforms} onChange={(e) => up({ vars: { ...c.vars, platforms: e.target.value } })} placeholder="Instagram · TikTok · X" dir="auto" className="py-1.5 text-[13px]" data-testid="vars-platforms" /></label>
+            <div className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fPlatforms')}</SectionTitle><PlatformPicker value={c.vars.platforms} onChange={(v) => up({ vars: { ...c.vars, platforms: v } })} /></div>
             <Num label={t('fPosts')} value={c.vars.posts} onChange={(n) => up({ vars: { ...c.vars, posts: n } })} testId="vars-posts" />
             <Num label={t('fDesigns')} value={c.vars.designs} onChange={(n) => up({ vars: { ...c.vars, designs: n } })} />
             <Num label={t('fVideos')} value={c.vars.videos} onChange={(n) => up({ vars: { ...c.vars, videos: n } })} />
@@ -165,8 +209,8 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
                 </div>
               </>
             )}
-            <Num label={t('fLateDays')} value={c.pricing.lateDays} onChange={(n) => upPricing({ lateDays: n })} suffix="يوم" />
-            <Num label={t('fSupportMonths')} value={c.pricing.supportMonths} onChange={(n) => upPricing({ supportMonths: n })} suffix="شهر" />
+            <Num label={t('fLateDays')} hint={t('lateDaysHint')} value={c.pricing.lateDays} onChange={(n) => upPricing({ lateDays: n })} suffix="يوم" />
+            <Num label={t('fSupportMonths')} hint={t('supportMonthsHint')} optional value={c.pricing.supportMonths} onChange={(n) => upPricing({ supportMonths: n })} suffix="شهر" />
           </div>
           <div className="rounded-md bg-muted-bg px-3 py-2 text-[12.5px]" data-testid="pricing-total">
             <b>{t('fTotal')}:</b> {total > 0 ? amountWords(total, cur) : '…'}
@@ -225,11 +269,16 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
       {/* scope + sections */}
       {c.kind !== 'full' && (
         <Group title={c.kind === 'offer' ? 'تمهيد' : t('secScope')}>
-          <textarea value={c.scope} onChange={(e) => up({ scope: e.target.value })} rows={7} dir="auto" className={cn(field, 'resize-y leading-relaxed')} data-testid="contract-scope" />
+          <div className="relative">
+            <textarea value={c.scope} onChange={(e) => up({ scope: e.target.value })} rows={7} dir="auto" className={cn(field, 'resize-y leading-relaxed pe-10')} data-testid="contract-scope" />
+            <Button size="icon" variant="ghost" className="absolute top-1 end-1" onClick={() => setFocusSec('scope')} aria-label={t('expandSection')} title={t('expandSection')} data-testid="section-expand-scope">
+              <Maximize2 size={15} />
+            </Button>
+          </div>
         </Group>
       )}
       {c.kind === 'full' && (
-        <Group title={t('secSections')}>
+        <Group title={t('secSections')} note={t('sectionsNote')}>
           {c.sections.map((sec, k) => {
             const locked = !!sec.fixed && !unlocked.has(sec.num)
             return (
@@ -238,8 +287,13 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
                   <span className="text-[12px] font-bold tabular-nums">{sec.num}</span>
                   <Input value={sec.title} onChange={(e) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: e.target.value } : x)) })} dir="auto" className="py-1 text-[13px] flex-1" disabled={locked} />
                   {sec.fixed && (
-                    <Button size="sm" variant="ghost" onClick={() => setUnlocked((u) => { const n = new Set(u); if (n.has(sec.num)) n.delete(sec.num); else n.add(sec.num); return n })} title={locked ? t('unlockSection') : t('fixedSection')}>
+                    <Button size="sm" variant="ghost" onClick={() => toggleLock(sec.num)} title={locked ? t('fixedSection') : t('unlockSection')}>
                       {locked ? <Lock size={14} /> : <Unlock size={14} />} <span className="text-[11px]">{locked ? t('fixedSection') : t('unlockSection')}</span>
+                    </Button>
+                  )}
+                  {sec.num !== '04' && (
+                    <Button size="icon" variant="ghost" onClick={() => setFocusSec(sec.num)} aria-label={t('expandSection')} title={t('expandSection')} data-testid={`section-expand-${sec.num}`}>
+                      <Maximize2 size={15} />
                     </Button>
                   )}
                 </div>
@@ -277,7 +331,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           <label className="flex flex-col gap-1"><SectionTitle>{t('signerCapacity')}</SectionTitle><Input value={c.signers.counterparty.capacity} onChange={(e) => up({ signers: { ...c.signers, counterparty: { ...c.signers.counterparty, capacity: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /></label>
         </div>
       </Group>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('noteToClient')}</SectionTitle><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('noteToClientPh')} dir="auto" className="py-1.5 text-[13px]" /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('noteToClient')}</SectionTitle><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('noteToClientPh')} dir="auto" className="py-1.5 text-[13px]" data-testid="editor-note" /></label>
     </div>
   )
 
@@ -287,7 +341,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         <span className="w-[10px] h-[10px] rounded-full shrink-0" style={{ background: c.accent }} />
         <div className="min-w-0 flex-1">
           <div className="text-[16px] font-semibold truncate" dir="auto">{t('editContract')} · {c.title}</div>
-          <div className="text-[11px] text-fg-secondary">{current ? `${t('version')} ${current.number}` : t('noVersionYet')}{dirty && current ? ' · ' + t('unlockSection') : ''}</div>
+          <div className="text-[11px] text-fg-secondary">{current ? `${t('version')} ${current.number}` : t('noVersionYet')}{dirtyContent && current ? ' · ' + t('unsavedChanges') : ''}</div>
         </div>
         {narrow && <SegmentedMini value={tab} onChange={setTab} labels={[t('secSections'), t('openPaper')]} />}
         {missing.length > 0 && <span className="text-[11.5px] text-warning-dark font-semibold max-w-[320px] truncate" title={missing.join(' · ')} data-testid="missing-values">{t('missingValues')} ({missing.length})</span>}
@@ -301,6 +355,15 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           <X size={16} />
         </Button>
       </div>
+      {draftFailed && (
+        <div className="px-4 py-2 bg-warning-tint/40 border-b border-border text-[12.5px] text-warning-dark" role="alert" data-testid="draft-failed">{t('draftFailed')}</div>
+      )}
+      {restoredAt && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-warning-tint/40 border-b border-border text-[12.5px]" role="status" data-testid="draft-restored">
+          <span className="flex-1">{t('draftRestored', { time: fmtTime(restoredAt, lang) })}</span>
+          <Button size="sm" variant="ghost" onClick={discardDraft} data-testid="discard-draft">{t('discardDraft')}</Button>
+        </div>
+      )}
       <div className={cn('flex-1 min-h-0 grid', narrow ? 'grid-cols-1' : 'grid-cols-[minmax(380px,520px)_1fr]')}>
         <div className={cn('min-h-0 overflow-y-auto no-scrollbar p-4 border-e border-border', narrow && tab !== 'form' && 'hidden')}>
           <div className="text-[11.5px] text-fg-secondary mb-3">{t('saveVersionHint')}</div>
@@ -310,23 +373,42 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           <ContractPaper content={c} number={contract.number} version={current && !dirtyContent ? current : undefined} stamp={legal.stamp || undefined} scale={narrow ? 0.45 : 0.62} />
         </div>
       </div>
+      {focusSec && (() => {
+        if (focusSec === 'scope') return <SectionFocus num="" title={c.kind === 'offer' ? 'تمهيد' : t('secScope')} body={c.scope} locked={false} onBody={(v) => up({ scope: v })} onClose={() => setFocusSec(null)} />
+        const k = c.sections.findIndex((x) => x.num === focusSec)
+        const sec = c.sections[k]
+        if (!sec) return null
+        return (
+          <SectionFocus
+            num={sec.num}
+            title={sec.title}
+            body={sec.body}
+            locked={!!sec.fixed && !unlocked.has(sec.num)}
+            onUnlock={() => toggleLock(sec.num)}
+            onTitle={(v) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: v } : x)) })}
+            onBody={(v) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, body: v } : x)) })}
+            onClose={() => setFocusSec(null)}
+          />
+        )
+      })()}
       {signing && <SignDialog title={t('signAndSend')} defaultName={c.signers.hawamish.name} defaultCapacity={c.signers.hawamish.capacity} onConfirm={signAndSend} onClose={() => setSigning(false)} busy={busy} />}
     </div>
   )
 }
 
 // module-level (not inside ContractEditor) so the input keeps focus while typing
-function Num({ label, value, onChange, suffix, testId }: { label: string; value: number; onChange: (n: number) => void; suffix?: string; testId?: string }) {
+function Num({ label, value, onChange, suffix, testId, hint, optional }: { label: string; value: number; onChange: (n: number) => void; suffix?: string; testId?: string; hint?: string; optional?: boolean }) {
   const { t } = useStr()
   return (
     <label className="flex flex-col gap-1.5 min-w-0">
       <SectionTitle>{label}</SectionTitle>
       {/* the unit sits BESIDE the field, never inside it: inside, it covered the LTR number (1 Nov) */}
       <div className="flex items-center gap-2 -mt-1">
-        <Input value={value === 0 ? '' : String(value)} onChange={(e) => onChange(num(e.target.value))} placeholder="0" dir="ltr" inputMode="numeric" className={cn('flex-1 min-w-0 py-2 text-[13px] tabular-nums', value === 0 && 'border-warning-dark/50 bg-warning-tint/30')} data-testid={testId} />
+        <Input value={value === 0 ? '' : String(value)} onChange={(e) => onChange(num(e.target.value))} placeholder="0" dir="ltr" inputMode="numeric" className={cn('flex-1 min-w-0 py-2 text-[13px] tabular-nums', value === 0 && !optional && 'border-warning-dark/50 bg-warning-tint/30')} data-testid={testId} />
         {suffix && <span className="shrink-0 whitespace-nowrap text-[11px] text-fg-muted" data-testid={testId ? `${testId}-unit` : undefined}>{suffix}</span>}
       </div>
-      {value === 0 && <span className="text-[10.5px] text-warning-dark">{t('suggested')}</span>}
+      {hint && <span className="text-[10.5px] text-fg-secondary leading-snug">{hint}</span>}
+      {value === 0 && !optional && <span className="text-[10.5px] text-warning-dark">{t('suggested')}</span>}
     </label>
   )
 }
@@ -348,11 +430,89 @@ function PartyFields({ k, p, full, onChange: upParty }: { k: 'hawamish' | 'count
   )
 }
 
-function Group({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+// «المنصات» as tap-to-pick chips (1 Nov: he wanted choices, not typing). Stored as before: «Instagram · X», so
+// old contracts and the paper text keep working; anything typed by hand stays as its own chip.
+const PLATFORMS: [string, string][] = [
+  ['Instagram', 'إنستقرام'],
+  ['X', 'إكس (تويتر)'],
+  ['TikTok', 'تيك توك'],
+  ['Snapchat', 'سناب شات'],
+  ['YouTube', 'يوتيوب'],
+  ['LinkedIn', 'لينكدإن'],
+  ['Facebook', 'فيسبوك'],
+  ['Threads', 'ثريدز'],
+  ['WhatsApp', 'واتساب'],
+  ['Telegram', 'تيليجرام'],
+  ['Pinterest', 'بنترست'],
+]
+function PlatformPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useStr()
+  const [other, setOther] = useState('')
+  const picked = value.split('·').map((x) => x.trim()).filter(Boolean)
+  const known = new Set(PLATFORMS.map(([en]) => en))
+  const extras = picked.filter((p) => !known.has(p))
+  const write = (list: string[]) => onChange([...PLATFORMS.map(([en]) => en).filter((en) => list.includes(en)), ...list.filter((p) => !known.has(p))].join(' · '))
+  const toggle = (p: string) => write(picked.includes(p) ? picked.filter((x) => x !== p) : [...picked, p])
+  const addOther = () => {
+    const v = other.trim()
+    if (v && !picked.includes(v)) write([...picked, v])
+    setOther('')
+  }
+  const chip = (on: boolean) => cn('rounded-full border px-3 py-1 text-[12.5px] cursor-pointer transition-colors', on ? 'bg-fg text-bg border-fg' : 'bg-bg border-border hover:border-fg-muted')
+  return (
+    <div className="flex flex-wrap gap-1.5 items-center" data-testid="vars-platforms">
+      {PLATFORMS.map(([en, ar]) => (
+        <button key={en} type="button" aria-pressed={picked.includes(en)} onClick={() => toggle(en)} className={chip(picked.includes(en))} data-testid={`platform-${en}`}>
+          {ar}
+        </button>
+      ))}
+      {extras.map((p) => (
+        <button key={p} type="button" aria-pressed onClick={() => toggle(p)} className={chip(true)} title={t('mediaRemove')}>
+          {p} ×
+        </button>
+      ))}
+      <Input value={other} onChange={(e) => setOther(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addOther() } }} onBlur={addOther} placeholder={t('otherPlatform')} dir="auto" className="py-1 text-[12.5px] w-[140px]" data-testid="platform-other" />
+    </div>
+  )
+}
+
+/** One clause on the whole screen, big type, to read and edit in comfort (1 Nov: «أكبّره وآخذ راحتي»). */
+function SectionFocus({ num, title, body, locked, onUnlock, onTitle, onBody, onClose }: { num: string; title: string; body: string; locked: boolean; onUnlock?: () => void; onTitle?: (v: string) => void; onBody: (v: string) => void; onClose: () => void }) {
+  const { t } = useStr()
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [onClose])
+  return (
+    <div className="fixed inset-0 z-[85] bg-card flex flex-col anim-fade" role="dialog" aria-label={title} data-testid="section-focus">
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-border">
+        {num && <span className="text-[18px] font-bold tabular-nums">{num}</span>}
+        {onTitle ? (
+          <Input value={title} onChange={(e) => onTitle(e.target.value)} disabled={locked} dir="auto" className="flex-1 py-2 text-[18px] font-semibold" />
+        ) : (
+          <div className="flex-1 text-[18px] font-semibold" dir="auto">{title}</div>
+        )}
+        {locked && onUnlock && (
+          <Button size="sm" variant="ghost" onClick={onUnlock}>
+            <Lock size={14} /> <span className="text-[12px]">{t('fixedSection')}</span>
+          </Button>
+        )}
+        <Button variant="primary" onClick={onClose} data-testid="section-focus-done">{t('doneEditing')}</Button>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <textarea value={body} onChange={(e) => onBody(e.target.value)} readOnly={locked} dir="auto" autoFocus={!locked} className={cn('block w-full max-w-[920px] min-h-full mx-auto px-6 py-8 bg-transparent text-[21px] leading-[2.1] outline-none resize-none', locked && 'opacity-75')} data-testid="section-focus-body" />
+      </div>
+    </div>
+  )
+}
+
+function Group({ title, hint, note, children }: { title: string; hint?: string; note?: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-2.5">
       <div className="text-[13px] font-semibold border-b border-border pb-1">{title}</div>
       {hint && <div className="text-[11px] text-warning-dark">{hint}</div>}
+      {note && <div className="text-[11.5px] text-fg-secondary leading-relaxed">{note}</div>}
       {children}
     </section>
   )
