@@ -10,6 +10,7 @@ import { statusTone, visibleVersions } from '@/lib/social'
 import { useMediaUrls, useObjectUrls } from '@/lib/useMedia'
 import { FeedPreview } from './FeedPreview'
 import { PostViewer } from './PostViewer'
+import { DesignViewer } from './DesignViewer'
 import { MediaField } from './MediaField'
 import { ClientAccountsDialog } from './ClientAccountsDialog'
 
@@ -52,6 +53,7 @@ export function PostSheet() {
   const [uploading, setUploading] = useState(false)
   const [changing, setChanging] = useState(false)
   const [full, setFull] = useState(false)
+  const [bare, setBare] = useState(false)
   const [accounts, setAccounts] = useState(false)
   const [note, setNote] = useState('')
   const [url, setUrl] = useState('')
@@ -271,6 +273,12 @@ export function PostSheet() {
           )}
 
           {/* ---- history ---- */}
+          {/* 1 Nov: «عرض التصميم» — the design alone, full screen, for anyone who opens the post (client included) */}
+          {view && (
+            <Button onClick={() => setBare(true)} className="w-full" data-testid="view-design">
+              <Maximize2 size={14} /> {t('viewDesign')}
+            </Button>
+          )}
           <SectionTitle>{t('versions')}</SectionTitle>
           <div className="flex flex-col gap-2 -mt-2" data-testid="versions">
             {versions.map((v) => (
@@ -282,6 +290,7 @@ export function PostSheet() {
 
       {uploading && <NewVersionDialog post={post} from={view} onClose={() => setUploading(false)} />}
       {full && view && <PostViewer {...previewProps} onClose={() => setFull(false)} />}
+      {bare && view && <DesignViewer media={media} onClose={() => setBare(false)} />}
       {accounts && <ClientAccountsDialog clientId={post.clientId} platform={post.platform} onClose={() => setAccounts(false)} onPicked={(a) => { if (a.platform === post.platform) void act(() => sess.updatePost(post.id, { accountId: a.id })); setAccounts(false) }} />}
     </div>
   )

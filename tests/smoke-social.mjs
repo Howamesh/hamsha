@@ -177,6 +177,11 @@ await ev(`document.querySelector('[data-testid=post-card]').click()`); await wai
 CHECKS['client sees v2 note'] = (await text('[data-testid=post-sheet]')).includes('كبّرنا الشعار');
 CHECKS['client sees the carousel with dots'] = await ev(`!!document.querySelector('[data-testid=post-sheet] [data-testid=carousel-dots]')`);
 CHECKS['client sees the two SENT versions (v1, v2) and nothing unsent'] = (await ev(`document.querySelectorAll('[data-testid=version-row]').length`)) === 2;
+// 1 Nov: «عرض التصميم» = the design alone, full screen (no phone/IG frame), closes with Esc
+await ev(`document.querySelector('[data-testid=view-design]').click()`); await sleep(400);
+CHECKS['client: «عرض التصميم» shows the design alone'] = await ev(`!!document.querySelector('[data-testid=design-viewer] [data-testid=design-image]') && !document.querySelector('[data-testid=design-viewer] [data-testid=carousel-dots]')`);
+await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await sleep(300);
+CHECKS['…Esc closes it'] = await ev(`!document.querySelector('[data-testid=design-viewer]')`);
 await click('موافق'); await toastHas('وصل قرارك'); await closeToast();
 CHECKS['status approved'] = (await status()) === 'approved';
 await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);

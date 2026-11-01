@@ -32,7 +32,7 @@ export function useBellCount() {
 const ACT_KEY: Record<Activity['kind'], string> = {
   c_created: 'actContractCreated', c_version: 'actContractVersion', c_first_signed: 'actContractFirstSigned', c_sent: 'actContractSent', c_withdrawn: 'actContractWithdrawn',
   c_opened: 'actContractOpened', c_signed: 'actContractSigned', c_changes: 'actContractChanges', c_rejected: 'actContractRejected', c_completed: 'actContractCompleted',
-  c_received: 'actContractReceived', p_version: 'actPostVersion', p_sent: 'actPostSent', p_approved: 'actPostApproved', p_changes: 'actPostChanges', p_published: 'actPostPublished',
+  c_received: 'actContractReceived', p_version: 'actPostVersion', p_sent: 'actPostSent', p_approved: 'actPostApproved', p_changes: 'actPostChanges', p_published: 'actPostPublished', p_received: 'actPostReceived',
 }
 
 /** «آخر النشاط»: what happened on contracts and social posts, newest first; tap → opens it. */
@@ -55,24 +55,26 @@ function ActivityList() {
   return (
     <div className="flex flex-col gap-1.5" data-testid="activity">
       <div className="text-[12px] font-semibold text-fg-secondary mt-2">{t('recentActivity')}</div>
-      {feed.map((a) => {
-        const fresh = (!seen || a.at > seen) && a.actorId !== user.id
-        return (
-          <button key={a.id} type="button" data-testid="activity-item" data-kind={a.kind}
-            onClick={() => {
-              if (a.target.type === 'contract') { setWorkspace('contracts'); openContract(a.target.id) } else { setWorkspace('social'); openPost(a.target.id) }
-            }}
-            className={cn('flex items-start gap-2.5 rounded-md border p-2.5 text-start cursor-pointer hover:border-fg-faint', fresh ? 'border-accent/40 bg-accent/5' : 'border-border bg-bg')}>
-            {a.target.type === 'contract' ? <FileSignature size={15} className="shrink-0 mt-0.5 text-fg-secondary" /> : <Megaphone size={15} className="shrink-0 mt-0.5 text-fg-secondary" />}
-            <span className="flex-1 min-w-0 flex flex-col gap-0.5">
-              <span className="text-[12.5px] leading-snug" dir="auto">{t(ACT_KEY[a.kind] as never, { title: a.title, n: a.n ?? '', who: a.who ?? t('someone') })}</span>
-              {a.note && <span className="text-[11.5px] text-fg-secondary truncate" dir="auto">«{a.note}»</span>}
-              <span className="text-[10.5px] text-fg-muted">{fmtDate(a.at.slice(0, 10), lang, { day: 'numeric', month: 'short' })} · {fmtTime(a.at, lang)}</span>
-            </span>
-            {fresh && <span className="w-2 h-2 rounded-full bg-accent shrink-0 mt-1.5" aria-label={t('newBadge')} />}
-          </button>
-        )
-      })}
+      <div className="rounded-md border border-border bg-bg divide-y divide-border overflow-hidden">
+        {feed.map((a) => {
+          const fresh = !seen || a.at > seen
+          return (
+            <button key={a.id} type="button" data-testid="activity-item" data-kind={a.kind}
+              onClick={() => {
+                if (a.target.type === 'contract') { setWorkspace('contracts'); openContract(a.target.id) } else { setWorkspace('social'); openPost(a.target.id) }
+              }}
+              className={cn('w-full flex items-center gap-2.5 px-3 py-2 text-start cursor-pointer hover:bg-muted-bg', fresh && 'bg-accent/5')}>
+              {a.target.type === 'contract' ? <FileSignature size={14} className="shrink-0 text-fg-muted" /> : <Megaphone size={14} className="shrink-0 text-fg-muted" />}
+              <span className="flex-1 min-w-0 flex flex-col">
+                <span className={cn('text-[12.5px] leading-snug line-clamp-2', fresh && 'font-semibold')} dir="auto">{t(ACT_KEY[a.kind] as never, { title: a.title, n: a.n ?? '', who: a.who ?? t('someone') })}</span>
+                {a.note && <span className="text-[11.5px] text-fg-secondary truncate" dir="auto">«{a.note}»</span>}
+              </span>
+              <span className="shrink-0 text-[10.5px] text-fg-muted tabular-nums">{fmtDate(a.at.slice(0, 10), lang, { day: 'numeric', month: 'short' })}<br />{fmtTime(a.at, lang)}</span>
+              {fresh && <span className="w-2 h-2 rounded-full bg-accent shrink-0" aria-label={t('newBadge')} />}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

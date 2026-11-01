@@ -1,10 +1,12 @@
-import { X } from 'lucide-react'
+import { Bell, MessageCircle, PieChart, Settings, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { clientProgress, isDone } from '@/lib/derive'
-import { fmtDate, useStr } from '@/lib/useStr'
+import { fmtDate, useNarrow, useStr } from '@/lib/useStr'
 import { useData, useUser } from '@/store/session'
-import { useUi } from '@/store/ui'
-import { Bar, Button, SectionTitle, Segmented } from '../ui'
+import { useUi, type PanelTab } from '@/store/ui'
+import { Bar, Button, SectionTitle } from '../ui'
+import { PanelTabs } from './PanelTabs'
+import { AlertsList, useBellCount } from '../Alerts'
 import { Chat } from '../Chat'
 import { SettingsPanel } from '../Settings'
 
@@ -13,6 +15,8 @@ export function ClientPanel() {
   const s = useData()
   const me = useUser()!
   const ui = useUi()
+  const narrow = useNarrow()
+  const bell = useBellCount()
   const c = s.clients.find((x) => x.id === me.clientId)
   if (!c)
     return (
@@ -22,7 +26,14 @@ export function ClientPanel() {
   const tasks = s.tasks.filter((x) => x.clientId === c.id)
   const delivered = tasks.filter((x) => isDone(s, x)).length
   const projects = s.projects.filter((x) => x.clientId === c.id)
-  const tab = ui.panelTab === 'settings' ? 'settings' : 'main'
+  // four separate sections (1 Nov): progress · messages (a whole section of its own) · alerts · settings
+  const tabs: Array<{ id: PanelTab; label: string; icon: React.ReactNode; badge?: number }> = [
+    { id: 'main', label: t('tabProgress'), icon: <PieChart size={16} /> },
+    { id: 'messages', label: t('tabMessages'), icon: <MessageCircle size={16} /> },
+    { id: 'alerts', label: t('tabAlerts'), icon: <Bell size={16} />, badge: bell },
+    { id: 'settings', label: t('tabSettings'), icon: <Settings size={16} /> },
+  ]
+  const tab: PanelTab = tabs.some((x) => x.id === ui.panelTab) ? ui.panelTab : 'main'
   const stages = [
     { l: t('contract'), sub: c.contract === 'signed' ? (t('contractSigned')) : t('awaitingSignature'), on: c.contract === 'signed' },
     { l: t('kickoff'), sub: fmtDate(c.start, lang), on: true },
@@ -32,24 +43,19 @@ export function ClientPanel() {
   return (
     <>
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
-        <div className="text-[17px] font-semibold tracking-[-0.01em]">{t('panelClient')}</div>
+        <div className="text-[17px] font-semibold tracking-[-0.01em]">{narrow ? tabs.find((x) => x.id === tab)?.label : t('panelClient')}</div>
         <Button size="icon" variant="ghost" onClick={() => ui.togglePanel(false)} aria-label={t('hidePanel')}>
           <X size={16} />
         </Button>
       </div>
-      <div className="px-5 pb-3">
-        <Segmented
-          value={tab}
-          options={[
-            { value: 'main', label: t('tabProgress') },
-            { value: 'settings', label: t('tabSettings') },
-          ]}
-          onChange={(v) => ui.setPanelTab(v)}
-        />
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-5 pt-2 flex flex-col gap-4">
+      <PanelTabs tabs={tabs} />
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-5 pt-3 flex flex-col gap-4">
         {tab === 'settings' ? (
           <SettingsPanel />
+        ) : tab === 'messages' ? (
+          <Chat channel={`client:${c.id}`} className="flex-1 min-h-[320px]" />
+        ) : tab === 'alerts' ? (
+          <AlertsList />
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2.5">
@@ -96,8 +102,6 @@ export function ClientPanel() {
                 </div>
               ))}
             </div>
-            <SectionTitle>{t('tabMessages')}</SectionTitle>
-            <Chat channel={`client:${c.id}`} className="-mt-2 h-[280px]" />
           </>
         )}
       </div>

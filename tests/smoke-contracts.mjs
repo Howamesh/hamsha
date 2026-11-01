@@ -260,6 +260,8 @@ await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll
 // 1 Nov: «آخر النشاط» in التنبيهات — the client's request is there, new, and tapping it opens the contract
 await ev(`[...document.querySelectorAll('button')].find(b=>b.textContent.trim().startsWith('التنبيهات'))?.click()`); await sleep(400);
 CHECKS['activity: the client\'s «طلب تعديل» shows in التنبيهات'] = await ev(`[...document.querySelectorAll('[data-testid=activity-item]')].some(x=>x.dataset.kind==='c_changes' && x.innerText.includes('طلب تعديل'))`);
+CHECKS['activity: none of my own moves (created/saved/signed/sent)'] = await ev(`![...document.querySelectorAll('[data-testid=activity-item]')].some(x=>['c_created','c_version','c_first_signed','c_sent','c_withdrawn','p_sent','p_published'].includes(x.dataset.kind))`);
+CHECKS['activity: one row per contract (no pile)'] = await ev(`[...document.querySelectorAll('[data-testid=activity-item]')].filter(x=>x.innerText.includes('عقد إنشاء موقع وتفعيل التواصل')).length <= 1`);
 await ev(`[...document.querySelectorAll('[data-testid=activity-item]')].find(x=>x.dataset.kind==='c_changes').click()`); await sleep(500);
 CHECKS['…tapping it opens that contract'] = await ev(`!!document.querySelector('[data-testid=contract-sheet]')`);
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]')?.click()`); await sleep(300);
@@ -357,6 +359,16 @@ await click('ادخل كعميل'); await waitFor(`[...document.querySelectorAll
 CHECKS['client is never blocked'] = !(await ev(`!!document.querySelector('[data-testid=contract-blocked]')`));
 await click('العقود'); await waitFor(`!!document.querySelector('[data-testid=contracts-board]')`);
 CHECKS['client never sees the unsent draft'] = (await ev(`document.querySelectorAll('[data-testid=contract-card]').length`)) === 1;
+// 1 Nov (his phone): every bottom tab opens ITS own section, labelled, with no second tab bar inside the panel
+await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:2,mobile:true}); await sleep(700);
+const sec = async (id) => { await ev(`document.querySelector('[data-testid=nav-${id}]').click()`); await sleep(350); return ev(`(()=>{const a=document.querySelector('aside');return a?a.innerText.slice(0,400):''})()`); };
+const sMain = await sec('main'), sMsg = await sec('messages'), sAlert = await sec('alerts'), sSet = await sec('settings');
+CHECKS['phone: messages is its own section'] = await (async () => { await sec('messages'); return ev(`!!document.querySelector('aside [placeholder*="رسالة"]') && !document.querySelector('aside').innerText.includes('تقدم المشاريع')`); })();
+CHECKS['phone: progress has no chat in it'] = await (async () => { await sec('main'); return ev(`document.querySelector('aside').innerText.includes('تقدم المشاريع') && !document.querySelector('aside [placeholder*="رسالة"]')`); })();
+CHECKS['phone: alerts and settings differ from progress'] = sAlert !== sMain && sSet !== sMain && sMsg !== sMain;
+CHECKS['phone: bottom tabs carry names'] = (await text('[data-testid=nav-messages]')).includes('الرسائل') && (await text('[data-testid=nav-alerts]')).includes('التنبيهات');
+await ev(`document.querySelector('[data-testid=nav-main]').click()`); await sleep(200);
+await send('Emulation.setDeviceMetricsOverride',{width:1500,height:950,deviceScaleFactor:1,mobile:false}); await sleep(600);
 // reload: persisted
 await send('Page.reload'); await sleep(1500); await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='العقود')`, 20000);
 await click('العقود'); await waitFor(`!!document.querySelector('[data-testid=contract-card]')`);

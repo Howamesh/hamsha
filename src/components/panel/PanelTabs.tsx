@@ -1,9 +1,13 @@
 import { cn } from '@/lib/utils'
 import { useUi, type PanelTab } from '@/store/ui'
+import { useNarrow } from '@/lib/useStr'
 
 export function PanelTabs({ tabs }: { tabs: Array<{ id: PanelTab; label: string; icon: React.ReactNode; badge?: number }> }) {
   const tab = useUi((s) => s.panelTab)
   const setTab = useUi((s) => s.setPanelTab)
+  // 1 Nov (his phone screenshot): the phone's bottom bar already switches these — showing them twice was noise
+  const narrow = useNarrow()
+  if (narrow) return null
   return (
     <div className="flex gap-1 px-4 pb-3 border-b border-border">
       {tabs.map((t) => (

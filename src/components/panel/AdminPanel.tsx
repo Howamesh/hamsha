@@ -6,6 +6,7 @@ import { fmtDate, useStr } from '@/lib/useStr'
 import { clock12FromHHMM } from '@/lib/dates'
 import { useData, useSession } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
+import { useNarrow } from '@/lib/useStr'
 import { Avatar, Bar, Button, Card, Input, SectionTitle, Segmented } from '../ui'
 import { Chat } from '../Chat'
 import { AlertsList, useBellCount } from '../Alerts'
@@ -22,6 +23,7 @@ export function AdminPanel() {
   const calId = ui.calId
   const client = calId ? s.clients.find((c) => c.id === calId) : null
   const alertCount = useBellCount()
+  const narrow = useNarrow()
   const tabs: Array<{ id: PanelTab; label: string; icon: React.ReactNode; badge?: number }> = [
     { id: 'main', label: client ? t('tabSetup') : t('tabClients'), icon: client ? <SlidersHorizontal size={16} /> : <PieChart size={16} /> },
     { id: 'messages', label: t('tabMessages'), icon: <MessageCircle size={16} /> },
@@ -32,7 +34,7 @@ export function AdminPanel() {
   return (
     <>
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
-        <div className="text-[17px] font-semibold tracking-[-0.01em]">{client ? t('panelSetup') : t('panelMaster')}</div>
+        <div className="text-[17px] font-semibold tracking-[-0.01em]">{narrow ? tabs.find((x) => x.id === ui.panelTab)?.label : client ? t('panelSetup') : t('panelMaster')}</div>
         <Button size="icon" variant="ghost" onClick={() => ui.togglePanel(false)} aria-label={t('hidePanel')}>
           <X size={16} />
         </Button>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Bell, Calendar, ChevronLeft, ChevronRight, LogOut, MessageCircle, PanelRightOpen, PieChart, Settings, Share2, User, FileSignature } from 'lucide-react'
+import { Bell, Calendar, ChevronLeft, ChevronRight, Home, LogOut, MessageCircle, PanelRightOpen, PieChart, Settings, Share2, User, FileSignature } from 'lucide-react'
 import { addDays, addMonths, addWeeks } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { fromIso, toIso, todayIso, weekDays } from '@/lib/dates'
@@ -86,9 +86,10 @@ function App() {
   const onCreate = isAdmin && s.clients.length > 0 ? (seed: NewTaskSeed) => setNewTask(seed) : undefined
 
   const Panel = isAdmin ? AdminPanel : isCreative ? CreativePanel : ClientPanel
-  const railTabs: Array<{ id: PanelTab; icon: React.ReactNode; badge?: number }> = isCreative
-    ? [{ id: 'main', icon: <User size={18} /> }, { id: 'messages', icon: <MessageCircle size={18} /> }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount }, { id: 'settings', icon: <Settings size={18} /> }]
-    : [{ id: 'main', icon: <PieChart size={18} /> }, { id: 'messages', icon: <MessageCircle size={18} /> }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount }, { id: 'settings', icon: <Settings size={18} /> }]
+  // one tab = one section, each with its own name (1 Nov: three unlabeled icons all opened the same panel)
+  const railTabs: Array<{ id: PanelTab; icon: React.ReactNode; badge?: number; label: string }> = isCreative
+    ? [{ id: 'main', icon: <Home size={18} />, label: t('tabHome') }, { id: 'profile', icon: <User size={18} />, label: t('tabProfile') }, { id: 'messages', icon: <MessageCircle size={18} />, label: t('tabMessages') }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount, label: t('tabAlerts') }, { id: 'settings', icon: <Settings size={18} />, label: t('tabSettings') }]
+    : [{ id: 'main', icon: <PieChart size={18} />, label: isAdmin ? (client ? t('tabSetup') : t('tabClients')) : t('tabProgress') }, { id: 'messages', icon: <MessageCircle size={18} />, label: t('tabMessages') }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount, label: t('tabAlerts') }, { id: 'settings', icon: <Settings size={18} />, label: t('tabSettings') }]
 
   return (
     <div className="h-dvh flex flex-col gap-[var(--gap)] p-[var(--gap)] bg-bg overflow-hidden">
@@ -233,7 +234,7 @@ function App() {
       )}
       {narrow && (
         <nav className="fixed inset-x-2 bottom-2 z-[65] h-[54px] rounded-md border border-border bg-card flex items-stretch shadow-[0_8px_24px_rgba(0,0,0,0.1)]">
-          <button type="button" onClick={() => { ui.togglePanel(false); ui.setWorkspace('calendar') }} className={cn('flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', !ui.panelOpen && !social ? 'text-fg' : 'text-fg-secondary')}>
+          <button type="button" onClick={() => { ui.togglePanel(false); ui.setWorkspace('calendar') }} className={cn('flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', !ui.panelOpen && ui.workspace === 'calendar' ? 'text-fg' : 'text-fg-secondary')}>
             <Calendar size={18} /> {t(ui.view)}
           </button>
           <button type="button" onClick={() => { ui.togglePanel(false); ui.setWorkspace('social') }} className={cn('relative flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', !ui.panelOpen && social ? 'text-fg' : 'text-fg-secondary')}>
@@ -245,8 +246,9 @@ function App() {
             {!!contractsBadge && <span className="absolute top-1.5 end-[22%] min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-accent-fg text-[9.5px] font-bold grid place-items-center">{contractsBadge}</span>}
           </button>
           {railTabs.map((r) => (
-            <button key={r.id} type="button" onClick={() => ui.setPanelTab(r.id)} className={cn('relative flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', ui.panelOpen && ui.panelTab === r.id ? 'text-fg' : 'text-fg-secondary')}>
+            <button key={r.id} type="button" onClick={() => ui.setPanelTab(r.id)} className={cn('relative flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', ui.panelOpen && ui.panelTab === r.id ? 'text-fg' : 'text-fg-secondary')} data-testid={`nav-${r.id}`}>
               {r.icon}
+              <span className="truncate max-w-full px-0.5">{r.label}</span>
               {!!r.badge && <span className="absolute top-1.5 end-[22%] min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-accent-fg text-[9.5px] font-bold grid place-items-center">{r.badge}</span>}
             </button>
           ))}
