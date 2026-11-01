@@ -173,6 +173,15 @@ select t.run('[soc] creative cannot delete a post', :'C1', 'delete from posts wh
 select t.run('[soc] client cannot delete a post', :'K1', 'delete from posts where id = ' || quote_literal(:'P2'), 'none');
 select t.run('[soc] anon reads nothing from client_posts', null, 'select * from client_posts', 'none');
 select t.run('[soc] anon cannot call decide_post', null, 'select decide_post(' || quote_literal(:'V3') || ', ''approved'')', 'error');
+-- ===== 0010 hardening (council 20261101-162105-f800): post-media follows the VERSION's visibility =====
+select t.run('[hard] client 1 may read an image of its SENT version', :'K1', 'select 1 where can_read_post_media(''org/c1/p1/2a.png'')', 'rows:1');
+select t.run('[hard] client 1 may NOT read the unsent version-1 image (draft leak via Storage)', :'K1', 'select 1 where can_read_post_media(''org/c1/p1/1.png'')', 'none');
+select t.run('[hard] client 2 may not read client-1 images', :'K2', 'select 1 where can_read_post_media(''org/c1/p1/2a.png'')', 'none');
+select t.run('[hard] creative 1 (works with client 1) may read them', :'C1', 'select 1 where can_read_post_media(''org/c1/p1/1.png'')', 'rows:1');
+select t.run('[hard] creative 2 (no task with client 1) may not', :'C2', 'select 1 where can_read_post_media(''org/c1/p1/2a.png'')', 'none');
+select t.run('[hard] admin may read any version image', :'A', 'select 1 where can_read_post_media(''org/c1/p1/1.png'')', 'rows:1');
+select t.run('[hard] a path that is in no version is readable by nobody but admin rule', :'K1', 'select 1 where can_read_post_media(''org/c1/p1/nope.png'')', 'none');
+select t.run('[hard] anon cannot call can_read_post_media', null, 'select can_read_post_media(''org/c1/p1/2a.png'')', 'error');
 select t.run('[soc] admin deletes P2 (versions cascade)', :'A', 'delete from posts where id = ' || quote_literal(:'P2'), 'rows:1');
 
 -- ===== client accounts (0008): the real account behind the preview =====

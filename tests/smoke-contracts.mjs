@@ -1,3 +1,6 @@
+// a brand-new browser profile every run (1 Nov: fixed per-port folders were reused across runs → stale UI state,
+// e.g. a closed side panel, made the login waits time out «randomly»)
+const PROFILE = (await import('node:fs')).mkdtempSync('/tmp/hamsha-chrome-run-');
 // «العقود» phase 1 (2026-10-29): the whole loop on the demo store across the three roles.
 // admin: legal profile → full contract from the template (numbers typed, arithmetic + words) → save version →
 // Hawamish signs + sends → client opens (→ «فُتح») → asks for changes → admin edits (months 12→6) → re-sends →
@@ -5,7 +8,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 const port = 9980 + Math.floor(Math.random()*9);
-const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu',`--remote-debugging-port=${port}`,`--user-data-dir=/tmp/hamsha-chrome-${port}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
+const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu',`--remote-debugging-port=${port}`,`--user-data-dir=${PROFILE}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 let tabs; for (let i=0;i<50;i++){ try{ tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if(tabs.find(t=>t.type==='page')) break;}catch{} await sleep(200);}
 const ws = new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl); await new Promise(r=>ws.onopen=r);
@@ -75,6 +78,10 @@ await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid
 CHECKS['editor opens with missing values flagged'] = await ev(`!!document.querySelector('[data-testid=missing-values]')`);
 CHECKS['Hawamish party prefilled from the legal profile'] = (await ev(`document.querySelector('[data-testid=hawamish-name]').value`)).includes('هوامش');
 CHECKS['sign-send disabled while values are missing'] = await ev(`document.querySelector('[data-testid=sign-send]').disabled === true`);
+// 1 Nov: the bar names the missing field and takes him there (focus + flash)
+CHECKS['missing bar names the field'] = (await text('[data-testid=missing-values]')).includes('ناقص: المبلغ الشهري');
+await clickSel('[data-testid=missing-values]'); await sleep(300);
+CHECKS['missing bar → focuses that field'] = await ev(`document.activeElement?.dataset?.testid === 'pricing-monthly' && !!document.activeElement.closest('label.form-flash')`);
 await setT('contract-project', 'تعزيز الحضور الرقمي وبناء هوية إعلامية');
 await setT('counterparty-rep', 'زياد بن محمد الجاسر');
 await clickSel('[data-testid=platform-Instagram]'); await clickSel('[data-testid=platform-TikTok]'); await setT('vars-posts', '8');
@@ -239,7 +246,14 @@ await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label
 // a second (draft) client contract + the block flag
 await clickSel('[data-testid=new-contract]'); await waitFor(`!!document.querySelector('[role=dialog][aria-label="عقد جديد"]')`);
 await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`, 20000);
-await ev(`document.querySelector('[data-testid=contract-editor] button[aria-label="إلغاء"]').click()`); await sleep(300);
+// council 1 Nov: a version whose text runs past a page can be SAVED but never signed or sent — editor AND sheet
+await setT('pricing-monthly', '3000'); await setT('pricing-months', '3'); await sleep(200);
+await ev(`document.querySelector('[data-anchor="sec:05"] button[title]').click()`); await sleep(150);
+await setInput(`document.querySelector('[data-anchor="sec:05"] textarea')`, 'نص طويل يتجاوز الصفحة. '.repeat(500)); await sleep(500);
+CHECKS['editor: overflow disables «وقّع وأرسل»'] = await ev(`!!document.querySelector('[data-testid=overflow-warning]') && document.querySelector('[data-testid=sign-send]').disabled === true`);
+await clickSel('[data-testid=save-version]'); await toastHas('انحفظت النسخة 1'); await closeToast();
+await ev(`document.querySelector('[data-testid=contract-editor] button[aria-label="إلغاء"]').click()`); await sleep(600);
+CHECKS['sheet: overflow blocks Hawamish signing (second send path)'] = await waitFor(`!!document.querySelector('[data-testid=sheet-overflow-block]') && document.querySelector('[data-testid=sign-hawamish]')?.disabled === true`, 5000).then(()=>true).catch(()=>false);
 await waitFor(`!!document.querySelector('[data-testid=contract-block]')`);
 await ev(`document.querySelector('[data-testid=contract-block]').click()`); await sleep(300);
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
@@ -270,7 +284,7 @@ CHECKS['persisted after reload'] = await ev(`document.querySelector('[data-testi
 
 CHECKS['no console errors'] = errors.length === 0;
 
-ws.close(); chrome.kill(); try{fs.rmSync(`/tmp/hamsha-chrome-${port}`,{recursive:true,force:true});}catch{}
+ws.close(); chrome.kill(); try{fs.rmSync(`${PROFILE}`,{recursive:true,force:true});}catch{}
 console.log(JSON.stringify({...CHECKS, errors}, null, 1));
 const failed = Object.entries(CHECKS).filter(([, ok]) => !ok).map(([c]) => c)
 if (failed.length) { console.error('FAILED:', failed); process.exit(1) }

@@ -1,8 +1,11 @@
+// a brand-new browser profile every run (1 Nov: fixed per-port folders were reused across runs → stale UI state,
+// e.g. a closed side panel, made the login waits time out «randomly»)
+const PROFILE = (await import('node:fs')).mkdtempSync('/tmp/hamsha-chrome-run-');
 // 8h/day warning: two parts (4h + 5h) on the same day for the same member → amber badge; saving is not blocked.
 import { spawn } from 'node:child_process';
 const port = 9990 + Math.floor(Math.random()*9);
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  ['--headless=new','--disable-gpu',`--remote-debugging-port=${port}`,`--user-data-dir=/tmp/hamsha-chrome-${port}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
+  ['--headless=new','--disable-gpu',`--remote-debugging-port=${port}`,`--user-data-dir=${PROFILE}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 let tabs; for (let i=0;i<50;i++){ try{ tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if(tabs.find(t=>t.type==='page')) break;}catch{} await sleep(200);}
 const ws = new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);
@@ -36,7 +39,7 @@ out.warnAt9 = await ev(`document.querySelector('[role=dialog]').innerText.includ
 out.savedHours = await ev(`JSON.parse(localStorage.getItem('hamsha.mock.v4')).parts.slice(-2).map(p=>p.hours)`);
 out.errors = errors;
 console.log(JSON.stringify(out));
-ws.close(); chrome.kill(); try { (await import('node:fs')).rmSync(`/tmp/hamsha-chrome-${port}`, { recursive: true, force: true }) } catch {}
+ws.close(); chrome.kill(); try { (await import('node:fs')).rmSync(`${PROFILE}`, { recursive: true, force: true }) } catch {}
 const CHECKS = {
   'out.warnBefore === false': out.warnBefore === false,
   'out.warnAt8 === false': out.warnAt8 === false,

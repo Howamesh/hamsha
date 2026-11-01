@@ -95,7 +95,14 @@ function PostCard({ post, onOpen, lang }: { post: Post; onOpen: () => void; lang
   return (
     <button type="button" onClick={onOpen} className="rounded-md border border-border bg-bg text-start cursor-pointer hover:border-fg-faint overflow-hidden flex flex-col anim-fade" data-testid="post-card" data-status={post.status}>
       <div className="relative w-full bg-muted-bg overflow-hidden" style={{ aspectRatio: ratio, maxHeight: 280 }}>
-        {src ? <img src={src} alt="" className="w-full h-full object-cover" draggable={false} /> : <div className="absolute inset-0 grid place-items-center text-[11px] text-fg-muted">{t('noVersionYet')}</div>}
+        {/* 1 Nov live check: on a slow link the image is still loading — say so, never «no design yet» while it exists */}
+        {src ? (
+          <img src={src} alt="" className="w-full h-full object-cover" draggable={false} />
+        ) : v?.imagePaths[0] ? (
+          <div className="absolute inset-0 grid place-items-center text-[11px] text-fg-muted animate-pulse" data-testid="card-loading">{t('imageLoading')}</div>
+        ) : (
+          <div className="absolute inset-0 grid place-items-center text-[11px] text-fg-muted">{t('noVersionYet')}</div>
+        )}
         <StatusChip st={post.status} className="absolute top-2 start-2 shadow-sm" />
         <div className="absolute top-2 end-2 flex gap-1">
           {!!v && v.imagePaths.length > 1 && (

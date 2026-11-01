@@ -135,7 +135,8 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
   const firstSigner = c.counterpartySide === 'first' ? { name: version?.signerName ?? c.signers.counterparty.name, cap: version?.signerCapacity ?? c.signers.counterparty.capacity, at: version?.decidedAt } : { name: version?.firstSigner ?? c.signers.hawamish.name, cap: version?.firstCapacity ?? c.signers.hawamish.capacity, at: version?.firstSignedAt }
   const secondSigner = c.counterpartySide === 'first' ? { name: version?.firstSigner ?? c.signers.hawamish.name, cap: version?.firstCapacity ?? c.signers.hawamish.capacity, at: version?.firstSignedAt } : { name: version?.signerName ?? c.signers.counterparty.name, cap: version?.signerCapacity ?? c.signers.counterparty.capacity, at: version?.decidedAt }
   const hawamishIsFirst = c.counterpartySide !== 'first'
-  const stamp = c.stamp || stampProp
+  // a frozen version shows ONLY the stamp it was frozen with — never today's Settings stamp (council 1 Nov)
+  const stamp = version ? c.stamp : c.stamp || stampProp
   const draftLabel = c.kind === 'offer' ? `عرض #${number}` : `مسودة #${number}`
   const cur = currencyShort(c.pricing.currency)
   // a page is fixed A4 and clips what does not fit: measure after every render, flag the page (screen only, never printed)

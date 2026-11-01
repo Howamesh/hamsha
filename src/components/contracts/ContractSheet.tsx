@@ -6,10 +6,11 @@ import { fmtDate, fmtTime, useNarrow, useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
 import type { ContractVersion, SignatureInput } from '@/types'
+import { loadDraft } from '@/lib/contractDraft'
 import { EMPTY_LEGAL, contractTotal, currencyShort, fmtAmount, visibleContractVersions } from '@/lib/contracts'
 import { Button, SectionTitle } from '../ui'
 import { ContractStatusChip } from './ContractsBoard'
-import { ContractPaper } from './ContractPaper'
+import { ContractPaper, type PaperOverflow } from './ContractPaper'
 import { ContractEditor } from './ContractEditor'
 import { SignDialog } from './SignDialog'
 
@@ -37,6 +38,8 @@ export function ContractSheet() {
   const [busy, setBusy] = useState(false)
   const [signing, setSigning] = useState<{ who: 'hawamish' | 'counterparty'; versionId: string } | null>(null)
   const [deciding, setDeciding] = useState<'changes' | 'rejected' | null>(null)
+  // a page whose text runs past its footer prints cut: no Hawamish signature and no sending until it fits (council 1 Nov)
+  const [overflow, setOverflow] = useState<PaperOverflow[]>([])
   const [note, setNote] = useState('')
   const [printing, setPrinting] = useState(false)
   const counterparty = !!me && me.role !== 'admin'
@@ -62,6 +65,7 @@ export function ContractSheet() {
   const client = contract.clientId ? s.clients.find((c) => c.id === contract.clientId) : undefined
   const creative = contract.creativeId ? s.users.find((u) => u.id === contract.creativeId) : undefined
   const admin = me.role === 'admin'
+  const hasDraft = admin && !!loadDraft(contract.id)
   const legal = s.legal ?? EMPTY_LEGAL
   const close = () => ui.openContract(null)
   const isCurrent = !!view && view.number === contract.currentVersion
@@ -70,20 +74,23 @@ export function ContractSheet() {
   const events = admin ? s.contractEvents.filter((e) => e.contractId === contract.id).sort((a, b) => b.at.localeCompare(a.at)) : []
   const total = view ? contractTotal(view.content) : 0
 
-  const act = async (fn: () => Promise<void>, toast?: string) => {
+  /** true = done; false = failed (the store already showed why) — callers only close/clear on true (council 1 Nov:
+   *  a failed «اطلب تعديلاً» used to close the form and wipe what the client wrote). */
+  const act = async (fn: () => Promise<void>, toast?: string): Promise<boolean> => {
     setBusy(true)
     try {
       await fn()
       if (toast) ui.setToast(toast, 'info')
+      return true
     } catch {
-      /* toast shown by the store */
+      return false
     } finally {
       setBusy(false)
     }
   }
   // the signature binds to the version that was on screen when the dialog opened; a newer version cancels it
-  const signHawamish = (sig: SignatureInput) => act(async () => { if (!signing || signing.versionId !== current?.id) { setSigning(null); throw new Error('stale') } await sess.signContractFirst(signing.versionId, sig); setSigning(null) }, t('hawamishSigned'))
-  const signCounterparty = (sig: SignatureInput) => act(async () => { if (!signing || signing.versionId !== current?.id) { setSigning(null); throw new Error('stale') } await sess.decideContract(signing.versionId, 'signed', undefined, sig); setSigning(null) }, t('contractSignedToast'))
+  const signHawamish = async (sig: SignatureInput) => { await act(async () => { if (!signing || signing.versionId !== current?.id) { setSigning(null); throw new Error('stale') } await sess.signContractFirst(signing.versionId, sig); setSigning(null) }, t('hawamishSigned')) }
+  const signCounterparty = async (sig: SignatureInput) => { await act(async () => { if (!signing || signing.versionId !== current?.id) { setSigning(null); throw new Error('stale') } await sess.decideContract(signing.versionId, 'signed', undefined, sig); setSigning(null) }, t('contractSignedToast')) }
   const evLabel = (e: string) => {
     const m: Record<string, string> = { created: t('evCreated'), version: t('evVersion'), first_signed: t('evFirstSigned'), sent: t('evSent'), withdrawn: t('evWithdrawn'), opened: t('evOpened'), signed: t('evSigned'), changes: t('evChanges'), rejected: t('evRejected'), completed: t('evCompleted') }
     return m[e] ?? e
@@ -114,7 +121,7 @@ export function ContractSheet() {
 
       <div className={cn('flex-1 min-h-0 grid', narrow ? 'grid-cols-1 overflow-y-auto no-scrollbar' : 'grid-cols-[1fr_380px]')}>
         <div className={cn('min-h-0 paper-preview', narrow && 'max-h-[60vh]')}>
-          {view ? <ContractPaper content={view.content} version={view} number={contract.number} stamp={legal.stamp || undefined} scale={narrow ? 0.42 : 0.6} /> : <div className="p-6 text-[13px] text-fg-secondary text-center">{t('noVersionYet')}</div>}
+          {view ? <ContractPaper content={view.content} version={view} number={contract.number} stamp={legal.stamp || undefined} scale={narrow ? 0.42 : 0.6} onOverflow={view.number === contract.currentVersion ? setOverflow : undefined} /> : <div className="p-6 text-[13px] text-fg-secondary text-center">{t('noVersionYet')}</div>}
         </div>
 
         <div className="min-h-0 overflow-y-auto no-scrollbar p-4 flex flex-col gap-4 border-s border-border">
@@ -135,7 +142,7 @@ export function ContractSheet() {
                     onSubmit={(e: FormEvent) => {
                       e.preventDefault()
                       if (deciding === 'changes' && !note.trim()) return
-                      void act(() => sess.decideContract(view!.id, deciding, note.trim() || undefined), t('contractDecisionToast')).then(() => { setDeciding(null); setNote('') })
+                      void act(() => sess.decideContract(view!.id, deciding, note.trim() || undefined), t('contractDecisionToast')).then((ok) => { if (ok) { setDeciding(null); setNote('') } })
                     }}
                   >
                     <div className="text-[13px] font-semibold">{deciding === 'changes' ? t('requestContractChanges') : t('rejectContract')}</div>
@@ -170,6 +177,15 @@ export function ContractSheet() {
           {/* ---- admin ---- */}
           {admin && (
             <div className="rounded-md border border-border p-4 flex flex-col gap-3" data-testid="contract-admin-actions">
+              {/* unsaved edits kept in this browser (contractDraft): say so here too, or the sheet looks like they vanished */}
+              {hasDraft && contract.status !== 'signed' && contract.status !== 'completed' && (
+                <button type="button" onClick={() => ui.openContract(contract.id, true)} className="text-start rounded-md bg-warning-tint/40 border border-warning-dark/30 px-3 py-2 text-[12.5px] text-warning-dark cursor-pointer" data-testid="sheet-draft-hint">
+                  {t('sheetDraftHint')}
+                </button>
+              )}
+              {overflow.length > 0 && contract.status === 'draft' && (
+                <div className="rounded-md bg-danger-tint/50 border border-danger-dark/30 px-3 py-2 text-[12.5px] text-danger-dark" data-testid="sheet-overflow-block">{t('overflowBlocksSend', { pages: overflow.map((o) => o.page).join('، ') })}</div>
+              )}
               <div className="flex flex-wrap gap-2 items-center">
                 {contract.status !== 'signed' && contract.status !== 'completed' && (
                   <Button variant={contract.currentVersion === 0 ? 'primary' : 'outline'} disabled={busy} onClick={() => ui.openContract(contract.id, true)} data-testid="edit-contract">
@@ -177,12 +193,12 @@ export function ContractSheet() {
                   </Button>
                 )}
                 {contract.status === 'draft' && current && !current.firstSignature && (
-                  <Button variant="dark" disabled={busy} onClick={() => current && setSigning({ who: 'hawamish', versionId: current.id })} data-testid="sign-hawamish">
+                  <Button variant="dark" disabled={busy || overflow.length > 0} onClick={() => current && setSigning({ who: 'hawamish', versionId: current.id })} data-testid="sign-hawamish">
                     <FileSignature size={14} /> {t('signHawamish')}
                   </Button>
                 )}
                 {contract.status === 'draft' && current?.firstSignature && (
-                  <Button variant="primary" disabled={busy} onClick={() => act(() => sess.updateContract(contract.id, { status: 'sent' }), t('contractSentToast'))} data-testid="send-contract">
+                  <Button variant="primary" disabled={busy || overflow.length > 0} onClick={() => act(() => sess.updateContract(contract.id, { status: 'sent' }), t('contractSentToast'))} data-testid="send-contract">
                     <Send size={14} /> {t('sendContract')}
                   </Button>
                 )}
@@ -197,7 +213,7 @@ export function ContractSheet() {
                   </Button>
                 )}
                 {contract.status !== 'signed' && contract.status !== 'completed' && (
-                  <Button variant="ghost" size="sm" className="ms-auto text-accent hover:text-accent" disabled={busy} onClick={() => confirm(t('confirmDeleteContract')) && act(() => sess.deleteContract(contract.id)).then(close)}>
+                  <Button variant="ghost" size="sm" className="ms-auto text-accent hover:text-accent" disabled={busy} onClick={() => confirm(t('confirmDeleteContract')) && act(() => sess.deleteContract(contract.id)).then((ok) => ok && close())}>
                     <Trash2 size={14} /> {t('deleteContract')}
                   </Button>
                 )}

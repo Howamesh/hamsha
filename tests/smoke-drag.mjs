@@ -1,8 +1,11 @@
+// a brand-new browser profile every run (1 Nov: fixed per-port folders were reused across runs → stale UI state,
+// e.g. a closed side panel, made the login waits time out «randomly»)
+const PROFILE = (await import('node:fs')).mkdtempSync('/tmp/hamsha-chrome-run-');
 // Drag-create: day view 15:00→16:00 rows → dialog prefilled 15:00, 2h; month view 3 days → start..end prefilled.
 import { spawn } from 'node:child_process';
 const port = 9960 + Math.floor(Math.random()*30);
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  ['--headless=new','--disable-gpu',`--remote-debugging-port=${port}`,`--user-data-dir=/tmp/hamsha-chrome-${port}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
+  ['--headless=new','--disable-gpu',`--remote-debugging-port=${port}`,`--user-data-dir=${PROFILE}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 let tabs; for (let i=0;i<50;i++){ try{ tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if(tabs.find(t=>t.type==='page')) break;}catch{} await sleep(200);}
 const ws = new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);
@@ -54,7 +57,7 @@ out.monthRange = dates;
 out.monthSpan = dates.length === 2 ? Math.round((new Date(dates[1]) - new Date(dates[0]))/864e5) : null;
 out.errors = errors;
 console.log(JSON.stringify(out,null,1));
-ws.close(); chrome.kill(); try { (await import('node:fs')).rmSync(`/tmp/hamsha-chrome-${port}`, { recursive: true, force: true }) } catch {}
+ws.close(); chrome.kill(); try { (await import('node:fs')).rmSync(`${PROFILE}`, { recursive: true, force: true }) } catch {}
 const CHECKS = { "out.dayRange === '3:00 م – 5:00 م'": out.dayRange === '3:00 م – 5:00 م', "out.dayTime === '15:00'": out.dayTime === '15:00', "out.dayHours === '2'": out.dayHours === '2', "out.partTimeSaved === '15:00/2'": out.partTimeSaved === '15:00/2', "out.monthSpan === 2": out.monthSpan === 2, "out.errors.length === 0": out.errors.length === 0 };
 const failed = Object.entries(CHECKS).filter(([, ok]) => !ok).map(([c]) => c);
 if (failed.length) { console.error('FAILED:', failed); process.exit(1) }

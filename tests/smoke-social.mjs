@@ -1,3 +1,6 @@
+// a brand-new browser profile every run (1 Nov: fixed per-port folders were reused across runs → stale UI state,
+// e.g. a closed side panel, made the login waits time out «randomly»)
+const PROFILE = (await import('node:fs')).mkdtempSync('/tmp/hamsha-chrome-run-');
 // «السوشل» phase 1 (2026-10-28) + 1.5 (2026-10-29): the whole approval loop on the demo store, across the three roles,
 // plus the real-account preview, the carousel, the full-screen viewer, the kept images on a new version and the draft leak.
 // admin creates a post (image + caption) → sends it → client sees it in «السوشل» with ONLY «موافق / يبي تعديل»
@@ -7,7 +10,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 const port = 9990 + Math.floor(Math.random()*9);
-const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu',`--remote-debugging-port=${port}`,`--user-data-dir=/tmp/hamsha-chrome-${port}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
+const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu',`--remote-debugging-port=${port}`,`--user-data-dir=${PROFILE}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 let tabs; for (let i=0;i<50;i++){ try{ tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if(tabs.find(t=>t.type==='page')) break;}catch{} await sleep(200);}
 const ws = new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl); await new Promise(r=>ws.onopen=r);
@@ -197,7 +200,7 @@ CHECKS['creative without tasks cannot create'] = !(await ev(`[...document.queryS
 
 CHECKS['no console errors'] = errors.length === 0;
 
-ws.close(); chrome.kill(); try{fs.rmSync(`/tmp/hamsha-chrome-${port}`,{recursive:true,force:true}); fs.rmSync(f1); fs.rmSync(f2); fs.rmSync(f3);}catch{}
+ws.close(); chrome.kill(); try{fs.rmSync(`${PROFILE}`,{recursive:true,force:true}); fs.rmSync(f1); fs.rmSync(f2); fs.rmSync(f3);}catch{}
 console.log(JSON.stringify({...CHECKS, errors}, null, 1));
 const failed = Object.entries(CHECKS).filter(([, ok]) => !ok).map(([c]) => c)
 if (failed.length) { console.error('FAILED:', failed); process.exit(1) }

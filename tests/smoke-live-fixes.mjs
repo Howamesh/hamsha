@@ -1,9 +1,12 @@
+// a brand-new browser profile every run (1 Nov: fixed per-port folders were reused across runs → stale UI state,
+// e.g. a closed side panel, made the login waits time out «randomly»)
+const PROFILE = (await import('node:fs')).mkdtempSync('/tmp/hamsha-chrome-run-');
 // Two defects found in the first live run on a Supabase test project (2026-10-27):
 //   1. an invite / recovery link from the Supabase dashboard lands on "/" (not /welcome) → the person never sets a password
 //   2. an open task sheet survives switching to «all clients» / another client
 import { spawn } from 'node:child_process';
 const port = 9970 + Math.floor(Math.random()*20);
-const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu',`--remote-debugging-port=${port}`,`--user-data-dir=/tmp/hamsha-chrome-${port}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
+const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu',`--remote-debugging-port=${port}`,`--user-data-dir=${PROFILE}`,'--hide-scrollbars','about:blank'],{stdio:'ignore'});
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 let tabs; for (let i=0;i<50;i++){ try{ tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if(tabs.find(t=>t.type==='page')) break;}catch{} await sleep(200);}
 const ws = new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl); await new Promise(r=>ws.onopen=r);
@@ -51,7 +54,7 @@ await ev(`document.querySelector('header button[aria-label="رجوع"]').click()
 CHECKS['task sheet closed after leaving the client'] = !(await ev(`!!document.querySelector('[role=dialog]')`));
 CHECKS['no console errors'] = errors.length === 0;
 
-ws.close(); chrome.kill(); try{fs.rmSync(`/tmp/hamsha-chrome-${port}`,{recursive:true,force:true})}catch{}
+ws.close(); chrome.kill(); try{fs.rmSync(`${PROFILE}`,{recursive:true,force:true})}catch{}
 console.log(JSON.stringify({...CHECKS, errors}, null, 1));
 const failed = Object.entries(CHECKS).filter(([, ok]) => !ok).map(([c]) => c)
 if (failed.length) { console.error('FAILED:', failed); process.exit(1) }

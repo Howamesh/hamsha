@@ -222,29 +222,36 @@ export function contractTotal(c: ContractContent): number {
 }
 
 /** The amounts / counts a person still has to type before the contract may be sent. */
-export function missingValues(c: ContractContent): string[] {
-  const out: string[] = []
+/** What must be filled before «وقّع وأرسل» — each with the editor field it points to (data-testid), so the
+ *  warning can take him straight there (1 Nov: «الشريط يوديني للخانة الناقصة»). */
+export type MissingField = { label: string; field: string }
+export function missingFields(c: ContractContent): MissingField[] {
+  const out: MissingField[] = []
   if (c.kind === 'short') {
     c.tracks.forEach((t, i) => {
-      if (!(t.monthly > 0)) out.push(`المبلغ الشهري للمسار ${i + 1}`)
-      if (!(t.months > 0)) out.push(`مدة المسار ${i + 1}`)
+      if (!(t.monthly > 0)) out.push({ label: `المبلغ الشهري للمسار ${i + 1}`, field: `track-${i}-monthly` })
+      if (!(t.months > 0)) out.push({ label: `مدة المسار ${i + 1}`, field: `track-${i}-months` })
     })
   } else if (c.kind === 'offer') {
     c.packages.forEach((p, i) => {
-      if (!(p.price > 0)) out.push(`سعر الباقة ${i + 1}`)
+      if (!(p.price > 0)) out.push({ label: `سعر الباقة ${i + 1}`, field: `package-${i}-price` })
     })
   } else if (c.pricing.mode === 'monthly') {
-    if (!(c.pricing.monthly > 0)) out.push('المبلغ الشهري')
-    if (!(c.pricing.months > 0)) out.push('عدد الأشهر')
+    if (!(c.pricing.monthly > 0)) out.push({ label: 'المبلغ الشهري', field: 'pricing-monthly' })
+    if (!(c.pricing.months > 0)) out.push({ label: 'عدد الأشهر', field: 'pricing-months' })
   } else {
-    if (!(contractTotal(c) > 0)) out.push('إجمالي المشروع')
-    if (c.pricing.installments.some((i) => !(i.amount > 0))) out.push('مبالغ الدفعات')
+    if (!(contractTotal(c) > 0)) out.push({ label: 'إجمالي المشروع', field: 'pricing-total' })
+    const k = c.pricing.installments.findIndex((i) => !(i.amount > 0))
+    if (k >= 0) out.push({ label: 'مبالغ الدفعات', field: `installment-${k}` })
   }
-  if (!c.counterparty.name.trim()) out.push('اسم الطرف الآخر')
-  if (!c.hawamish.cr.trim()) out.push('السجل التجاري لهوامش (الإعدادات)')
-  if (!c.bank.iban.trim()) out.push('الحساب البنكي (الإعدادات)')
-  if (!c.signers.hawamish.name.trim()) out.push('اسم موقّع هوامش (الإعدادات)')
+  if (!c.counterparty.name.trim()) out.push({ label: 'اسم الطرف الآخر', field: 'counterparty-name' })
+  if (!c.hawamish.cr.trim()) out.push({ label: 'السجل التجاري لهوامش', field: 'hawamish-cr' })
+  if (!c.bank.iban.trim()) out.push({ label: 'الآيبان (الحساب البنكي)', field: 'bank-iban' })
+  if (!c.signers.hawamish.name.trim()) out.push({ label: 'اسم موقّع هوامش', field: 'signer-hawamish-name' })
   return out
+}
+export function missingValues(c: ContractContent): string[] {
+  return missingFields(c).map((m) => m.label)
 }
 
 function paymentText(c: ContractContent): string {

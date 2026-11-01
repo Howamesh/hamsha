@@ -5,7 +5,7 @@ import { fmtTime, useNarrow, useStr } from '@/lib/useStr'
 import { useData, useSession } from '@/store/session'
 import { useUi } from '@/store/ui'
 import type { Contract, ContractContent, ContractPartyInfo, ContractVersion } from '@/types'
-import { CURRENCIES, EMPTY_LEGAL, amountWords, contractTotal, currencyWord, emptyContent, fmtAmount, missingValues, partyFromClient, partyFromCreative } from '@/lib/contracts'
+import { CURRENCIES, EMPTY_LEGAL, amountWords, contractTotal, currencyWord, emptyContent, fmtAmount, missingFields, partyFromClient, partyFromCreative } from '@/lib/contracts'
 import { deepLatin, toLatin } from '@/lib/latinDigits'
 import { clearDraft, loadDraft, saveDraft } from '@/lib/contractDraft'
 import { Button, Input, SectionTitle } from '../ui'
@@ -92,6 +92,25 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
     }))
     if (changed) ui.setToast(t('paperEditApplied'), 'info')
   }
+  /** The missing-values bar: close the big paper / show the form tab, scroll to the field, focus it, flash it. */
+  const goToField = (field: string) => {
+    if (paperBig) {
+      setPaperBig(false)
+      setPick(null)
+    }
+    if (narrow) setTab('form')
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const box = formScroll.current
+      const el = box?.querySelector<HTMLElement>(`[data-testid="${field}"]`)
+      if (!box || !el) return
+      box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientHeight / 3
+      el.focus({ preventScroll: true })
+      const wrap = el.closest<HTMLElement>('label') ?? el
+      wrap.classList.remove('form-flash')
+      void wrap.offsetWidth
+      wrap.classList.add('form-flash')
+    }))
+  }
   useEffect(() => {
     if (pick) bigSession.current.lastPick = pick
   }, [pick])
@@ -117,13 +136,21 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   const [tab, setTab] = useState<'form' | 'paper'>('form')
   // a NEW version (saved here or elsewhere) replaces the form; the first render keeps a restored draft
   const seenVersion = useRef(current?.id)
+  const baseJson = useRef<string | null>(current ? JSON.stringify(deepLatin(current.content)) : null)
+  const [elsewhere, setElsewhere] = useState<number | null>(null)
   useEffect(() => {
     if (!current || seenVersion.current === current.id) return
     seenVersion.current = current.id
-    const typedSince = sentFrom.current !== null && sentFrom.current !== JSON.stringify(c)
+    const now = JSON.stringify(c)
+    const ownSave = sentFrom.current !== null
+    const typedSince = ownSave && sentFrom.current !== now
+    // saved from ANOTHER tab/person while this form had unsaved edits: keep them (now a draft on top), say so (council 1 Nov)
+    const editedHere = !ownSave && baseJson.current !== null && now !== baseJson.current
     sentFrom.current = null
+    baseJson.current = JSON.stringify(deepLatin(current.content))
     setRestoredAt(null)
-    if (!typedSince) setC(JSON.parse(JSON.stringify(current.content))) // else: keep the newer typing, now a draft on top of this version
+    if (editedHere) setElsewhere(current.number)
+    else if (!typedSince) setC(JSON.parse(JSON.stringify(current.content))) // else: keep the newer typing, now a draft on top of this version
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id])
   const overflowText = overflow.length ? t('overflowWarn', { pages: overflow.map((o) => (o.sections.length ? `${o.page} (${t('clause')} ${o.sections.join('، ')})` : String(o.page))).join(' · ') }) : ''
@@ -151,7 +178,8 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   // after «يبي تعديل» / «مرفوض» the decided version can never be re-sent: re-sending always freezes a new one
   const mustFreeze = contract.status === 'changes' || contract.status === 'rejected'
   const dirty = dirtyContent || mustFreeze
-  const missing = missingValues(c)
+  const missingList = missingFields(c)
+  const missing = missingList.map((m) => m.label)
   const total = contractTotal(c)
   const cur = currencyWord(c.pricing.currency)
   const up = (patch: Partial<ContractContent>) => setC((x) => ({ ...x, ...patch }))
@@ -183,6 +211,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
     }
   }
   async function signAndSend(sig: { signature: string; name: string; capacity: string }) {
+    if (overflow.length > 0) return // text that does not fit would print cut — never sign it
     setBusy(true)
     try {
       const v = await saveInner()
@@ -257,13 +286,13 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
               </>
             ) : (
               <>
-                <Num label={t('fProjectTotal')} value={c.pricing.projectTotal} onChange={(n) => upPricing({ projectTotal: n })} suffix={cur} />
+                <Num label={t('fProjectTotal')} value={c.pricing.projectTotal} onChange={(n) => upPricing({ projectTotal: n })} suffix={cur} testId="pricing-total" />
                 <div className="col-span-2 flex flex-col gap-2">
                   <SectionTitle>{t('fInstallments')}</SectionTitle>
                   {c.pricing.installments.map((i, k) => (
                     <div key={k} className="flex gap-2 items-center">
                       <Input value={i.label} onChange={(e) => upPricing({ installments: c.pricing.installments.map((x, j) => (j === k ? { ...x, label: e.target.value } : x)) })} placeholder="عند توقيع العقد" dir="auto" className="py-1.5 text-[13px] flex-1" />
-                      <Input value={i.amount === 0 ? '' : String(i.amount)} onChange={(e) => upPricing({ installments: c.pricing.installments.map((x, j) => (j === k ? { ...x, amount: num(e.target.value) } : x)) })} placeholder="0" dir="ltr" inputMode="numeric" className="py-1.5 text-[13px] w-[120px] tabular-nums" />
+                      <Input value={i.amount === 0 ? '' : String(i.amount)} onChange={(e) => upPricing({ installments: c.pricing.installments.map((x, j) => (j === k ? { ...x, amount: num(e.target.value) } : x)) })} placeholder="0" dir="ltr" inputMode="numeric" className="py-1.5 text-[13px] w-[120px] tabular-nums" data-testid={`installment-${k}`} />
                       <Button size="icon" variant="ghost" onClick={() => upPricing({ installments: c.pricing.installments.filter((_, j) => j !== k) })} aria-label={t('mediaRemove')}><Trash2 size={14} /></Button>
                     </div>
                   ))}
@@ -292,7 +321,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
                 <label className="flex flex-col gap-1"><SectionTitle>{t('fName')}</SectionTitle><Input value={tr.name} onChange={(e) => up({ tracks: c.tracks.map((x, j) => (j === k ? { ...x, name: e.target.value } : x)) })} dir="auto" className="py-1.5 text-[13px]" /></label>
                 <label className="flex flex-col gap-1"><SectionTitle>EN</SectionTitle><Input value={tr.nameEn} onChange={(e) => up({ tracks: c.tracks.map((x, j) => (j === k ? { ...x, nameEn: e.target.value } : x)) })} dir="ltr" className="py-1.5 text-[13px]" /></label>
                 <Num label={t('fMonthly')} value={tr.monthly} onChange={(n) => up({ tracks: c.tracks.map((x, j) => (j === k ? { ...x, monthly: n } : x)) })} suffix={cur} testId={`track-${k}-monthly`} />
-                <Num label={t('fMonths')} value={tr.months} onChange={(n) => up({ tracks: c.tracks.map((x, j) => (j === k ? { ...x, months: n } : x)) })} suffix="شهر" />
+                <Num label={t('fMonths')} value={tr.months} onChange={(n) => up({ tracks: c.tracks.map((x, j) => (j === k ? { ...x, months: n } : x)) })} suffix="شهر" testId={`track-${k}-months`} />
               </div>
               <div className="grid grid-cols-4 gap-2">
                 {tr.quarters.map((q, qi) => (
@@ -379,7 +408,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           )}
           <label className="flex flex-col gap-1"><SectionTitle>صاحب الحساب</SectionTitle><Input value={c.bank.owner} onChange={(e) => up({ bank: { ...c.bank, owner: e.target.value } })} dir="auto" className="py-1.5 text-[13px]" /></label>
           <label className="flex flex-col gap-1"><SectionTitle>رقم الحساب</SectionTitle><Input value={c.bank.account} onChange={(e) => up({ bank: { ...c.bank, account: e.target.value } })} dir="ltr" className="py-1.5 text-[13px]" /></label>
-          <label className="flex flex-col gap-1"><SectionTitle>IBAN</SectionTitle><Input value={c.bank.iban} onChange={(e) => up({ bank: { ...c.bank, iban: e.target.value } })} dir="ltr" className="py-1.5 text-[13px]" /></label>
+          <label className="flex flex-col gap-1"><SectionTitle>IBAN</SectionTitle><Input value={c.bank.iban} onChange={(e) => up({ bank: { ...c.bank, iban: e.target.value } })} dir="ltr" className="py-1.5 text-[13px]" data-testid="bank-iban" /></label>
           <label className="flex flex-col gap-1"><SectionTitle>Swift</SectionTitle><Input value={c.bank.swift} onChange={(e) => up({ bank: { ...c.bank, swift: e.target.value } })} dir="ltr" className="py-1.5 text-[13px]" /></label>
         </div>
       </Group>
@@ -387,7 +416,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   const blkSigners = (
       <Group title={t('secSigners')} anchor="signers">
         <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col gap-1"><SectionTitle>{t('secHawamish')} · {t('signerName')}</SectionTitle><Input value={c.signers.hawamish.name} onChange={(e) => up({ signers: { ...c.signers, hawamish: { ...c.signers.hawamish, name: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /></label>
+          <label className="flex flex-col gap-1"><SectionTitle>{t('secHawamish')} · {t('signerName')}</SectionTitle><Input value={c.signers.hawamish.name} onChange={(e) => up({ signers: { ...c.signers, hawamish: { ...c.signers.hawamish, name: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" data-testid="signer-hawamish-name" /></label>
           <label className="flex flex-col gap-1"><SectionTitle>{t('signerCapacity')}</SectionTitle><Input value={c.signers.hawamish.capacity} onChange={(e) => up({ signers: { ...c.signers, hawamish: { ...c.signers.hawamish, capacity: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /></label>
           <label className="flex flex-col gap-1"><SectionTitle>{t('secCounterparty')} · {t('signerName')}</SectionTitle><Input value={c.signers.counterparty.name} onChange={(e) => up({ signers: { ...c.signers, counterparty: { ...c.signers.counterparty, name: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /></label>
           <label className="flex flex-col gap-1"><SectionTitle>{t('signerCapacity')}</SectionTitle><Input value={c.signers.counterparty.capacity} onChange={(e) => up({ signers: { ...c.signers, counterparty: { ...c.signers.counterparty, capacity: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /></label>
@@ -440,17 +469,28 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         </div>
         {narrow && <SegmentedMini value={tab} onChange={setTab} labels={[t('secSections'), t('openPaper')]} />}
         {overflow.length > 0 && <span className="text-[11.5px] text-accent font-semibold max-w-[320px] truncate" title={overflowText} data-testid="overflow-warning">⚠ {overflowText}</span>}
-        {missing.length > 0 && <span className="text-[11.5px] text-warning-dark font-semibold max-w-[320px] truncate" title={missing.join(' · ')} data-testid="missing-values">{t('missingValues')} ({missing.length})</span>}
+        {missingList.length > 0 && (
+          <button type="button" onClick={() => goToField(missingList[0].field)} className="text-[11.5px] text-warning-dark font-semibold max-w-[360px] truncate rounded-md border border-warning-dark/40 bg-warning-tint/40 px-2.5 py-1 cursor-pointer hover:bg-warning-tint/70" title={missing.join(' · ')} data-testid="missing-values">
+            {t('missingGo', { what: missingList[0].label })}{missingList.length > 1 ? ` (+${missingList.length - 1})` : ''} ←
+          </button>
+        )}
         <Button disabled={busy || !dirtyContent} onClick={() => void save()} data-testid="save-version">
           <Save size={14} /> {t('saveVersion')}
         </Button>
-        <Button variant="primary" disabled={busy || missing.length > 0} onClick={() => setSigning(true)} data-testid="sign-send">
+        <Button variant="primary" disabled={busy || missing.length > 0 || overflow.length > 0} onClick={() => setSigning(true)} title={overflow.length > 0 ? overflowText : undefined} data-testid="sign-send">
           <Send size={14} /> {t('signAndSend')}
         </Button>
         <Button size="icon" variant="ghost" onClick={onClose} aria-label={t('cancel')}>
           <X size={16} />
         </Button>
       </div>
+      {elsewhere !== null && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-warning-tint/40 border-b border-border text-[12.5px]" role="alert" data-testid="version-elsewhere">
+          <span className="flex-1">{t('versionElsewhere', { n: elsewhere })}</span>
+          <Button size="sm" variant="ghost" onClick={() => { setC(fresh()); setElsewhere(null) }} data-testid="take-their-version">{t('takeTheirVersion')}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setElsewhere(null)}>{t('keepMine')}</Button>
+        </div>
+      )}
       {draftFailed && (
         <div className="px-4 py-2 bg-warning-tint/40 border-b border-border text-[12.5px] text-warning-dark" role="alert" data-testid="draft-failed">{t('draftFailed')}</div>
       )}
@@ -480,6 +520,11 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
               <div className="text-[11.5px] text-fg-secondary">{t('paperBigHint')}</div>
             </div>
             {overflow.length > 0 && <span className="text-[12px] text-accent font-semibold max-w-[360px] truncate" title={overflowText}>⚠ {overflowText}</span>}
+            {missingList.length > 0 && (
+              <button type="button" onClick={() => goToField(missingList[0].field)} className="text-[12px] text-warning-dark font-semibold max-w-[320px] truncate rounded-md border border-warning-dark/40 bg-warning-tint/40 px-2.5 py-1 cursor-pointer" title={missing.join(' · ')} data-testid="missing-values-big">
+                {t('missingGo', { what: missingList[0].label })} ←
+              </button>
+            )}
             <div className="flex items-center gap-1 rounded-md border border-border bg-bg px-1">
               <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.max(0.6, Math.round((z - 0.1) * 10) / 10))} aria-label={t('zoomOut')} data-testid="paper-zoom-out"><Minus size={15} /></Button>
               <span className="w-[46px] text-center text-[12.5px] tabular-nums" data-testid="paper-zoom">{Math.round(zoom * 100)}%</span>
@@ -548,7 +593,7 @@ function PartyFields({ k, p, full, onChange: upParty }: { k: 'hawamish' | 'count
   return (
     <div className="grid grid-cols-2 gap-2">
       <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fName')}</SectionTitle><Input value={p.name} onChange={(e) => upParty(k, { name: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-name`} /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fCr')}</SectionTitle><Input value={p.cr} onChange={(e) => upParty(k, { cr: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fCr')}</SectionTitle><Input value={p.cr} onChange={(e) => upParty(k, { cr: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" data-testid={`${k}-cr`} /></label>
       <label className="flex flex-col gap-1"><SectionTitle>{t('fCountry')}</SectionTitle><Input value={p.country} onChange={(e) => upParty(k, { country: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
       {full && <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fCity')}</SectionTitle><Input value={p.city} onChange={(e) => upParty(k, { city: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>}
       <label className="flex flex-col gap-1"><SectionTitle>{t('fRepTitle')}</SectionTitle><Input value={p.repTitle} onChange={(e) => upParty(k, { repTitle: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
