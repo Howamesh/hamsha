@@ -180,8 +180,24 @@ export const OFFER_INTRO =
 /** Empty = must be typed; the UI shows the empty amount in grey as «مقترح». */
 /** The manager's template text of a clause, when this clause differs from it (1 Nov: a «معدّل» mark — shown to the
  *  team only, in the form/panel, never on the paper the client gets). */
+// «عقد عمل» (1 Nov): the manager's employment contract for a creative (Figma «عقود الموظفين»): a full-time member,
+// paid by the work done each month — no project, no counts, no quarters. 8 clauses under one «بنود العقد» bar.
+export const EMPLOYMENT_SECTIONS: ContractSection[] = [
+  { num: '1', title: 'طبيعة العمل', body: 'يعمل الطرف الثاني عن بُعد ويقوم بتنفيذ المهام الموكلة إليه من قبل الطرف الأول وفق متطلبات العمل واحتياجات الشركة.' },
+  { num: '2', title: 'نطاق المهام', body: 'يعمل الطرف الثاني بوظيفة ({الوظيفة})، ويلتزم بأداء المهام المطلوبة منه بجودة ومهنية وفي المواعيد المحددة، ويجوز للطرف الأول تعديل أو إضافة المهام بحسب متطلبات العمل.' },
+  { num: '3', title: 'آلية احتساب المستحقات', body: 'يتم احتساب المستحقات المالية للطرف الثاني بناءً على حجم العمل المنجز، وعدد العملاء الذين تم خدمتهم أو إدارتهم أو التعاقد معهم من خلاله، بالإضافة إلى طبيعة المهام والمسؤوليات الموكلة إليه خلال كل فترة عمل.' },
+  { num: '4', title: 'صرف المستحقات', body: 'يستحق الطرف الثاني المقابل المالي المتفق عليه نظير الأعمال والمهام التي يؤديها لصالح الطرف الأول.\nويقر الطرف الثاني بأن صرف المستحقات المالية قد يتم على دفعات أو بمبالغ متفاوتة من شهر إلى آخر وفقًا للتدفقات النقدية والسيولة المتاحة لدى الشركة، وذلك دون أن يؤثر ذلك على إجمالي المبالغ المستحقة له عن الأعمال المنجزة.\nوفي حال تعذر صرف كامل المستحقات خلال أي فترة، يتم ترحيل الرصيد المتبقي وإضافته إلى الدفعات أو الفترات اللاحقة حتى تتم تسوية كامل المستحقات المستحقة للطرف الثاني.\nويقر الطرف الثاني بعلمه وموافقته على هذه الآلية، على أن تلتزم الشركة بحصر وتوثيق جميع المستحقات والدفعات المسددة بشكل واضح.' },
+  { num: '5', title: 'وسيلة السداد', body: 'تُصرف المستحقات المالية عن طريق التحويل البنكي أو أي وسيلة دفع تعتمدها الشركة.' },
+  { num: '6', title: 'السرية', fixed: true, body: 'يلتزم الطرف الثاني بالحفاظ على سرية بيانات الشركة والعملاء وعدم مشاركة أي معلومات تخص العمل مع أي طرف آخر دون موافقة خطية من الشركة.' },
+  { num: '7', title: 'إنهاء الاتفاق', fixed: true, body: 'يجوز لأي من الطرفين إنهاء هذا الاتفاق بإشعار الطرف الآخر، مع تسوية جميع المستحقات المتعلقة بالأعمال المنجزة حتى تاريخ الإنهاء.' },
+  { num: '8', title: 'الموافقة', fixed: true, body: 'يقر الطرفان بأنهما قرآ هذا الاتفاق وفهما مضمونه ووافقا على جميع بنوده دون إكراه أو ضغط.' },
+]
+/** suggested jobs for «الوظيفة» (tap to fill; anything else can be typed) */
+export const JOB_TITLES = ['مصمم جرافيك', 'مصمم موشن جرافيك', 'مونتير فيديو', 'كاتب محتوى', 'مدير حسابات التواصل', 'مصور', 'مطور واجهات', 'مبرمج تطبيقات']
+export const TERMS = ['غير محدد', 'حسب المشروع', '12 شهر']
+
 export function originalIfChanged(sec: ContractSection): ContractSection | null {
-  const o = FULL_SECTIONS.find((x) => x.num === sec.num)
+  const o = [...FULL_SECTIONS, ...EMPLOYMENT_SECTIONS].find((x) => x.num === sec.num)
   if (!o) return null
   return o.title.trim() !== sec.title.trim() || o.body.trim() !== sec.body.trim() ? o : null
 }
@@ -197,19 +213,21 @@ export function emptyContent(kind: ContractKind, counterparty: ContractPartyInfo
     hawamish: { ...EMPTY_LEGAL.party, ...legal.party },
     counterparty,
     scope: kind === 'short' ? SHORT_SCOPE : kind === 'offer' ? OFFER_INTRO : '',
-    sections: kind === 'full' ? FULL_SECTIONS.map((s) => ({ ...s })) : [],
+    sections: kind === 'full' ? FULL_SECTIONS.map((s) => ({ ...s })) : kind === 'employment' ? EMPLOYMENT_SECTIONS.map((s) => ({ ...s })) : [],
     pricing: { mode: 'monthly', currency: 'SAR', monthly: 0, months: 12, projectTotal: 0, installments: [], lateDays: 7, supportMonths: 0 },
     tracks: kind === 'short' ? [{ name: 'المسار التقني وتطوير المنتج', nameEn: 'Technical & UX/UI Track', months: 12, monthly: 0, quarters: ['', '', '', ''] }] : [],
     packages: kind === 'offer' ? [1, 2, 3].map((i) => ({ name: `الباقة ${['الأولى', 'الثانية', 'الثالثة'][i - 1]}`, subtitle: '', price: 0, per: 'month' as const, items: [] })) : [],
     unitName: kind === 'offer' ? 'فيديو واحد' : '',
     unitPrice: 0,
     unitItems: [],
-    bank: legal.banks[0] ? { ...legal.banks[0] } : { owner: '', account: '', iban: '', swift: '' },
-    signers: { hawamish: signer, counterparty: { name: counterparty.repName, capacity: '' } },
+    // a client pays INTO Hawamish's account; an employee is paid into HIS own — so it starts empty
+    bank: kind !== 'employment' && legal.banks[0] ? { ...legal.banks[0] } : { owner: kind === 'employment' ? counterparty.name : '', account: '', iban: '', swift: '' },
+    signers: { hawamish: signer, counterparty: { name: counterparty.repName || counterparty.name, capacity: kind === 'employment' ? 'الموظف' : '' } },
     vars: { platforms: '', posts: 0, designs: 0, videos: 0 },
     accent,
     copyrightYear: COPYRIGHT_YEAR,
     stamp: legal.stamp || undefined,
+    ...(kind === 'employment' ? { jobTitle: '', term: 'غير محدد' } : {}),
   }
 }
 
@@ -225,6 +243,7 @@ export const emptyBank = (): ContractBank => ({ owner: '', account: '', iban: ''
 export function contractTotal(c: ContractContent): number {
   if (c.kind === 'short') return c.tracks.reduce((s, t) => s + t.monthly * t.months, 0)
   if (c.kind === 'offer') return 0
+  if (c.kind === 'employment') return c.pricing.monthly
   if (c.pricing.mode === 'project') return c.pricing.projectTotal || c.pricing.installments.reduce((s, i) => s + i.amount, 0)
   return c.pricing.monthly * c.pricing.months
 }
@@ -235,6 +254,7 @@ export function contractTotal(c: ContractContent): number {
 export type MissingField = { label: string; field: string }
 export function missingFields(c: ContractContent): MissingField[] {
   const out: MissingField[] = []
+  if (c.kind === 'employment') return missingEmployment(c)
   // 1 Nov («ليش بس على الفلوس؟» + «ليش بيانات الطرف الآخر ما تطلع ناقص؟»): whatever the PAPER prints must be filled,
   // in the order of the form. Unused counts (a word the text never uses) stay optional.
   const text = [...(c.kind === 'full' ? c.sections.map((x) => x.body) : [c.scope]), c.kind === 'short' ? SHORT_FOOTNOTE : ''].join('\n')
@@ -275,6 +295,27 @@ export function missingFields(c: ContractContent): MissingField[] {
     if (k >= 0) out.push({ label: 'مبالغ الدفعات', field: `installment-${k}` })
   }
   if (!c.bank.iban.trim()) out.push({ label: 'الآيبان (الحساب البنكي)', field: 'bank-iban' })
+  if (!c.signers.hawamish.name.trim()) out.push({ label: 'اسم موقّع هوامش', field: 'signer-hawamish-name' })
+  return out
+}
+/** «عقد عمل»: what its three pages print — the employee is a person (ID, no CR / city / representative). */
+function missingEmployment(c: ContractContent): MissingField[] {
+  const out: MissingField[] = []
+  if (!(c.jobTitle ?? '').trim()) out.push({ label: 'الوظيفة', field: 'contract-job' })
+  const e = c.counterparty
+  if (!e.name.trim()) out.push({ label: 'اسم الموظف', field: 'counterparty-name' })
+  if (!e.nationalId.trim()) out.push({ label: 'رقم الهوية (الموظف)', field: 'counterparty-nid' })
+  if (!e.phone.trim()) out.push({ label: 'رقم التواصل (الموظف)', field: 'counterparty-phone' })
+  if (!e.email.trim()) out.push({ label: 'إيميل التواصل (الموظف)', field: 'counterparty-email' })
+  const h = c.hawamish
+  if (!h.name.trim()) out.push({ label: 'اسم هوامش', field: 'hawamish-name' })
+  if (!h.cr.trim()) out.push({ label: 'السجل التجاري (هوامش)', field: 'hawamish-cr' })
+  if (!h.repName.trim()) out.push({ label: 'ممثل هوامش', field: 'hawamish-rep' })
+  if (!h.phone.trim()) out.push({ label: 'رقم التواصل (هوامش)', field: 'hawamish-phone' })
+  if (!h.email.trim()) out.push({ label: 'إيميل التواصل (هوامش)', field: 'hawamish-email' })
+  if (!c.bank.owner.trim()) out.push({ label: 'صاحب الحساب (الموظف)', field: 'bank-owner' })
+  if (!c.bank.account.trim()) out.push({ label: 'رقم الحساب (الموظف)', field: 'bank-account' })
+  if (!c.bank.iban.trim()) out.push({ label: 'الآيبان (الموظف)', field: 'bank-iban' })
   if (!c.signers.hawamish.name.trim()) out.push({ label: 'اسم موقّع هوامش', field: 'signer-hawamish-name' })
   return out
 }
@@ -322,6 +363,7 @@ export function fillText(text: string, c: ContractContent): string {
     .replace(/\{المدة\}/g, months > 0 ? monthsWords(months) : '…')
     .replace(/\{الأشهر\}/g, dash(months))
     .replace(/\{مدة_الدعم\}/g, support)
+    .replace(/\{الوظيفة\}/g, dash(c.jobTitle ?? ''))
 }
 
 export function contractStatusTone(st: Contract['status']): string {

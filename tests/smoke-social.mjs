@@ -28,6 +28,9 @@ await send('Runtime.enable'); await send('Page.enable'); await send('DOM.enable'
 const click = async (txt) => { const r = await ev(`(()=>{const els=[...document.querySelectorAll('button,a,div,span')].filter(e=>e.offsetParent!==null&&e.textContent.trim()===${JSON.stringify(txt)});const el=els[els.length-1];if(!el)return 'NOTFOUND';el.click();return 'ok'})()`); await sleep(450); return r; };
 const setInput = async (sel, v) => ev(`(()=>{const el=${sel};if(!el)return 'NOINPUT';const proto=el.tagName==='SELECT'?HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${JSON.stringify(v)});el.dispatchEvent(new Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));return 'ok'})()`);
 const CHECKS = {};
+const shotEl = async (sel, name) => { if (!process.env.SHOT_DIR) return; const r = await ev(`(()=>{const e=document.querySelector(${JSON.stringify(sel)});if(!e)return null;const b=e.getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height}})()`); if (!r) return;
+  const img = await send('Page.captureScreenshot', { format: 'png', clip: { x: r.x, y: r.y, width: r.w, height: r.h, scale: 2 } }); fs.writeFileSync(`${process.env.SHOT_DIR}/${name}.png`, Buffer.from(img.result.data, 'base64')); };
+
 const text = async (sel) => ev(`document.querySelector(${JSON.stringify(sel)})?.innerText || ''`);
 const status = async () => ev(`document.querySelector('[data-testid=post-sheet] [data-status]')?.dataset.status || 'NONE'`);
 const toastHas = async (t) => waitFor(`!!document.querySelector('[role=alert]') && document.querySelector('[role=alert]').innerText.includes(${JSON.stringify(t)})`).then(()=>true).catch(()=>false);
@@ -77,6 +80,16 @@ CHECKS['feed header shows the real handle + avatar'] = await ev(`(()=>{const p=d
 await setFile(f1);
 CHECKS['phone preview shows the picked image'] = await ev(`!!document.querySelector('[role=dialog] [data-testid=feed-image][src^="blob:"]')`);
 CHECKS['no fake numbers in the preview'] = !/\d+\s*(likes|إعجاب|تعليق|متابع)/.test(await text('[data-testid=feed-preview]'));
+if (process.env.SHOT_DIR) { // optional: each app's look, for a visual check (the account select is restored after)
+  const acc = await ev(`document.querySelector('[data-testid=post-account]').value`);
+  const fmtSel = `[...document.querySelectorAll('[role=dialog] select')].find(x=>[...x.options].some(o=>o.value==='story'))`;
+  for (const [pf, fm] of [['instagram', 'story'], ['x', 'square'], ['tiktok', 'portrait'], ['linkedin', 'square']]) {
+    await setInput(`document.querySelector('[data-testid=post-platform]')`, pf); await setInput(fmtSel, fm); await sleep(500);
+    await shotEl('[role=dialog] [data-testid=feed-preview]', `pv-${pf}-${fm}`);
+  }
+  await setInput(`document.querySelector('[data-testid=post-platform]')`, 'instagram'); await setInput(fmtSel, 'portrait');
+  await setInput(`document.querySelector('[data-testid=post-account]')`, acc); await sleep(300);
+}
 CHECKS['preview says «معاينة قبل النشر»'] = (await text('[data-testid=feed-preview]')).includes('معاينة قبل النشر');
 await waitFor(`[...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent.trim()==='إنشاء').disabled === false`);
 await click('إنشاء');
@@ -175,6 +188,7 @@ await click('ادخل كعميل'); await waitFor(`!!document.querySelector('[da
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=post-card]')`);
 await ev(`document.querySelector('[data-testid=post-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=client-decision]')`);
 CHECKS['client sees v2 note'] = (await text('[data-testid=post-sheet]')).includes('كبّرنا الشعار');
+await sleep(700); await shotEl('[data-testid=post-sheet] [data-testid=feed-preview]', 'ig-client');
 CHECKS['client sees the carousel with dots'] = await ev(`!!document.querySelector('[data-testid=post-sheet] [data-testid=carousel-dots]')`);
 CHECKS['client sees the two SENT versions (v1, v2) and nothing unsent'] = (await ev(`document.querySelectorAll('[data-testid=version-row]').length`)) === 2;
 // 1 Nov: «عرض التصميم» = the design alone, full screen (no phone/IG frame), closes with Esc
@@ -211,6 +225,12 @@ await click('السوشل'); await waitFor(`!!document.querySelector('[data-test
 await click('الأرشيف'); await sleep(300);
 CHECKS['client archive keeps the published post with its link'] = await ev(`document.querySelector('[data-testid=post-card]')?.dataset.status === 'published'`);
 CHECKS['client archive has exactly one card (the draft never leaked)'] = (await ev(`document.querySelectorAll('[data-testid=post-card]').length`)) === 1;
+// 1 Nov: «الشبكة» = the client's profile like the app (real picture/handle/name, true post count, 3:4 tiles)
+await click('الشبكة'); await sleep(400);
+CHECKS['grid: profile head with the real handle + post count'] = await ev(`(()=>{const p=document.querySelector('[data-testid=grid-profile]');return !!p && p.innerText.includes('sana.sa') && p.innerText.includes('سنا للبطاقات') && p.innerText.includes('منشورات') && p.querySelector('b.tabular-nums')?.textContent==='1'})()`);
+CHECKS['grid: no invented followers'] = !/متابع|followers/i.test(await text('[data-testid=feed-grid]'));
+await shotEl('[data-testid=feed-grid]', 'grid');
+await click('الأرشيف'); await sleep(300);
 await ev(`document.querySelector('[data-testid=post-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=post-sheet]')`);
 CHECKS['client opens the live link'] = await ev(`[...document.querySelectorAll('[data-testid=post-sheet] a')].some(a=>a.href==='https://www.instagram.com/p/abc123/')`);
 await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);

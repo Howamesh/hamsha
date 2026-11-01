@@ -11,6 +11,7 @@ import { Button, Segmented } from '../ui'
 import { PostViewer } from './PostViewer'
 import { useMediaUrls } from '@/lib/useMedia'
 import { BrandTile } from '../BrandTile'
+import { repo } from '@/data'
 import { NewPostDialog } from './NewPostDialog'
 import { StatusChip } from './PostSheet'
 
@@ -148,6 +149,10 @@ function FeedGrid({ posts }: { posts: Post[] }) {
     .map((p) => ({ post: p, v: visibleVersions(s, me, p.id).find((x) => x.number === p.currentVersion) }))
     .filter((x) => !!x.v)
   const covers = useMediaUrls(useMemo(() => items.map((x) => x.v!.imagePaths[0]), [items]))
+  // one account across these posts → show its profile head (the client's own feed)
+  const accIds = [...new Set(items.map((x) => x.post.accountId).filter(Boolean))]
+  const profile = accIds.length === 1 ? s.clientAccounts.find((a) => a.id === accIds[0]) : undefined
+  const avatar = profile?.avatarPath ? repo.publicUrl(profile.avatarPath) : null
   const [open, setOpen] = useState<number | null>(null)
   const cur = open !== null ? items[open] : null
   const curMedia = useMediaUrls(useMemo(() => (cur ? cur.v!.imagePaths : []), [cur]))
@@ -155,9 +160,28 @@ function FeedGrid({ posts }: { posts: Post[] }) {
   return (
     <div className="mx-auto w-full max-w-[520px] flex flex-col gap-2" data-testid="feed-grid">
       <div className="text-[11.5px] text-fg-muted text-center">{t('gridHint')}</div>
+      {/* 1 Nov («كأنه داخل الانستقرام»): the client's profile head, real data only — picture, handle, name, bio and
+          the true number of posts here; never invented followers */}
+      {profile && (
+        <div className="flex flex-col gap-2 px-1 py-2" data-testid="grid-profile">
+          <div className="flex items-center gap-4">
+            <span className="shrink-0 rounded-full p-[2.5px]" style={{ background: 'linear-gradient(45deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5)' }}>
+              <span className="block rounded-full p-[2.5px] bg-bg">
+                {avatar ? <img src={avatar} alt="" className="w-[72px] h-[72px] rounded-full object-cover" /> : <span className="w-[72px] h-[72px] rounded-full grid place-items-center bg-muted-bg text-[26px] font-bold">{profile.displayName.trim().charAt(0) || '•'}</span>}
+              </span>
+            </span>
+            <div className="min-w-0 flex flex-col gap-0.5">
+              <b className="text-[15px] truncate" dir="ltr">{profile.handle}</b>
+              <span className="text-[13px] font-semibold truncate" dir="auto">{profile.displayName}</span>
+              <span className="text-[12px] text-fg-secondary"><b className="text-fg tabular-nums">{items.length}</b> {t('gridPosts')}</span>
+            </div>
+          </div>
+          {profile.bio && <div className="text-[12.5px] leading-snug whitespace-pre-wrap" dir="auto">{profile.bio}</div>}
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-[2px]">
         {items.map((x, i) => (
-          <button key={x.post.id} type="button" onClick={() => setOpen(i)} className="relative aspect-square bg-muted-bg overflow-hidden cursor-pointer" data-testid="grid-cell" data-status={x.post.status}>
+          <button key={x.post.id} type="button" onClick={() => setOpen(i)} className="relative aspect-[3/4] bg-muted-bg overflow-hidden cursor-pointer" data-testid="grid-cell" data-status={x.post.status}>
             {covers[i] ? <img src={covers[i]!} alt="" className="w-full h-full object-cover" draggable={false} /> : null}
             {x.v!.imagePaths.length > 1 && <Images size={14} className="absolute top-1.5 end-1.5 text-white drop-shadow" />}
             {x.post.status === 'approved' && <span className="absolute bottom-1 start-1 text-[9.5px] font-bold rounded px-1 py-0.5 bg-black/60 text-white">{t('postStatusApproved')}</span>}

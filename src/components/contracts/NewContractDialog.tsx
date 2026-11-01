@@ -11,7 +11,10 @@ const TITLES: Record<ContractKind, string> = {
   short: 'عقد شراكة المحتوى وتفعيل وسائل التواصل',
   full: 'عقد إنشاء وتطوير موقع إلكتروني وتفعيل التواصل الاجتماعي',
   offer: 'عرض بناء حساب تعليمي تثقيفي وإنتاج فيديوهات',
+  employment: 'عقد عمل',
 }
+/** the manager's employment contracts are black (Figma «عقود الموظفين») */
+const EMPLOYMENT_ACCENT = '#1c1c1c'
 
 /** «عقد جديد» (admin): template + counterparty + title + colour → an empty draft, then the editor opens. */
 export function NewContractDialog({ onClose }: { onClose: () => void }) {
@@ -34,6 +37,17 @@ export function NewContractDialog({ onClose }: { onClose: () => void }) {
   const pickKind = (k: ContractKind) => {
     setKind(k)
     if (!touched) setTitle(TITLES[k])
+  }
+  // 1 Nov («هنا كيف المشروع وهو المبدع؟»): a creative is a full-time member → «عقد عمل», not a client template
+  const pickParty = (p: ContractParty) => {
+    setParty(p)
+    if (p === 'creative') {
+      pickKind('employment')
+      setAccent(EMPLOYMENT_ACCENT)
+    } else {
+      pickKind('full')
+      setAccent(s.clients.find((c) => c.id === clientId)?.color ?? '#D9B600')
+    }
   }
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -58,6 +72,12 @@ export function NewContractDialog({ onClose }: { onClose: () => void }) {
             <X size={16} />
           </Button>
         </div>
+        {party === 'creative' ? (
+          <div className="rounded-md border border-fg bg-muted-bg px-3 py-3 text-[12.5px] flex flex-col gap-0.5" data-testid="contract-kind" data-kind="employment">
+            <b>{t('kindEmployment')}</b>
+            <span className="text-fg-secondary text-[11.5px]">{t('kindEmploymentHint')}</span>
+          </div>
+        ) : (
         <div className="flex flex-col gap-1.5">
           <SectionTitle>{t('contractKind')}</SectionTitle>
           <div className="grid grid-cols-3 gap-2 -mt-1" data-testid="contract-kind">
@@ -68,10 +88,11 @@ export function NewContractDialog({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1.5">
             <SectionTitle>{t('contractWith')}</SectionTitle>
-            <select value={party} onChange={(e) => setParty(e.target.value as ContractParty)} className={cn(field, '-mt-1 cursor-pointer')} data-testid="contract-party">
+            <select value={party} onChange={(e) => pickParty(e.target.value as ContractParty)} className={cn(field, '-mt-1 cursor-pointer')} data-testid="contract-party">
               <option value="client">{t('partyClient')}</option>
               <option value="creative">{t('partyCreative')}</option>
             </select>

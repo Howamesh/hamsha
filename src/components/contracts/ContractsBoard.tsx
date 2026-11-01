@@ -87,7 +87,7 @@ function ContractCard({ c, onOpen, lang }: { c: Contract; onOpen: () => void; la
   const creative = c.creativeId ? s.users.find((u) => u.id === c.creativeId) : undefined
   const v = s.contractVersions.find((x) => x.contractId === c.id && x.number === c.currentVersion)
   const total = v ? contractTotal(v.content) : 0
-  const label = c.kind === 'offer' ? `عرض #${c.number}` : `مسودة #${c.number}`
+  const label = c.kind === 'offer' ? `عرض #${c.number}` : c.kind === 'employment' ? `عقد عمل #${c.number}` : `مسودة #${c.number}`
   return (
     <button type="button" onClick={onOpen} className="rounded-md border border-border bg-bg text-start cursor-pointer hover:border-fg-faint overflow-hidden flex anim-fade" data-testid="contract-card" data-status={c.status}>
       <span className="w-[6px] shrink-0" style={{ background: c.accent }} />

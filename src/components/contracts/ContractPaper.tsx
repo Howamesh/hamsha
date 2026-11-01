@@ -69,6 +69,19 @@ const Box = ({ c, text, className }: { c: ContractContent; text: string; classNa
     ))}
   </div>
 )
+/** «عقد عمل» clauses: one grey box, «1. طبيعة العمل» bold heads (the Figma look), each tappable on the big paper */
+const Clauses = ({ c, list }: { c: ContractContent; list: ContractContent['sections'] }) => (
+  <div className="paper-box paper-clauses">
+    {list.map((s) => (
+      <Pick key={s.num} id={`sec:${s.num}`}>
+        <div className="paper-clause">
+          <p className="paper-clause-title">{s.num}. {s.title}</p>
+          {fillText(s.body, c).split('\n').map((line, i) => <p key={i}>{line}</p>)}
+        </div>
+      </Pick>
+    ))}
+  </div>
+)
 const Row = ({ label, value }: { label: string; value: string }) => (
   <div className="paper-row">
     <span className="paper-row-label">{label}</span>
@@ -92,16 +105,16 @@ const Party = ({ p, title, full }: { p: ContractPartyInfo; title: string; full: 
     {full && <Row label="الهوية الوطنية" value={p.nationalId} />}
   </div>
 )
-const SignBlock = ({ c, first, second, firstSig, secondSig, firstSigner, secondSigner, hawamishIsFirst, stamp }: { c: ContractContent; first: ContractPartyInfo; second: ContractPartyInfo; firstSig?: string; secondSig?: string; firstSigner: Signer; secondSigner: Signer; hawamishIsFirst: boolean; stamp?: string }) => (
+const SignBlock = ({ c, first, second, firstSig, secondSig, firstSigner, secondSigner, hawamishIsFirst, stamp, employee }: { c: ContractContent; first: ContractPartyInfo; second: ContractPartyInfo; firstSig?: string; secondSig?: string; firstSigner: Signer; secondSigner: Signer; hawamishIsFirst: boolean; stamp?: string; employee?: boolean }) => (
   <>
     <Pick id="bank">
-    <Bar title="بيانات الحساب البنكي" />
-    <div className="paper-cols">
+    <Bar title={employee ? 'بيانات الحساب البنكي للموظف' : 'بيانات الحساب البنكي'} />
+    <div className={employee ? undefined : 'paper-cols'}>
       <div className="paper-party">
         <Row label="صاحب الحساب" value={c.bank.owner} />
         <Row label="رقم الحساب" value={c.bank.account} />
         <Row label="الآيبان (IBAN)" value={c.bank.iban} />
-        <Row label="Swift Code" value={c.bank.swift} />
+        {!employee && <Row label="Swift Code" value={c.bank.swift} />}
       </div>
     </div>
     </Pick>
@@ -138,7 +151,8 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
   const hawamishIsFirst = c.counterpartySide !== 'first'
   // a frozen version shows ONLY the stamp it was frozen with — never today's Settings stamp (council 1 Nov)
   const stamp = version ? c.stamp : c.stamp || stampProp
-  const draftLabel = c.kind === 'offer' ? `عرض #${number}` : `مسودة #${number}`
+  const emp = c.kind === 'employment'
+  const draftLabel = c.kind === 'offer' ? `عرض #${number}` : emp ? `عقد ${number}/${(c.date || '').slice(0, 4)}` : `مسودة #${number}`
   const cur = currencyShort(c.pricing.currency)
   // a page is fixed A4 and clips what does not fit: measure after every render, flag the page (screen only, never printed)
   const root = useRef<HTMLDivElement>(null)
@@ -175,10 +189,10 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
       <Page c={c} cover>
         <div className="paper-cover-card">
           <Star className="paper-cover-star" />
-          <div className="paper-cover-name" dir="auto">{c.counterparty.name || '…'}</div>
+          <div className="paper-cover-name" dir="auto">{emp ? 'عقد عمل' : c.counterparty.name || '…'}</div>
         </div>
         <div className="paper-cover-rule" />
-        <div className="paper-cover-title">(*) {c.title}</div>
+        <div className="paper-cover-title">{emp ? c.counterparty.name || '…' : `(*) ${c.title}`}</div>
       </Page>
 
       {c.kind === 'short' && (
@@ -262,6 +276,56 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
         </>
       )}
 
+      {c.kind === 'employment' && (
+        <>
+          <Page c={c}>
+            <div className="paper-row paper-row-split paper-row-light"><span>{c.title || 'عقد عمل'}</span><span>{draftLabel}</span></div>
+            <Pick id="parties">
+            <div className="paper-row paper-row-split paper-row-dark"><span>الموظف</span><span dir="auto">{c.counterparty.name || '…'}</span></div>
+            <div className="paper-cols">
+              <div className="paper-party">
+                <Row label="ممثل هوامش" value={c.hawamish.repName} />
+                <Row label="رقم التواصل" value={c.hawamish.phone} />
+                <Row label="ايميل التواصل" value={c.hawamish.email} />
+              </div>
+              <div className="paper-party">
+                <Row label="الموظف" value={c.counterparty.name} />
+                <Row label="رقم التواصل" value={c.counterparty.phone} />
+                <Row label="ايميل التواصل" value={c.counterparty.email} />
+              </div>
+            </div>
+            </Pick>
+            <Pick id="basics">
+            <div className="paper-row paper-row-split"><span>الوظيفة: {c.jobTitle || '…'}</span><span>مدة العقد: {c.term || '…'}</span></div>
+            </Pick>
+            <Pick id="parties">
+            <div className="paper-cols">
+              {[{ t: 'الطرف الأول', p: c.hawamish, id: c.hawamish.cr ? `س.ت: ${c.hawamish.cr}` : 'س.ت: …' }, { t: 'الطرف الثاني', p: c.counterparty, id: `هوية رقم: ${c.counterparty.nationalId || '…'}` }].map((x) => (
+                <div key={x.t} className="paper-party">
+                  <div className="paper-row paper-row-head">{x.t}</div>
+                  <div className="paper-row paper-row-center"><b>{x.p.name || '…'}</b></div>
+                  <div className="paper-row paper-row-center" dir="rtl"><b>{x.p.country}</b><span className="mx-2">{x.id}</span></div>
+                </div>
+              ))}
+            </div>
+            </Pick>
+            <Bar title="بنود العقد" sub="Contract Clauses" />
+            <Clauses c={c} list={c.sections.slice(0, 3)} />
+          </Page>
+          <Page c={c}>
+            <Bar title="بنود العقد" sub="Contract Clauses" />
+            <Clauses c={c} list={c.sections.slice(3)} />
+          </Page>
+          <Page c={c}>
+            <div className="paper-row paper-row-center paper-row-light">{draftLabel}</div>
+            <div className="paper-row paper-row-split paper-row-dark"><span>الموظف</span><span dir="auto">{c.counterparty.name || '…'}</span></div>
+            <Pick id="salary">
+            <div className="paper-row paper-row-split" data-testid="paper-salary"><span>{c.jobTitle || '…'}</span><span>{c.pricing.monthly > 0 ? `${fmtAmount(c.pricing.monthly)} ${cur} شهرياً` : 'حسب حجم العمل المنجز'}</span></div>
+            </Pick>
+            <SignBlock c={c} first={first} second={second} firstSig={firstSig} secondSig={secondSig} firstSigner={firstSigner} secondSigner={secondSigner} hawamishIsFirst={hawamishIsFirst} stamp={stamp} employee />
+          </Page>
+        </>
+      )}
       {c.kind === 'offer' && (
         <>
           <Page c={c}>

@@ -523,6 +523,15 @@ export const STR = {
   actPostSent: { en: '«{title}» was sent to the client', ar: 'انرسل «{title}» للعميل' },
   actPostApproved: { en: 'The client approved «{title}» ✅', ar: 'العميل اعتمد «{title}» ✅' },
   actPostChanges: { en: 'The client asked for changes on «{title}»', ar: 'العميل طلب تعديل على «{title}»' },
+  kindEmployment: { en: 'Employment contract', ar: 'عقد عمل' },
+  kindEmploymentHint: { en: 'For a full-time creative: job, term, pay by the work done, their bank account.', ar: 'للمبدع اللي دوامه كامل معنا: الوظيفة، المدة، المستحقات حسب العمل المنجز، وحسابه البنكي.' },
+  fJobTitle: { en: 'Job', ar: 'الوظيفة' },
+  fTerm: { en: 'Contract term', ar: 'مدة العقد' },
+  secSalary: { en: 'Pay', ar: 'المستحقات' },
+  fSalary: { en: 'Monthly amount (optional)', ar: 'المبلغ الشهري (اختياري)' },
+  salaryHint: { en: 'Leave empty when pay follows the work done — the paper says so.', ar: 'خلّه فاضي إذا المستحقات حسب حجم العمل، والورقة تكتب «حسب حجم العمل المنجز».' },
+  secEmployee: { en: 'The employee', ar: 'الموظف' },
+  secEmployeeBank: { en: "Employee's bank account", ar: 'الحساب البنكي للموظف' },
   viewDesign: { en: 'View the design', ar: 'عرض التصميم' },
   actPostReceived: { en: 'A post reached you for review: «{title}»', ar: 'وصلك منشور للمراجعة: «{title}»' },
   actPostPublished: { en: '«{title}» was published', ar: 'انتشر «{title}»' },
@@ -553,6 +562,7 @@ export const STR = {
   // social grid
   filterGrid: { en: 'Grid', ar: 'الشبكة' },
   gridHint: { en: 'How the feed will look: approved and published posts, newest first.', ar: 'شكل الحساب: المنشورات المعتمدة والمنشورة، الأحدث أولاً.' },
+  gridPosts: { en: 'posts', ar: 'منشورات' },
   gridEmpty: { en: 'Nothing approved or published yet.', ar: 'ما فيه شيء معتمد أو منشور بعد.' },
 
 } as const

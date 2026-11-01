@@ -35,6 +35,7 @@ const fillMissing = async () => {
     const id = await ev(`document.activeElement?.dataset?.testid || ''`);
     if (/platform/.test(id)) { await ev(`document.querySelector('[data-testid=platform-Instagram]').click()`); await sleep(150); continue; }
     const v = /email/.test(id) ? 'contact@example.sa' : /phone/.test(id) ? '0500000000' : /-cr$|nid/.test(id) ? '1010101010' : /city/.test(id) ? 'الرياض'
+      : /job/.test(id) ? 'مصمم جرافيك' : /bank-owner/.test(id) ? 'صاحب الحساب' : /bank-account/.test(id) ? '1234567890'
       : /-rep$/.test(id) ? 'ممثل الطرف' : /-name$/.test(id) ? 'اسم الطرف' : /project/.test(id) ? 'مشروع الاختبار' : /posts|designs|videos|months/.test(id) ? '4'
       : /monthly|price|total|installment/.test(id) ? '3000' : /iban/.test(id) ? 'SA0000000000000000000000' : '';
     if (!id || !v) return false;
@@ -306,20 +307,49 @@ await clickSel('[data-testid=complete-contract]'); await sleep(400);
 CHECKS['status completed'] = (await status()) === 'completed';
 CHECKS['trail has opened / changes / signed / completed'] = await ev(`(()=>{const t=document.querySelector('[data-testid=contract-trail]')?.innerText||'';return t.includes('فُتح')&&t.includes('طُلب تعديل')&&t.includes('وُقّع')&&t.includes('اكتمل')})()`);
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
-// creative contract (short template, one track)
+// creative contract = «عقد عمل» (1 Nov: «هنا كيف المشروع وهو المبدع؟ … الانجازات حق الربع الاول؟»)
 await clickSel('[data-testid=new-contract]'); await waitFor(`!!document.querySelector('[role=dialog][aria-label="عقد جديد"]')`);
-await ev(`document.querySelector('[data-testid=contract-kind] [data-kind=short]').click()`); await sleep(100);
 await setT('contract-party', 'creative'); await sleep(200);
 CHECKS['creative select appears'] = await ev(`!!document.querySelector('[data-testid=contract-creative]')`);
+CHECKS['creative → «عقد عمل» picked by itself'] = await ev(`document.querySelector('[data-testid=contract-kind]')?.dataset.kind === 'employment' && document.querySelector('[data-testid=contract-title]').value === 'عقد عمل'`);
 await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`, 20000);
-await setT('track-0-monthly', '3000'); await setT('counterparty-rep', 'المبدع'); await sleep(200);
-// the short contract asks for what its paper prints too: follow the bar
+CHECKS['employment: no project / counts / quarters / platforms in the form'] = await ev(`!document.querySelector('[data-testid=contract-project]') && !document.querySelector('[data-testid=vars-posts]') && !document.querySelector('[data-testid=track-0-monthly]') && !document.querySelector('[data-testid=platform-Instagram]')`);
+CHECKS['employment: the job is asked, with suggestions'] = await ev(`!!document.querySelector('[data-testid=contract-job]') && document.querySelectorAll('[data-testid=job-chip]').length >= 4`);
+CHECKS['employment: the missing bar asks for the job first'] = (await text('[data-testid=missing-values]')).includes('الوظيفة');
+await ev(`document.querySelector('[data-testid=job-chip]').click()`); await sleep(200);
+CHECKS['employment: a suggestion fills the job'] = await ev(`document.querySelector('[data-testid=contract-job]').value === 'مصمم جرافيك'`);
 await fillMissing();
-CHECKS['short contract: nothing missing once its text words are filled'] = !(await ev(`!!document.querySelector('[data-testid=missing-values]')`));
-CHECKS['short paper: track price + total'] = (await text('[data-testid=contract-paper]')).includes('3,000 ريال شهرياً') && (await text('[data-testid=contract-paper]')).includes('36,000');
+CHECKS['employment: nothing missing once filled'] = !(await ev(`!!document.querySelector('[data-testid=missing-values]')`));
+const empPaper = await text('[data-testid=contract-paper]');
+CHECKS['employment paper: «عقد عمل», job, term, clauses, pay by work'] = empPaper.includes('عقد عمل') && empPaper.includes('الوظيفة: مصمم جرافيك') && empPaper.includes('مدة العقد: غير محدد') && empPaper.includes('8. الموافقة') && empPaper.includes('حسب حجم العمل المنجز') && empPaper.includes('بيانات الحساب البنكي للموظف');
+CHECKS['employment paper: no quarters, no Swift'] = !empPaper.includes('الربع الأول') && !empPaper.includes('Swift');
+CHECKS['employment paper: nothing runs off a page'] = !(await ev(`!!document.querySelector('[data-testid=contract-paper] .paper-page[data-overflow]')`));
+if (process.env.SHOT_DIR) { // optional: page images of the employment paper for a visual check
+  await ev(`document.querySelector('[data-testid=open-paper-big]').click()`); await sleep(600);
+  const n = await ev(`document.querySelectorAll('[data-testid=paper-big] .paper-page').length`);
+  for (let i = 0; i < n; i++) {
+    const r = await ev(`(()=>{const p=document.querySelectorAll('[data-testid=paper-big] .paper-page')[${i}];p.scrollIntoView();const b=p.getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height}})()`); await sleep(200);
+    const img = await send('Page.captureScreenshot', { format: 'png', clip: { x: r.x, y: r.y, width: r.w, height: r.h, scale: 1.5 } });
+    (await import('node:fs')).writeFileSync(`${process.env.SHOT_DIR}/emp-${i + 1}.png`, Buffer.from(img.result.data, 'base64'));
+  }
+  await ev(`document.querySelector('[data-testid=paper-big-close]').click()`); await sleep(300);
+}
+await setT('salary-monthly', '4500'); await sleep(200);
+CHECKS['employment paper: a typed amount shows monthly'] = (await text('[data-testid=paper-salary]')).includes('4,500');
 await clickSel('[data-testid=sign-send]'); CHECKS['creative contract signed + sent'] = await signFlow(); await toastHas('أُرسل'); await closeToast();
 await waitFor(`!!document.querySelector('[data-testid=contract-sheet]')`);
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
+// the short (partnership) template stays covered on a client draft
+await clickSel('[data-testid=new-contract]'); await waitFor(`!!document.querySelector('[role=dialog][aria-label="عقد جديد"]')`);
+await ev(`document.querySelector('[data-testid=contract-kind] [data-kind=short]').click()`); await sleep(100);
+await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`, 20000);
+await setT('track-0-monthly', '3000'); await sleep(200);
+await fillMissing();
+CHECKS['short contract: nothing missing once its text words are filled'] = !(await ev(`!!document.querySelector('[data-testid=missing-values]')`));
+CHECKS['short paper: track price + total'] = (await text('[data-testid=contract-paper]')).includes('3,000 ريال شهرياً') && (await text('[data-testid=contract-paper]')).includes('36,000');
+await clickSel('[data-testid=save-version]'); await toastHas('انحفظت'); await closeToast();
+await ev(`document.querySelector('[data-testid=contract-editor] button[aria-label="إلغاء"]')?.click()`); await sleep(600);
+await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]')?.click()`); await sleep(300);
 // a second (draft) client contract + the block flag
 await clickSel('[data-testid=new-contract]'); await waitFor(`!!document.querySelector('[role=dialog][aria-label="عقد جديد"]')`);
 await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`, 20000);
@@ -339,7 +369,7 @@ CHECKS['sheet: overflow blocks Hawamish signing (second send path)'] = await wai
 // 1 Nov: «احظر العميل حتى التوقيع» removed at Yousef's request
 CHECKS['no «block the client» option anymore'] = !(await ev(`!!document.querySelector('[data-testid=contract-block]')`));
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
-CHECKS['admin sees 3 cards'] = (await ev(`document.querySelectorAll('[data-testid=contract-card]').length`)) === 3;
+CHECKS['admin sees 4 cards'] = (await ev(`document.querySelectorAll('[data-testid=contract-card]').length`)) === 4;
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=social-board]')`);
 await click('الشبكة'); await sleep(300);
 CHECKS['social grid tab'] = (await text('[data-testid=social-board]')).includes('ما فيه شيء معتمد أو منشور بعد');

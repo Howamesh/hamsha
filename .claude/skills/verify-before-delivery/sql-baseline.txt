@@ -1,11 +1,11 @@
 # 3f2bb17397167b914831904d1e2523a3158dda32  supabase/tests/00_local_shim.sql
 # 6c258b8ca646eec00684fc3581d151a95cde21c4  supabase/tests/10_seed.sql
 # 93243ace9eb331abcc63c105d0406c48d8ce19b4  supabase/tests/20_harness.sql
-# 4d0cfd735ae2c090048a03cd3ddfda10993c7480  supabase/tests/rls.sql
+# 2cec246855cc8378cb7ef5b83bc42930402d97b5  supabase/tests/rls.sql
 # be29f13300c05cd5bab788e28c478de9c52387fd  supabase/tests/run-ci.sh
 # 9cc4dea2c523159b3999365275536fd937accebf  supabase/tests/run-local.sh
 # 76860ee1877a8ba425fa8f6de4fe6adb5f59d578  tests/smoke-client-summary.mjs
-# 1ed3c718fd2e6efd948ee37358aa621076496082  tests/smoke-contracts.mjs
+# bd96f0284ade17ab7d903961d1328792b38f1493  tests/smoke-contracts.mjs
 # 6b92a0e9d14b3e09f151773154053d8103327eb2  tests/smoke-drag.mjs
 # 29c8210f77960737b21d999c65d611a78cfb2a23  tests/smoke-hours.mjs
 # fb70595951d3a354e190b073c29b3f99a2fba4e4  tests/smoke-invite.mjs
@@ -13,7 +13,7 @@
 # 8a62000db9cd9cb8f0458a07d5a2221f6f9b90af  tests/smoke-regressions.mjs
 # 31a3194b2b75cd7f937bbbb80b88496e962ace8f  tests/smoke-review3.mjs
 # 86bf876a63cf91de5e32d38a718a8f35653c56bf  tests/smoke-roles.mjs
-# eed47a135d00c91dde49a86006d1bf9c1571f12d  tests/smoke-social.mjs
+# fd764f6eaa2537669fbbb1545de60541008c48c3  tests/smoke-social.mjs
 # 72e3e4b649ac988b901ef5294c876339a43d12d0  tests/unit-validate.mjs
 # 87b6f961b40028aa7a993dc0363ac6edea6e5f0b  package.json:scripts
 admin reads all tasks
@@ -202,6 +202,7 @@ anon reads nothing from profiles
 [ctr] …number 2612, draft, version 0
 [ctr] …a created event was logged
 [ctr] admin creates a creative contract for creative1
+[ctr] …stored as an employment contract («عقد عمل», 0013)
 [ctr] …its number is 2613
 [ctr] a contract with both client and creative is rejected
 [ctr] a creative contract for an admin is rejected

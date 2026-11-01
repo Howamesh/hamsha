@@ -205,7 +205,8 @@ export interface ClientAccountInput {
 }
 
 // ---------- «العقود» (0009) ----------
-export type ContractKind = 'short' | 'full' | 'offer'
+/** employment = «عقد عمل» for a creative (1 Nov, from the manager's Figma page «عقود الموظفين») */
+export type ContractKind = 'short' | 'full' | 'offer' | 'employment'
 export type ContractParty = 'client' | 'creative'
 /** draft → sent → opened → signed | changes | rejected → completed. A new version returns to draft. */
 export type ContractStatus = 'draft' | 'sent' | 'opened' | 'signed' | 'changes' | 'rejected' | 'completed'
@@ -295,6 +296,9 @@ export interface ContractContent {
   vars: { platforms: string; posts: number; designs: number; videos: number }
   accent: string
   copyrightYear: number
+  /** «عقد عمل» only: the job («مصمم جرافيك») and the term line («غير محدد») */
+  jobTitle?: string
+  term?: string
   /** Hawamish's round stamp (PNG data URL) frozen with the version so old contracts never change */
   stamp?: string
 }
@@ -379,7 +383,7 @@ export const POST_PLATFORMS: Record<PostPlatform, { en: string; ar: string; colo
   tiktok: { en: 'TikTok', ar: 'تيك توك', color: '#111111' },
   snapchat: { en: 'Snapchat', ar: 'سناب شات', color: '#D9B600' },
   linkedin: { en: 'LinkedIn', ar: 'لينكدإن', color: '#0A66C2' },
-  x: { en: 'X', ar: 'إكس', color: '#222222' },
+  x: { en: 'Twitter (X)', ar: 'تويتر', color: '#222222' },
 }
 export const POST_FORMATS: Record<PostFormat, { en: string; ar: string; ratio: number }> = {
   square: { en: 'Square 1:1', ar: 'مربع ١:١', ratio: 1 },
