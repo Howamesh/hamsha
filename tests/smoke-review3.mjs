@@ -43,13 +43,16 @@ out.toastShown = await ev(`document.querySelector('[role=alert]')?.textContent |
 out.startAfter = await ev(`JSON.parse(localStorage.getItem('hamsha.mock.v4')).tasks.at(-1).start`);
 out.alive = await ev(`!document.body.innerText.includes('حدث خطأ')`);
 // --- 3) Shorten a task with a later part: part must be pulled inside the range
+// dates are relative to the task's own start (it lands near «today»; fixed October dates broke on 1 Nov 2026)
+const plus = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+const D_END = plus(out.startAfter, 12), D_PART = plus(out.startAfter, 11), D_SHORT = plus(out.startAfter, 7);
 const END = `[...document.querySelectorAll('[role=dialog] input[type=date]')][1]`;
-await setInput(END, '2026-10-25', 'change'); await sleep(400);
-// move the part to the 24th
+await setInput(END, D_END, 'change'); await sleep(400);
+// move the part to the day before the end
 const PARTDAY = `[...document.querySelectorAll('[role=dialog] input[type=date]')][2]`;
-await setInput(PARTDAY, '2026-10-24', 'change'); await sleep(400);
+await setInput(PARTDAY, D_PART, 'change'); await sleep(400);
 out.partDayBefore = await ev(`JSON.parse(localStorage.getItem('hamsha.mock.v4')).parts.at(-1).day`);
-await setInput(END, '2026-10-20', 'change'); await sleep(400);
+await setInput(END, D_SHORT, 'change'); await sleep(400);
 const snap = await ev(`(()=>{const s=JSON.parse(localStorage.getItem('hamsha.mock.v4'));const t=s.tasks.at(-1);const p=s.parts.filter(x=>x.taskId===t.id);return {start:t.start,end:t.end,parts:p.map(x=>x.day)}})()`);
 out.afterShorten = snap;
 out.movedNotice = await ev(`document.querySelector('[role=alert]')?.textContent || null`);
@@ -66,10 +69,10 @@ const CHECKS = {
   "out.storedTitle === 'العنوان الأصلي'": out.storedTitle === 'العنوان الأصلي',
   'out.startAfter === out.startBefore': out.startAfter === out.startBefore,
   'out.alive === true': out.alive === true,
-  'JSON.stringify(out.afterShorten.parts) === \'["2026-10-20"]\'': JSON.stringify(out.afterShorten.parts) === '["2026-10-20"]',
+  'part pulled to the new end (start+7)': JSON.stringify(out.afterShorten.parts) === JSON.stringify([D_SHORT]),
   "typeof out.movedNotice === 'string' && out.movedNotice.includes('تم نقل')": typeof out.movedNotice === 'string' && out.movedNotice.includes('تم نقل'),
   'out.toastOnBadPart !== null': out.toastOnBadPart !== null,
-  "out.partDayUnchanged === '2026-10-20'": out.partDayUnchanged === '2026-10-20',
+  'part day unchanged after the bad value': out.partDayUnchanged === D_SHORT,
   'out.errors.length === 0': out.errors.length === 0,
 }
 const failed = Object.entries(CHECKS).filter(([, ok]) => !ok).map(([c]) => c)

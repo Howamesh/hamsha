@@ -5,13 +5,13 @@
 # be29f13300c05cd5bab788e28c478de9c52387fd  supabase/tests/run-ci.sh
 # 9cc4dea2c523159b3999365275536fd937accebf  supabase/tests/run-local.sh
 # b20880a0cd90eb06fcc71fc6b9d8fa6b272b7f54  tests/smoke-client-summary.mjs
-# 68893ab197ce942f00bbe1aa4c748f0c7831721e  tests/smoke-contracts.mjs
+# a75f24e7311160d07cd11120aab14c457138930e  tests/smoke-contracts.mjs
 # 6d05b2671dc9912df011a84030fc5d3909fec341  tests/smoke-drag.mjs
 # da3bb249fa5046b45583b96d938c3aaf2c2fcaa9  tests/smoke-hours.mjs
 # dca7a95b896d3125712ef97d1b5941a6e330596e  tests/smoke-invite.mjs
 # 772386ad035bf00a2508f63fb092970c5b7267bf  tests/smoke-live-fixes.mjs
 # 5547e83e433f9bb6179006aa0dcb647d8d2038a9  tests/smoke-regressions.mjs
-# 08012c54cf151322bf18169e9b6557301c38b0fd  tests/smoke-review3.mjs
+# 336e80b72d5aeedfb3557632c7361a98b6ba8a54  tests/smoke-review3.mjs
 # e1f682a7ad54ffe8e0736acff5edf71fddd5f88b  tests/smoke-roles.mjs
 # 6a6606bd2774c1fd59ed8b2874aee02db4c1ba14  tests/smoke-social.mjs
 # 72e3e4b649ac988b901ef5294c876339a43d12d0  tests/unit-validate.mjs

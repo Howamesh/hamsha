@@ -11,7 +11,9 @@ import { ContractPaper } from './ContractPaper'
 import { SignDialog } from './SignDialog'
 
 const field = 'w-full rounded-md border border-border bg-bg px-3 py-2 text-[13px]'
-const num = (v: string) => (v === '' ? 0 : Math.max(0, Number(v.replace(/[^\d.]/g, '')) || 0))
+// Arabic-Indic (٠-٩) and Persian (۰-۹) digits count too — an Arabic keyboard types them
+const toLatin = (v: string) => v.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6f0)).replace(/٫/g, '.')
+const num = (v: string) => (v === '' ? 0 : Math.max(0, Number(toLatin(v).replace(/[^\d.]/g, '')) || 0))
 
 /**
  * The admin's contract editor: form on one side, the paper live on the other. The fixed core is locked
@@ -92,30 +94,6 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
     }
   }
 
-  const Num = ({ label, value, onChange, suffix, testId }: { label: string; value: number; onChange: (n: number) => void; suffix?: string; testId?: string }) => (
-    <label className="flex flex-col gap-1.5 min-w-0">
-      <SectionTitle>{label}</SectionTitle>
-      <div className="relative -mt-1">
-        <Input value={value === 0 ? '' : String(value)} onChange={(e) => onChange(num(e.target.value))} placeholder="0" dir="ltr" inputMode="numeric" className={cn('py-2 text-[13px] tabular-nums', value === 0 && 'border-warning-dark/50 bg-warning-tint/30')} data-testid={testId} />
-        {suffix && <span className="absolute inset-y-0 end-3 grid place-items-center text-[11px] text-fg-muted pointer-events-none">{suffix}</span>}
-      </div>
-      {value === 0 && <span className="text-[10.5px] text-warning-dark">{t('suggested')}</span>}
-    </label>
-  )
-  const PartyFields = ({ k, p, full }: { k: 'hawamish' | 'counterparty'; p: ContractPartyInfo; full: boolean }) => (
-    <div className="grid grid-cols-2 gap-2">
-      <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fName')}</SectionTitle><Input value={p.name} onChange={(e) => upParty(k, { name: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-name`} /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fCr')}</SectionTitle><Input value={p.cr} onChange={(e) => upParty(k, { cr: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fCountry')}</SectionTitle><Input value={p.country} onChange={(e) => upParty(k, { country: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
-      {full && <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fCity')}</SectionTitle><Input value={p.city} onChange={(e) => upParty(k, { city: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>}
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fRepTitle')}</SectionTitle><Input value={p.repTitle} onChange={(e) => upParty(k, { repTitle: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fRepName')}</SectionTitle><Input value={p.repName} onChange={(e) => upParty(k, { repName: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-rep`} /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fPhone')}</SectionTitle><Input value={p.phone} onChange={(e) => upParty(k, { phone: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>
-      <label className="flex flex-col gap-1"><SectionTitle>{t('fEmail')}</SectionTitle><Input value={p.email} onChange={(e) => upParty(k, { email: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>
-      {full && <label className="flex flex-col gap-1"><SectionTitle>{t('fNationalId')}</SectionTitle><Input value={p.nationalId} onChange={(e) => upParty(k, { nationalId: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>}
-    </div>
-  )
-
   const form = (
     <div className="flex flex-col gap-5 min-w-0">
       {/* basics */}
@@ -134,10 +112,10 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         </div>
       </Group>
       <Group title={t('secCounterparty')}>
-        <PartyFields k="counterparty" p={c.counterparty} full={c.kind !== 'short'} />
+        <PartyFields k="counterparty" p={c.counterparty} full={c.kind !== 'short'} onChange={upParty} />
       </Group>
       <Group title={t('secHawamish')} hint={!legal.party.cr ? t('missingValues') : undefined}>
-        <PartyFields k="hawamish" p={c.hawamish} full={c.kind !== 'short'} />
+        <PartyFields k="hawamish" p={c.hawamish} full={c.kind !== 'short'} onChange={upParty} />
       </Group>
 
       {/* numbers */}
@@ -334,6 +312,38 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         </div>
       </div>
       {signing && <SignDialog title={t('signAndSend')} defaultName={c.signers.hawamish.name} defaultCapacity={c.signers.hawamish.capacity} onConfirm={signAndSend} onClose={() => setSigning(false)} busy={busy} />}
+    </div>
+  )
+}
+
+// module-level (not inside ContractEditor) so the input keeps focus while typing
+function Num({ label, value, onChange, suffix, testId }: { label: string; value: number; onChange: (n: number) => void; suffix?: string; testId?: string }) {
+  const { t } = useStr()
+  return (
+    <label className="flex flex-col gap-1.5 min-w-0">
+      <SectionTitle>{label}</SectionTitle>
+      <div className="relative -mt-1">
+        <Input value={value === 0 ? '' : String(value)} onChange={(e) => onChange(num(e.target.value))} placeholder="0" dir="ltr" inputMode="numeric" className={cn('py-2 text-[13px] tabular-nums', value === 0 && 'border-warning-dark/50 bg-warning-tint/30')} data-testid={testId} />
+        {suffix && <span className="absolute inset-y-0 end-3 grid place-items-center text-[11px] text-fg-muted pointer-events-none">{suffix}</span>}
+      </div>
+      {value === 0 && <span className="text-[10.5px] text-warning-dark">{t('suggested')}</span>}
+    </label>
+  )
+}
+
+function PartyFields({ k, p, full, onChange: upParty }: { k: 'hawamish' | 'counterparty'; p: ContractPartyInfo; full: boolean; onChange: (k: 'hawamish' | 'counterparty', patch: Partial<ContractPartyInfo>) => void }) {
+  const { t } = useStr()
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fName')}</SectionTitle><Input value={p.name} onChange={(e) => upParty(k, { name: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-name`} /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fCr')}</SectionTitle><Input value={p.cr} onChange={(e) => upParty(k, { cr: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fCountry')}</SectionTitle><Input value={p.country} onChange={(e) => upParty(k, { country: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
+      {full && <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fCity')}</SectionTitle><Input value={p.city} onChange={(e) => upParty(k, { city: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>}
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fRepTitle')}</SectionTitle><Input value={p.repTitle} onChange={(e) => upParty(k, { repTitle: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fRepName')}</SectionTitle><Input value={p.repName} onChange={(e) => upParty(k, { repName: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid={`${k}-rep`} /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fPhone')}</SectionTitle><Input value={p.phone} onChange={(e) => upParty(k, { phone: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>
+      <label className="flex flex-col gap-1"><SectionTitle>{t('fEmail')}</SectionTitle><Input value={p.email} onChange={(e) => upParty(k, { email: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>
+      {full && <label className="flex flex-col gap-1"><SectionTitle>{t('fNationalId')}</SectionTitle><Input value={p.nationalId} onChange={(e) => upParty(k, { nationalId: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>}
     </div>
   )
 }
