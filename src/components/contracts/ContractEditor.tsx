@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Lock, Maximize2, Plus, Save, Send, Trash2, Unlock, X } from 'lucide-react'
+import { Lock, Maximize2, Minimize2, Plus, Save, Send, Trash2, Unlock, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fmtTime, useNarrow, useStr } from '@/lib/useStr'
 import { useData, useSession } from '@/store/session'
@@ -498,7 +498,10 @@ function SectionFocus({ num, title, body, locked, onUnlock, onTitle, onBody, onC
             <Lock size={14} /> <span className="text-[12px]">{t('fixedSection')}</span>
           </Button>
         )}
-        <Button variant="primary" onClick={onClose} data-testid="section-focus-done">{t('doneEditing')}</Button>
+        {/* the same corner icon that opened it, reversed: «صغّر» brings him back to the form (1 Nov) */}
+        <Button variant="primary" onClick={onClose} aria-label={t('collapseSection')} title={t('collapseSection')} data-testid="section-focus-done">
+          <Minimize2 size={16} /> {t('collapseSection')}
+        </Button>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto">
         <textarea value={body} onChange={(e) => onBody(e.target.value)} readOnly={locked} dir="auto" autoFocus={!locked} className={cn('block w-full max-w-[920px] min-h-full mx-auto px-6 py-8 bg-transparent text-[21px] leading-[2.1] outline-none resize-none', locked && 'opacity-75')} data-testid="section-focus-body" />

@@ -103,6 +103,7 @@ CHECKS['platform list = his 8 (تويتر, no فيسبوك/تيليجرام/بن
 CHECKS['late-days + support fields explained'] = (await text('[data-testid=contract-editor]')).includes('يتوقف الشغل لين يدفع') && (await text('[data-testid=contract-editor]')).includes('أشهر دعم مجاني');
 await clickSel('[data-testid=section-expand-02]'); await waitFor(`!!document.querySelector('[data-testid=section-focus]')`);
 CHECKS['clause opens full screen in big type'] = await ev(`(()=>{const b=document.querySelector('[data-testid=section-focus-body]');return parseFloat(getComputedStyle(b).fontSize)>=20 && b.value.includes('يلتزم')})()`);
+CHECKS['full screen has a «صغّر» shrink button'] = (await text('[data-testid=section-focus-done]')).includes('صغّر') && (await ev(`!!document.querySelector('[data-testid=section-focus-done] svg')`));
 const sec02 = await ev(`document.querySelector('[data-testid=section-focus-body]').value`);
 await setT('section-focus-body', sec02 + '\nسطر تجربة من الشاشة الكاملة'); await sleep(200);
 await clickSel('[data-testid=section-focus-done]');

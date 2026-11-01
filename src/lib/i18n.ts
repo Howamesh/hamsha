@@ -483,6 +483,7 @@ export const STR = {
   sectionsNote: { en: 'Locked clauses come from the manager’s fixed template, so they don’t change by mistake — unlock one to edit it. Words in {braces} like {الطرف_الآخر} are filled in on the paper automatically.', ar: 'البنود المقفولة 🔒 ثابتة من نموذج المدير، عشان ما تتغير بالغلط. تقدر تفتح القفل وتعدّل. والكلمات اللي بين {} مثل {الطرف_الآخر} تنعبّى تلقائياً في الورقة.' },
   expandSection: { en: 'Open full screen', ar: 'كبّر على الشاشة كاملة' },
   doneEditing: { en: 'Done', ar: 'تم' },
+  collapseSection: { en: 'Shrink back', ar: 'صغّر' },
   draftRestored: { en: 'Your unsaved edits are back (last change {time}). Save a version to keep them for good.', ar: 'رجّعنا تعديلاتك اللي ما انحفظت (آخر تعديل {time}). اضغط «احفظ نسخة» عشان تثبت.' },
   draftFailed: { en: 'This browser cannot keep a backup of your edits right now — save a version before refreshing.', ar: 'المتصفح ما يقدر يحفظ نسخة احتياطية من تعديلاتك الحين، اضغط «احفظ نسخة» قبل ما تحدّث الصفحة.' },
   discardDraft: { en: 'Discard them', ar: 'تجاهلها' },
