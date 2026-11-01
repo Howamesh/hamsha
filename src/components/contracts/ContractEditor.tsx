@@ -648,7 +648,7 @@ function Recall({ value, memo, onPick }: { value: string; memo?: string; onPick:
   const { t } = useStr()
   if (value.trim() || !memo) return null
   return (
-    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(memo)} className="self-start max-w-full truncate rounded-md border border-border bg-muted-bg px-2 py-0.5 text-[11.5px] text-fg-secondary hover:border-fg-faint cursor-pointer" title={t('recallHint')} data-testid="recall" dir="auto">
+    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(memo)} className="recall-pill self-start max-w-full truncate rounded-md border border-border bg-muted-bg px-2 py-0.5 text-[11.5px] text-fg-secondary cursor-pointer" title={t('recallHint')} data-testid="recall" dir="auto">
       ↩ {memo}
     </button>
   )

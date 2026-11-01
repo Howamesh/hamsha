@@ -201,6 +201,9 @@ button:focus-visible {
 .paper-row-light { background: #f3f3f3; font-size: 9.5px; justify-content: center; }
 .paper-row-label { font-weight: 700; }
 .paper-row-value { direction: ltr; text-align: left; }
+/* «ذاكرة العقد»: faint under an empty field, clear while that field is being used (1 Nov, his pick) */
+.recall-pill { opacity: .4; transition: opacity .15s, border-color .15s; }
+label:focus-within .recall-pill, .recall-pill:hover, .recall-pill:focus-visible { opacity: 1; border-color: var(--color-accent, currentColor); color: var(--color-fg, inherit); }
 /* closing the big paper: the form part he edited flashes once */
 @keyframes form-flash { 0%, 35% { background: color-mix(in srgb, var(--warning-tint, #fff4dc) 90%, transparent); box-shadow: 0 0 0 2px #e11d48; } 100% { background: transparent; box-shadow: 0 0 0 2px transparent; } }
 .form-flash { animation: form-flash 2.4s ease-out; }
