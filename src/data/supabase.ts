@@ -30,7 +30,7 @@ interface ClientTaskRow { id: string; client_id: string; project_id: string; tit
 interface PartRow { id: string; task_id: string; label: string; assignee_id: string | null; hours: number; day: string; hand_off: string | null; done: boolean; position: number }
 interface ClientPartRow { id: string; task_id: string; label: string; done: boolean; position: number }
 interface MessageRow { id: string; channel: string; sender_id: string; body: string; created_at: string }
-interface PostRow { id: string; client_id: string; task_id: string | null; account_id: string | null; title: string; platform: Post['platform']; format: Post['format']; status: Post['status']; current_version: number; sent_at: string | null; published_url: string | null; published_at: string | null; created_by?: string | null; created_at: string; updated_at: string }
+interface PostRow { id: string; client_id: string; task_id: string | null; account_id: string | null; title: string; platform: Post['platform']; format: Post['format']; status: Post['status']; current_version: number; sent_at: string | null; published_url: string | null; published_at: string | null; created_by?: string | null; sent_by?: string | null; published_by?: string | null; created_at: string; updated_at: string }
 interface ContractRow { id: string; number: number; kind: Contract['kind']; party?: Contract['party']; client_id: string | null; creative_id?: string | null; title: string; accent: string; status: Contract['status']; current_version: number; sent_at: string | null; decided_at: string | null; created_by?: string | null; created_at: string; updated_at: string }
 interface CVersionRow { id: string; contract_id: string; number: number; content: ContractContent; content_hash: string; note: string | null; first_signature: string | null; first_signer: string | null; first_capacity: string | null; first_signed_at: string | null; sent_at: string | null; opened_at: string | null; decision: ContractVersion['decision'] | null; decision_note: string | null; signature: string | null; signer_name: string | null; signer_capacity: string | null; decided_at: string | null; created_by?: string | null; created_at: string }
 interface CEventRow { id: number; contract_id: string; version: number | null; actor: string | null; actor_role: string | null; event: string; meta: Record<string, unknown>; at: string }
@@ -71,7 +71,7 @@ const toPart = (r: PartRow | ClientPartRow): TaskPart => ({
 const toMessage = (r: MessageRow): Message => ({ id: r.id, channel: r.channel as ChannelId, senderId: r.sender_id, body: r.body, at: r.created_at })
 const toPost = (r: PostRow): Post => ({
   id: r.id, clientId: r.client_id, taskId: r.task_id ?? undefined, accountId: r.account_id ?? undefined, title: r.title, platform: r.platform, format: r.format, status: r.status, currentVersion: r.current_version,
-  sentAt: r.sent_at ?? undefined, publishedUrl: r.published_url ?? undefined, publishedAt: r.published_at ?? undefined, createdBy: r.created_by ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at,
+  sentAt: r.sent_at ?? undefined, publishedUrl: r.published_url ?? undefined, publishedAt: r.published_at ?? undefined, createdBy: r.created_by ?? undefined, sentBy: r.sent_by ?? undefined, publishedBy: r.published_by ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at,
 })
 const toVersion = (r: VersionRow): PostVersion => ({
   id: r.id, postId: r.post_id, number: r.number, imagePaths: r.image_paths ?? [], caption: r.caption, note: r.note ?? undefined, sentAt: r.sent_at ?? undefined,

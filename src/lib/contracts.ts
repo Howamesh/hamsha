@@ -79,7 +79,10 @@ export function daysWords(n: number): string {
 
 // ---------- dates ----------
 /** «يوم الأربعاء 08/02/1448هـ الموافق 22/07/2026م» (Umm al-Qura calendar, Latin digits) */
+/** a real yyyy-mm-dd date (an emptied date field must never crash the paper — council 2 Nov) */
+export const validIsoDate = (iso: string | undefined): iso is string => !!iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) && !Number.isNaN(Date.parse(iso + 'T12:00:00'))
 export function agreementDateLine(iso: IsoDate): string {
+  if (!validIsoDate(iso)) return 'يوم … الموافق …'
   const d = new Date(iso + 'T12:00:00')
   const weekday = new Intl.DateTimeFormat('ar-SA-u-nu-latn-ca-gregory', { weekday: 'long' }).format(d)
   const hParts = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn', { day: '2-digit', month: '2-digit', year: 'numeric' }).formatToParts(d)
@@ -89,6 +92,7 @@ export function agreementDateLine(iso: IsoDate): string {
   return `يوم ${weekday} ${hijri} الموافق ${dd}/${m}/${y}م`
 }
 export function signDate(iso: string): string {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return '…'
   const [y, m, d] = iso.slice(0, 10).split('-')
   return `${d}.${m}.${y}`
 }
@@ -254,7 +258,8 @@ export function contractTotal(c: ContractContent): number {
 export type MissingField = { label: string; field: string }
 export function missingFields(c: ContractContent): MissingField[] {
   const out: MissingField[] = []
-  if (c.kind === 'employment') return missingEmployment(c)
+  if (!validIsoDate(c.date)) out.push({ label: 'تاريخ العقد', field: 'contract-date' })
+  if (c.kind === 'employment') return [...out, ...missingEmployment(c)]
   // 1 Nov («ليش بس على الفلوس؟» + «ليش بيانات الطرف الآخر ما تطلع ناقص؟»): whatever the PAPER prints must be filled,
   // in the order of the form. Unused counts (a word the text never uses) stay optional.
   const text = [...(c.kind === 'full' ? c.sections.map((x) => x.body) : [c.scope]), c.kind === 'short' ? SHORT_FOOTNOTE : ''].join('\n')

@@ -224,8 +224,8 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   const upPricing = (patch: Partial<ContractContent['pricing']>) => setC((x) => ({ ...x, pricing: { ...x.pricing, ...patch } }))
 
   /** Freezes a version and returns exactly the row the store created (never «the newest in the list»). */
-  async function saveInner(): Promise<ContractVersion | undefined> {
-    if (!dirty) return current
+  async function saveInner(force = false): Promise<ContractVersion | undefined> {
+    if (!dirty && !force) return current
     const sentNote = note
     sentFrom.current = JSON.stringify(c)
     try {
@@ -250,7 +250,9 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
     if (overflow.length > 0) return // text that does not fit would print cut — never sign it
     setBusy(true)
     try {
-      const v = await saveInner()
+      // 2 Nov (council): a version that already reached the other side keeps its signature forever — signing again
+      // (after «سحب») always freezes a NEW version, even with the same text
+      const v = await saveInner(!!current?.sentAt)
       if (!v) return
       await sess.signContractFirst(v.id, sig)
       await sess.updateContract(contract.id, { status: 'sent' })
@@ -279,7 +281,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         <label className="flex flex-col gap-1"><SectionTitle>{t('fProject')}</SectionTitle><Input value={c.project} onChange={(e) => up({ project: e.target.value })} placeholder="مثال: تعزيز الحضور الرقمي وبناء هوية إعلامية" dir="auto" className="py-1.5 text-[13px]" data-testid="contract-project" /><Recall value={c.project} memo={mem.project} onPick={(v) => up({ project: v })} /></label>
         )}
         <div className={cn('grid gap-2', emp ? 'grid-cols-2' : 'grid-cols-3')}>
-          <label className="flex flex-col gap-1"><SectionTitle>{t('fDate')}</SectionTitle><Input type="date" value={c.date} onChange={(e) => up({ date: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" /></label>
+          <label className="flex flex-col gap-1"><SectionTitle>{t('fDate')}</SectionTitle><Input type="date" value={c.date} onChange={(e) => up({ date: e.target.value })} dir="ltr" className="py-1.5 text-[13px]" data-testid="contract-date" /></label>
           <label className="flex flex-col gap-1"><SectionTitle>{t('accentColor')}</SectionTitle><input type="color" value={c.accent} onChange={(e) => up({ accent: e.target.value })} className="h-9 w-full rounded cursor-pointer border border-border bg-bg" /></label>
           {!emp && <label className="flex flex-col gap-1"><SectionTitle>{t('fCounterpartySide')}</SectionTitle>
             <select value={c.counterpartySide} onChange={(e) => up({ counterpartySide: e.target.value as 'first' | 'second' })} className={cn(field, 'py-1.5 cursor-pointer')}>

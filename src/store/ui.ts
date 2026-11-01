@@ -21,7 +21,8 @@ interface UiState {
   panelOpen: boolean
   /** «آخر النشاط»: when each signed-in user last looked at it (per user, this browser) */
   activitySeen: Record<string, string>
-  markActivitySeen: (userId: string) => void
+  /** at = the newest server time on the list just looked at; the marker never moves back */
+  markActivitySeen: (userId: string, at?: string) => void
   panelTab: PanelTab
   taskId: string | null
   checkinOpen: boolean
@@ -63,7 +64,12 @@ export const useUi = create<UiState>()(
       calId: null,
       panelOpen: true,
       activitySeen: {},
-      markActivitySeen: (userId) => set((s) => ({ activitySeen: { ...s.activitySeen, [userId]: new Date().toISOString() } })),
+      markActivitySeen: (userId, at) =>
+        set((s) => {
+          const prev = s.activitySeen[userId]
+          if (!at || (prev && !Number.isNaN(Date.parse(prev)) && Date.parse(prev) >= Date.parse(at))) return s
+          return { activitySeen: { ...s.activitySeen, [userId]: at } }
+        }),
       panelTab: 'main',
       taskId: null,
       checkinOpen: false,

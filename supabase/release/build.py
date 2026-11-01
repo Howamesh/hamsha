@@ -8,7 +8,7 @@ Paste the generated file into the PRODUCTION SQL editor in one go. Either everyt
 Rehearse first: supabase/release/rehearse.sh (a private Postgres shaped like production, with old data)."""
 import pathlib, re
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-MIG = ["0007_social.sql", "0008_social_v2.sql", "0009_contracts.sql", "0010_hardening.sql", "0011_hardening2.sql", "0012_keep_sent_visible.sql", "0013_employment_contract.sql"]
+MIG = ["0007_social.sql", "0008_social_v2.sql", "0009_contracts.sql", "0010_hardening.sql", "0011_hardening2.sql", "0012_keep_sent_visible.sql", "0013_employment_contract.sql", "0014_contract_integrity.sql"]
 OLD = ["organizations", "profiles", "clients", "projects", "tasks", "task_parts", "messages", "invitations", "attachments"]
 
 head = f"""-- ============================================================================================
@@ -60,6 +60,8 @@ begin
   if to_regprocedure('public.can_read_attachment(text)') is null then miss := miss || ' can_read_attachment'; end if;
   if to_regprocedure('public.decide_contract(uuid,contract_decision,text,text,text,text)') is null then miss := miss || ' decide_contract'; end if;
   if not exists (select 1 from information_schema.columns where table_name = 'clients' and column_name = 'contract_block') then miss := miss || ' clients.contract_block'; end if;
+  if to_regprocedure('public.contract_content_missing(jsonb)') is null then miss := miss || ' contract_content_missing'; end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'posts' and column_name = 'published_by') then miss := miss || ' posts.published_by'; end if;
   if not exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid where t.typname = 'contract_kind' and e.enumlabel = 'employment') then miss := miss || ' contract_kind.employment'; end if;
   if miss <> '' then raise exception 'RELEASE ROLLED BACK — missing:%', miss; end if;
   if exists (select 1 from release_before b
@@ -69,7 +71,7 @@ begin
   end if;
 end $$;
 
-select 'Hamsha release 0007–0013 OK' as result,
+select 'Hamsha release 0007–0014 OK' as result,
        (select count(*) from profiles) as profiles, (select count(*) from clients) as clients, (select count(*) from tasks) as tasks;
 commit;
 """

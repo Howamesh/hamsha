@@ -366,6 +366,8 @@ CHECKS['editor: overflow disables «وقّع وأرسل»'] = await ev(`!!docume
 await clickSel('[data-testid=save-version]'); await toastHas('انحفظت النسخة 1'); await closeToast();
 await ev(`document.querySelector('[data-testid=contract-editor] button[aria-label="إلغاء"]').click()`); await sleep(600);
 CHECKS['sheet: overflow blocks Hawamish signing (second send path)'] = await waitFor(`!!document.querySelector('[data-testid=sheet-overflow-block]') && document.querySelector('[data-testid=sign-hawamish]')?.disabled === true`, 5000).then(()=>true).catch(()=>false);
+// 2 Nov (council 🔴): an INCOMPLETE saved version can't be signed/sent from the panel either — it says what is missing
+CHECKS['sheet: missing data blocks Hawamish signing too, and names it'] = await ev(`!!document.querySelector('[data-testid=sheet-missing-block]') && document.querySelector('[data-testid=sheet-missing-block]').innerText.includes('ناقص') && document.querySelector('[data-testid=sign-hawamish]')?.disabled === true`);
 // 1 Nov: «احظر العميل حتى التوقيع» removed at Yousef's request
 CHECKS['no «block the client» option anymore'] = !(await ev(`!!document.querySelector('[data-testid=contract-block]')`));
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);

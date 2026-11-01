@@ -152,7 +152,7 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
   // a frozen version shows ONLY the stamp it was frozen with — never today's Settings stamp (council 1 Nov)
   const stamp = version ? c.stamp : c.stamp || stampProp
   const emp = c.kind === 'employment'
-  const draftLabel = c.kind === 'offer' ? `عرض #${number}` : emp ? `عقد ${number}/${(c.date || '').slice(0, 4)}` : `مسودة #${number}`
+  const draftLabel = c.kind === 'offer' ? `عرض #${number}` : emp ? `عقد ${number}/${(c.date || '').slice(0, 4) || '…'}` : `مسودة #${number}`
   const cur = currencyShort(c.pricing.currency)
   // a page is fixed A4 and clips what does not fit: measure after every render, flag the page (screen only, never printed)
   const root = useRef<HTMLDivElement>(null)
@@ -217,7 +217,7 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
               <Pick key={k} id="tracks">
                 <Bar title={t.name} sub={t.nameEn} />
                 <div className="paper-months" dir="rtl">
-                  {Array.from({ length: 13 }, (_, i) => ((new Date(c.date).getMonth() + i) % 12) + 1).map((m, i) => (
+                  {Array.from({ length: 13 }, (_, i) => (((Number.isNaN(new Date(c.date).getMonth()) ? 0 : new Date(c.date).getMonth()) + i) % 12) + 1).map((m, i) => (
                     <span key={i} className="paper-month"><b>{m}</b><small>شهر</small></span>
                   ))}
                 </div>

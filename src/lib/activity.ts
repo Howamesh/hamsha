@@ -64,27 +64,23 @@ export function activityFeed(s: Snapshot, user: User): Activity[] {
     const p = visible.get(v.postId)
     if (!p) continue
     out.push({ id: `pv:${v.id}`, at: v.createdAt, kind: 'p_version', title: p.title, n: v.number, who: name(v.createdBy), actorId: v.createdBy, target: { type: 'post', id: p.id } })
-    if (v.sentAt) out.push({ id: `ps:${v.id}`, at: v.sentAt, kind: 'p_sent', title: p.title, n: v.number, target: { type: 'post', id: p.id } })
+    if (v.sentAt) out.push({ id: `ps:${v.id}`, at: v.sentAt, kind: 'p_sent', title: p.title, n: v.number, actorId: v.number === p.currentVersion ? p.sentBy : undefined, who: v.number === p.currentVersion ? name(p.sentBy) : undefined, target: { type: 'post', id: p.id } })
     if (v.decidedAt && v.decision) out.push({ id: `pd:${v.id}`, at: v.decidedAt, kind: v.decision === 'approved' ? 'p_approved' : 'p_changes', title: p.title, n: v.number, note: v.decisionNote, target: { type: 'post', id: p.id } })
   }
-  for (const p of visible.values()) if (p.publishedAt) out.push({ id: `pp:${p.id}`, at: p.publishedAt, kind: 'p_published', title: p.title, target: { type: 'post', id: p.id } })
-  return tidy(out.filter((a) => !OWN[user.role]?.has(a.kind)), user, since)
+  for (const p of visible.values()) if (p.publishedAt) out.push({ id: `pp:${p.id}`, at: p.publishedAt, kind: 'p_published', title: p.title, actorId: p.publishedBy, who: name(p.publishedBy), target: { type: 'post', id: p.id } })
+  return tidy(out, user, since)
 }
 
-// 1 Nov (Yousef: «إذا أنا اللي أعدل مباشرة فليش تظهر لي كل هذه؟»): your OWN moves are never news to you. Contract
-// events and post versions carry who did them (actorId → dropped in tidy() when it is you), so a second admin — the
-// manager — still sees what the other one did. Only the moves stored WITHOUT a person (a post «sent» / «published»,
-// always the team's own click) are left out for the team.
-const OWN: Partial<Record<User['role'], Set<ActivityKind>>> = {
-  admin: new Set<ActivityKind>(['p_sent', 'p_published']),
-  creative: new Set<ActivityKind>(['p_sent']),
-}
+// 1 Nov (Yousef: «إذا أنا اللي أعدل مباشرة فليش تظهر لي كل هذه؟»): your OWN moves are never news to you — decided by
+// WHO did it (actorId), never by role, so a second admin (the manager) still sees the other admin's moves.
+// A post «sent» / «published» from before 0014 has no recorded actor: it was always a team click → hidden for the team.
+const TEAM_ONLY_UNKNOWN = new Set<ActivityKind>(['p_sent', 'p_published'])
 
 /** Drop the user's own moves, keep 30 days, and show ONE row per contract/post: its newest news (no piles). */
 function tidy(list: Activity[], user: User, since: number): Activity[] {
   const seen = new Set<string>()
   return list
-    .filter((a) => a.at && Date.parse(a.at) >= since && a.actorId !== user.id)
+    .filter((a) => a.at && Date.parse(a.at) >= since && a.actorId !== user.id && !(user.role !== 'client' && !a.actorId && TEAM_ONLY_UNKNOWN.has(a.kind)))
     .sort((a, b) => b.at.localeCompare(a.at))
     .filter((a) => {
       const k = `${a.target.type}:${a.target.id}`
@@ -97,5 +93,17 @@ function tidy(list: Activity[], user: User, since: number): Activity[] {
 
 /** New since this user last opened «التنبيهات» (the feed already holds only other people's news, one per item). */
 export function unreadActivity(feed: Activity[], _user: User, seenAt?: string): number {
-  return feed.filter((a) => !seenAt || a.at > seenAt).length
+  return feed.filter((a) => isNewer(a.at, seenAt)).length
+}
+/** Server times compared as instants (never as text: «…Z» vs «…+00:00»); no marker yet = everything is new. */
+export function isNewer(at: string, seenAt?: string): boolean {
+  if (!seenAt) return true
+  const a = Date.parse(at), b = Date.parse(seenAt)
+  return Number.isNaN(b) || a > b
+}
+/** The seen marker = the newest SERVER time on the list the person looked at (never this device's clock). */
+export function newestAt(feed: Activity[]): string | undefined {
+  let best: string | undefined
+  for (const a of feed) if (!best || Date.parse(a.at) > Date.parse(best)) best = a.at
+  return best
 }

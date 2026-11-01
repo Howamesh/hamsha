@@ -6,6 +6,7 @@
 import type { Repo, Snapshot } from './repo'
 import type { ChannelId, Client, ClientAccount, ClientAccountInput, Contract, ContractDecision, ContractEvent, ContractVersion, InviteInput, InviteResult, Message, NewContractInput, NewPostInput, NewVersionInput, PendingInvite, Post, PostDecision, PostVersion, Presence, Profile, Project, SignatureInput, Task, TaskPart, User } from '@/types'
 import { addIso, todayIso } from '@/lib/dates'
+import { missingFields } from '@/lib/contracts'
 import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
 import { MOCK_DATA_KEY as KEY, MOCK_SESSION_KEY as SESSION_KEY } from './mockKeys'
@@ -363,11 +364,13 @@ export function createMockRepo(): Repo {
         if (cur.status === 'draft' && patch.status === 'sent') {
           if (cur.currentVersion === 0) throw new Error('upload a version before sending')
           next.sentAt = next.updatedAt
+          next.sentBy = me.id
           snap.postVersions = snap.postVersions.map((v) => (v.postId === id && v.number === cur.currentVersion && !v.sentAt ? { ...v, sentAt: next.updatedAt } : v))
         } else if (cur.status === 'sent' && patch.status === 'draft') next.sentAt = undefined
         else if (cur.status === 'approved' && patch.status === 'published') {
           if (!next.publishedUrl) throw new Error('published_url is required')
           next.publishedAt = next.updatedAt
+          next.publishedBy = me.id
         } else throw new Error(`transition ${cur.status} → ${patch.status} is not allowed`)
       }
       snap.posts = snap.posts.map((p) => (p.id === id ? next : p))
@@ -467,6 +470,9 @@ export function createMockRepo(): Repo {
       const c = v && snap.contracts.find((x) => x.id === v.contractId)
       if (!v || !c) throw new Error('not found')
       if (c.status !== 'draft' || v.number !== c.currentVersion) throw new Error('only the current draft version can be signed')
+      // same rules as the database (0014): never re-sign a version that was sent, never sign an incomplete one
+      if (v.sentAt) throw new Error('this version was already sent — save a new version to sign again')
+      if (missingFields(v.content).length) throw new Error('contract incomplete: ' + missingFields(v.content)[0].label)
       if (!sig.signature.startsWith('data:image/png;base64,') || !sig.name.trim()) throw new Error('signature required')
       const at = new Date().toISOString()
       snap.contractVersions = snap.contractVersions.map((x) => (x.id === versionId ? { ...x, firstSignature: sig.signature, firstSigner: sig.name.trim(), firstCapacity: sig.capacity.trim() || undefined, firstSignedAt: at } : x))
@@ -484,6 +490,7 @@ export function createMockRepo(): Repo {
           const v = snap.contractVersions.find((x) => x.contractId === id && x.number === cur.currentVersion)
           if (!v) throw new Error('save a version before sending')
           if (!v.firstSignature) throw new Error('Hawamish must sign the version before sending')
+          if (missingFields(v.content).length) throw new Error('contract incomplete: ' + missingFields(v.content)[0].label)
           next.sentAt = now
           snap.contractVersions = snap.contractVersions.map((x) => (x.id === v.id && !x.sentAt ? { ...x, sentAt: now } : x))
           logEvent(id, cur.currentVersion, 'sent', me)

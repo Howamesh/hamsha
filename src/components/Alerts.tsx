@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { AlertTriangle, Clock, FileSignature, Megaphone } from 'lucide-react'
-import { activityFeed, unreadActivity, type Activity } from '@/lib/activity'
+import { activityFeed, isNewer, newestAt, unreadActivity, type Activity } from '@/lib/activity'
 import { cn } from '@/lib/utils'
 import { alerts, visibleTasks } from '@/lib/derive'
 import { fmtDate, fmtTime, useStr } from '@/lib/useStr'
@@ -46,18 +46,20 @@ function ActivityList() {
   const openContract = useUi((u) => u.openContract)
   const openPost = useUi((u) => u.openPost)
   // looking at the list = seen (after it rendered with the «new» dots)
+  // keyed on the newest item itself (a newer move on the SAME contract keeps the row count — council 2 Nov)
+  const newest = newestAt(feed)
   useEffect(() => {
-    if (!user) return
-    const id = setTimeout(() => markSeen(user.id), 1500)
+    if (!user || !newest) return
+    const id = setTimeout(() => markSeen(user.id, newest), 1500)
     return () => clearTimeout(id)
-  }, [user, markSeen, feed.length])
+  }, [user, markSeen, newest])
   if (!user || !feed.length) return null
   return (
     <div className="flex flex-col gap-1.5" data-testid="activity">
       <div className="text-[12px] font-semibold text-fg-secondary mt-2">{t('recentActivity')}</div>
       <div className="rounded-md border border-border bg-bg divide-y divide-border overflow-hidden">
         {feed.map((a) => {
-          const fresh = !seen || a.at > seen
+          const fresh = isNewer(a.at, seen)
           return (
             <button key={a.id} type="button" data-testid="activity-item" data-kind={a.kind}
               onClick={() => {

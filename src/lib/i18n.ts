@@ -523,6 +523,7 @@ export const STR = {
   actPostSent: { en: '«{title}» was sent to the client', ar: 'انرسل «{title}» للعميل' },
   actPostApproved: { en: 'The client approved «{title}» ✅', ar: 'العميل اعتمد «{title}» ✅' },
   actPostChanges: { en: 'The client asked for changes on «{title}»', ar: 'العميل طلب تعديل على «{title}»' },
+  missingBlocksSend: { en: 'Missing before signing/sending: {list} — tap to complete it.', ar: 'ناقص قبل التوقيع والإرسال: {list} — اضغط هنا وكمّله.' },
   kindEmployment: { en: 'Employment contract', ar: 'عقد عمل' },
   kindEmploymentHint: { en: 'For a full-time creative: job, term, pay by the work done, their bank account.', ar: 'للمبدع اللي دوامه كامل معنا: الوظيفة، المدة، المستحقات حسب العمل المنجز، وحسابه البنكي.' },
   fJobTitle: { en: 'Job', ar: 'الوظيفة' },

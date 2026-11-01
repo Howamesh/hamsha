@@ -139,6 +139,9 @@ export interface Post {
   sentAt?: string
   publishedUrl?: string
   publishedAt?: string
+  /** Team only (0014): who clicked «أرسل للعميل» / «تم النشر» — so a second admin sees the other's moves */
+  sentBy?: string
+  publishedBy?: string
   /** Team only (the client view carries no people). */
   createdBy?: string
   createdAt: string
