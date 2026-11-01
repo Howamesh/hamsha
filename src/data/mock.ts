@@ -490,7 +490,8 @@ export function createMockRepo(): Repo {
           const v = snap.contractVersions.find((x) => x.contractId === id && x.number === cur.currentVersion)
           if (!v) throw new Error('save a version before sending')
           if (!v.firstSignature) throw new Error('Hawamish must sign the version before sending')
-          if (missingFields(v.content).length) throw new Error('contract incomplete: ' + missingFields(v.content)[0].label)
+          // checked on the FIRST send only (a version re-sent after «سحب» keeps what it went out with) — as 0014
+          if (!v.sentAt && missingFields(v.content).length) throw new Error('contract incomplete: ' + missingFields(v.content)[0].label)
           next.sentAt = now
           snap.contractVersions = snap.contractVersions.map((x) => (x.id === v.id && !x.sentAt ? { ...x, sentAt: now } : x))
           logEvent(id, cur.currentVersion, 'sent', me)

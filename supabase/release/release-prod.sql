@@ -1287,26 +1287,83 @@ alter type contract_kind add value if not exists 'employment';
 -- 3. posts.sent_by / posts.published_by: who clicked «أرسل للعميل» / «تم النشر», so a second admin's alerts can show
 --    the other admin's moves (never exposed to clients: client_posts lists its columns explicitly).
 
-/** NULL when the frozen content has what the paper must print; otherwise the first missing thing (Arabic label). */
+-- small helpers: an empty text at a path / a positive number at a path (JSON numbers only)
+create or replace function _c_empty(c jsonb, path text[]) returns boolean
+language sql immutable set search_path = public as $$ select length(trim(coalesce(c #>> path, ''))) = 0 $$;
+create or replace function _c_pos(c jsonb, path text[]) returns boolean
+language sql immutable set search_path = public as $$
+  select case when jsonb_typeof(c #> path) = 'number' then (c #>> path)::numeric > 0 else false end $$;
+
+/** NULL when the frozen content has what the paper must print; otherwise the first missing thing (Arabic label).
+ *  Mirrors missingFields() in src/lib/contracts.ts (council verify round 2 Nov: amounts, durations, contacts too). */
 create or replace function contract_content_missing(c jsonb) returns text
 language plpgsql immutable set search_path = public as $$
 declare k text := coalesce(c ->> 'kind', '');
-  t text := '';
+  txt text;
+  side text; who text;
+  i int;
 begin
   if c is null then return 'المحتوى'; end if;
-  if length(trim(coalesce(c ->> 'title', ''))) = 0 then return 'عنوان العقد'; end if;
+  if _c_empty(c, '{title}') then return 'عنوان العقد'; end if;
   if coalesce(c ->> 'date', '') !~ '^\d{4}-\d{2}-\d{2}$' then return 'تاريخ العقد'; end if;
-  if length(trim(coalesce(c #>> '{counterparty,name}', ''))) = 0 then return 'اسم الطرف الآخر'; end if;
-  if length(trim(coalesce(c #>> '{hawamish,name}', ''))) = 0 then return 'اسم هوامش'; end if;
-  if length(trim(coalesce(c #>> '{signers,hawamish,name}', ''))) = 0 then return 'اسم موقّع هوامش'; end if;
   if k = 'employment' then
-    if length(trim(coalesce(c ->> 'jobTitle', ''))) = 0 then return 'الوظيفة'; end if;
-    if length(trim(coalesce(c #>> '{counterparty,nationalId}', ''))) = 0 then return 'رقم هوية الموظف'; end if;
-    if length(trim(coalesce(c #>> '{bank,iban}', ''))) = 0 then return 'آيبان الموظف'; end if;
+    if _c_empty(c, '{jobTitle}') then return 'الوظيفة'; end if;
+    if _c_empty(c, '{counterparty,name}') then return 'اسم الموظف'; end if;
+    if _c_empty(c, '{counterparty,nationalId}') then return 'رقم هوية الموظف'; end if;
+    if _c_empty(c, '{counterparty,phone}') then return 'رقم التواصل (الموظف)'; end if;
+    if _c_empty(c, '{counterparty,email}') then return 'إيميل التواصل (الموظف)'; end if;
+    if _c_empty(c, '{hawamish,name}') then return 'اسم هوامش'; end if;
+    if _c_empty(c, '{hawamish,cr}') then return 'السجل التجاري (هوامش)'; end if;
+    if _c_empty(c, '{hawamish,repName}') then return 'ممثل هوامش'; end if;
+    if _c_empty(c, '{hawamish,phone}') then return 'رقم التواصل (هوامش)'; end if;
+    if _c_empty(c, '{hawamish,email}') then return 'إيميل التواصل (هوامش)'; end if;
+    if _c_empty(c, '{bank,owner}') then return 'صاحب الحساب (الموظف)'; end if;
+    if _c_empty(c, '{bank,account}') then return 'رقم الحساب (الموظف)'; end if;
+    if _c_empty(c, '{bank,iban}') then return 'آيبان الموظف'; end if;
   else
-    if length(trim(coalesce(c #>> '{counterparty,cr}', '') || coalesce(c #>> '{counterparty,nationalId}', ''))) = 0 then return 'السجل التجاري أو الهوية'; end if;
-    if length(trim(coalesce(c #>> '{bank,iban}', ''))) = 0 then return 'الآيبان'; end if;
+    -- the words the contract TEXT uses must be filled (unused counts stay optional), like the editor's bar
+    if k = 'full' then
+      select coalesce(string_agg(x ->> 'body', E'\n'), '') into txt from jsonb_array_elements(coalesce(c -> 'sections', '[]'::jsonb)) x;
+    else
+      txt := coalesce(c ->> 'scope', '');
+    end if;
+    if position('{الهدف}' in txt) > 0 and _c_empty(c, '{project}') then return 'المشروع'; end if;
+    foreach side in array array['counterparty', 'hawamish'] loop
+      who := case side when 'counterparty' then 'الطرف الآخر' else 'هوامش' end;
+      if _c_empty(c, array[side, 'name']) then return 'اسم ' || who; end if;
+      if _c_empty(c, array[side, 'cr']) and _c_empty(c, array[side, 'nationalId']) then return 'السجل التجاري أو الهوية (' || who || ')'; end if;
+      if k <> 'short' and _c_empty(c, array[side, 'city']) then return 'المدينة (' || who || ')'; end if;
+      if _c_empty(c, array[side, 'repName']) then return 'الممثل (' || who || ')'; end if;
+      if _c_empty(c, array[side, 'phone']) then return 'رقم التواصل (' || who || ')'; end if;
+      if _c_empty(c, array[side, 'email']) then return 'إيميل التواصل (' || who || ')'; end if;
+    end loop;
+    if position('{المنصات}' in txt) > 0 and _c_empty(c, '{vars,platforms}') then return 'المنصات'; end if;
+    if position('{المنشورات}' in txt) > 0 and not _c_pos(c, '{vars,posts}') then return 'عدد المنشورات شهرياً'; end if;
+    if position('{التصاميم}' in txt) > 0 and not _c_pos(c, '{vars,designs}') then return 'عدد التصاميم شهرياً'; end if;
+    if position('{الفيديوهات}' in txt) > 0 and not _c_pos(c, '{vars,videos}') then return 'عدد الفيديوهات شهرياً'; end if;
+    if k = 'short' then
+      if jsonb_array_length(coalesce(c -> 'tracks', '[]'::jsonb)) = 0 then return 'المسار'; end if;
+      for i in 0 .. jsonb_array_length(c -> 'tracks') - 1 loop
+        if not _c_pos(c, array['tracks', i::text, 'monthly']) then return 'المبلغ الشهري للمسار ' || (i + 1); end if;
+        if not _c_pos(c, array['tracks', i::text, 'months']) then return 'مدة المسار ' || (i + 1); end if;
+      end loop;
+    elsif k = 'offer' then
+      for i in 0 .. jsonb_array_length(coalesce(c -> 'packages', '[]'::jsonb)) - 1 loop
+        if not _c_pos(c, array['packages', i::text, 'price']) then return 'سعر الباقة ' || (i + 1); end if;
+      end loop;
+    elsif coalesce(c #>> '{pricing,mode}', 'monthly') = 'monthly' then
+      if not _c_pos(c, '{pricing,monthly}') then return 'المبلغ الشهري'; end if;
+      if not _c_pos(c, '{pricing,months}') then return 'عدد الأشهر'; end if;
+    else
+      if not (_c_pos(c, '{pricing,projectTotal}') or exists (
+              select 1 from jsonb_array_elements(coalesce(c #> '{pricing,installments}', '[]'::jsonb)) x
+              where jsonb_typeof(x -> 'amount') = 'number' and (x ->> 'amount')::numeric > 0)) then return 'إجمالي المشروع'; end if;
+      if exists (select 1 from jsonb_array_elements(coalesce(c #> '{pricing,installments}', '[]'::jsonb)) x
+                 where not (jsonb_typeof(x -> 'amount') = 'number' and (x ->> 'amount')::numeric > 0)) then return 'مبالغ الدفعات'; end if;
+    end if;
+    if _c_empty(c, '{bank,iban}') then return 'الآيبان (الحساب البنكي)'; end if;
   end if;
+  if _c_empty(c, '{signers,hawamish,name}') then return 'اسم موقّع هوامش'; end if;
   return null;
 end $$;
 
@@ -1328,8 +1385,12 @@ begin
       if old.current_version = 0 then raise exception 'save a version before sending'; end if;
       select first_signature, sent_at, content into v from contract_versions where contract_id = new.id and number = old.current_version;
       if v.first_signature is null then raise exception 'Hawamish must sign the version before sending'; end if;
-      miss := contract_content_missing(v.content);                                    -- 0014: never send an incomplete contract
-      if miss is not null then raise exception 'contract incomplete: %', miss; end if;
+      -- 0014: never send an incomplete contract. Checked on the FIRST send only: a version that already went out once
+      -- (re-sent after «سحب») keeps the content it was sent with (council verify round, 2 Nov)
+      if v.sent_at is null then
+        miss := contract_content_missing(v.content);
+        if miss is not null then raise exception 'contract incomplete: %', miss; end if;
+      end if;
       new.sent_at := now();
       perform set_config('hamsha.sys', '1', true);
       update contract_versions set sent_at = coalesce(sent_at, now()) where contract_id = new.id and number = old.current_version;

@@ -98,6 +98,13 @@ export const useUi = create<UiState>()(
     }),
     {
       name: 'hamsha.ui',
+      // v1 (2 Nov, council): «seen» markers saved before were THIS device's clock (could be in the future and hide new
+      // alerts) — drop them once; from now on the marker is always a server time
+      version: 1,
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as Record<string, unknown>
+        return (version < 1 ? { ...p, activitySeen: {} } : p) as never
+      },
       // workspace + open contract/editor survive a refresh (1 Nov): he lands back where he was typing
       partialize: (s) => ({ lang: s.lang, theme: s.theme, weekStart: s.weekStart, view: s.view, panelOpen: s.panelOpen, workspace: s.workspace, contractId: s.contractId, contractEditing: s.contractEditing, activitySeen: s.activitySeen }),
     },
