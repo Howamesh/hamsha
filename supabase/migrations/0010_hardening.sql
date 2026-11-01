@@ -23,6 +23,9 @@ language sql stable security definer set search_path = public as $$
     join posts p on p.id = v.post_id
     where v.org_id = current_org()
       and v.image_paths @> array[obj]
+      -- defence in depth (re-verify 20261101-165154-cdd9): the file must also sit in that post's own folder, so a
+      -- path borrowed by an OLD version (before the insert check existed) grants nothing
+      and obj like v.org_id::text || '/' || p.client_id::text || '/' || p.id::text || '/%'
       and case current_role_()
             when 'admin' then true
             when 'creative' then can_read_post(p.id)
