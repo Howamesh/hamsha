@@ -6,7 +6,7 @@ import { useData, useSession } from '@/store/session'
 import { useUi } from '@/store/ui'
 import type { Contract, ContractContent, ContractPartyInfo, ContractVersion } from '@/types'
 import { CURRENCIES, EMPTY_LEGAL, amountWords, contractTotal, currencyWord, emptyContent, fmtAmount, missingValues, partyFromClient, partyFromCreative } from '@/lib/contracts'
-import { toLatin } from '@/lib/latinDigits'
+import { deepLatin, toLatin } from '@/lib/latinDigits'
 import { clearDraft, loadDraft, saveDraft } from '@/lib/contractDraft'
 import { Button, Input, SectionTitle } from '../ui'
 import { ContractPaper } from './ContractPaper'
@@ -35,13 +35,14 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
     const u = s.users.find((x) => x.id === contract.creativeId)
     return u ? partyFromCreative(u) : { ...EMPTY_LEGAL.party, name: '' }
   }, [s, contract])
-  const fresh = (): ContractContent => (current ? JSON.parse(JSON.stringify(current.content)) : emptyContent(contract.kind, counterpartyInfo, contract.title, contract.accent, legal))
+  // deepLatin: Arabic digits saved before the rule (e.g. the bank account) come into the form as English
+  const fresh = (): ContractContent => deepLatin(current ? JSON.parse(JSON.stringify(current.content)) : emptyContent(contract.kind, counterpartyInfo, contract.title, contract.accent, legal))
   // unsaved edits from before a refresh come back — only if they were made on this same version
   const [draft] = useState(() => {
     const d = loadDraft(contract.id)
     return d && d.base === (current?.id ?? null) ? d : null
   })
-  const [c, setC] = useState<ContractContent>(() => draft?.content ?? fresh())
+  const [c, setC] = useState<ContractContent>(() => (draft ? deepLatin(draft.content) : fresh()))
   const [note, setNote] = useState(() => draft?.note ?? '')
   const [restoredAt, setRestoredAt] = useState<string | null>(draft?.at ?? null)
   const [draftFailed, setDraftFailed] = useState(false)

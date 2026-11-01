@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { deepLatin } from '@/lib/latinDigits'
 import { ImagePlus, Plus, Save, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStr } from '@/lib/useStr'
@@ -18,7 +19,7 @@ export function LegalSettings() {
   const sess = useSession()
   const setToast = useUi((u) => u.setToast)
   // derived-state reset: when the saved profile changes (another admin / reload), start from it again
-  const [st, setSt] = useState<{ base: OrgLegal | null; l: OrgLegal }>(() => ({ base: s.legal, l: JSON.parse(JSON.stringify(s.legal ?? EMPTY_LEGAL)) }))
+  const [st, setSt] = useState<{ base: OrgLegal | null; l: OrgLegal }>(() => ({ base: s.legal, l: deepLatin(JSON.parse(JSON.stringify(s.legal ?? EMPTY_LEGAL)) as OrgLegal) }))
   if (st.base !== s.legal) setSt({ base: s.legal, l: JSON.parse(JSON.stringify(s.legal ?? EMPTY_LEGAL)) })
   const l = st.l
   const setL = (f: OrgLegal | ((x: OrgLegal) => OrgLegal)) => setSt((x) => ({ ...x, l: typeof f === 'function' ? f(x.l) : f }))

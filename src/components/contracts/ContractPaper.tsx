@@ -1,5 +1,6 @@
-import { Fragment } from 'react'
+import { Fragment, useMemo } from 'react'
 import { cn } from '@/lib/utils'
+import { deepLatin } from '@/lib/latinDigits'
 import { SHORT_FOOTNOTE, agreementDateLine, contractTotal, currencyShort, fillText, fmtAmount, signDate } from '@/lib/contracts'
 import type { ContractContent, ContractPartyInfo, ContractVersion } from '@/types'
 
@@ -89,7 +90,9 @@ const SignBlock = ({ c, first, second, firstSig, secondSig, firstSigner, secondS
   </>
 )
 
-export function ContractPaper({ content: c, version, number, stamp: stampProp, className, scale }: { content: ContractContent; version?: ContractVersion; number: number; stamp?: string; className?: string; scale?: number }) {
+export function ContractPaper({ content, version, number, stamp: stampProp, className, scale }: { content: ContractContent; version?: ContractVersion; number: number; stamp?: string; className?: string; scale?: number }) {
+  // digits typed in Arabic before the «كل الأرقام إنجليزي» rule still show in English on the paper (display only)
+  const c = useMemo(() => deepLatin(content), [content])
   const first = c.counterpartySide === 'first' ? c.counterparty : c.hawamish
   const second = c.counterpartySide === 'first' ? c.hawamish : c.counterparty
   const firstSig = c.counterpartySide === 'first' ? version?.signature : version?.firstSignature

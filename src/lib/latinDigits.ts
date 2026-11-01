@@ -8,6 +8,14 @@ const FOREIGN = /[٠-٩۰-۹٫٬]/
 export const toLatin = (v: string) =>
   v.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6f0)).replace(/[٫٬]/g, (c) => MAP[c])
 
+/** Every string inside a value (contract content, legal identity) with Latin digits — for data typed before the rule. */
+export function deepLatin<T>(v: T): T {
+  if (typeof v === 'string') return (FOREIGN.test(v) ? toLatin(v) : v) as T
+  if (Array.isArray(v)) return v.map(deepLatin) as T
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deepLatin(x)])) as T
+  return v
+}
+
 const SKIP = new Set(['password', 'file', 'checkbox', 'radio', 'color', 'range', 'date', 'time', 'datetime-local', 'month', 'week'])
 
 /** Capture phase on window runs before React's root listener, so onChange already sees Latin digits. */
