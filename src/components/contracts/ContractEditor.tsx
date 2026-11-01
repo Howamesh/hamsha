@@ -432,23 +432,23 @@ function PartyFields({ k, p, full, onChange: upParty }: { k: 'hawamish' | 'count
 
 // «المنصات» as tap-to-pick chips (1 Nov: he wanted choices, not typing). Stored as before: «Instagram · X», so
 // old contracts and the paper text keep working; anything typed by hand stays as its own chip.
+// his list (1 Nov): Twitter is «تويتر» (not «إكس»); no Facebook / Telegram / Pinterest
 const PLATFORMS: [string, string][] = [
   ['Instagram', 'إنستقرام'],
-  ['X', 'إكس (تويتر)'],
+  ['Twitter', 'تويتر'],
   ['TikTok', 'تيك توك'],
   ['Snapchat', 'سناب شات'],
   ['YouTube', 'يوتيوب'],
   ['LinkedIn', 'لينكدإن'],
-  ['Facebook', 'فيسبوك'],
   ['Threads', 'ثريدز'],
   ['WhatsApp', 'واتساب'],
-  ['Telegram', 'تيليجرام'],
-  ['Pinterest', 'بنترست'],
 ]
+/** older drafts saved «X» for Twitter */
+const ALIAS: Record<string, string> = { X: 'Twitter' }
 function PlatformPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { t } = useStr()
   const [other, setOther] = useState('')
-  const picked = value.split('·').map((x) => x.trim()).filter(Boolean)
+  const picked = value.split('·').map((x) => ALIAS[x.trim()] ?? x.trim()).filter(Boolean)
   const known = new Set(PLATFORMS.map(([en]) => en))
   const extras = picked.filter((p) => !known.has(p))
   const write = (list: string[]) => onChange([...PLATFORMS.map(([en]) => en).filter((en) => list.includes(en)), ...list.filter((p) => !known.has(p))].join(' · '))

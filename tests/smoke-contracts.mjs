@@ -99,6 +99,7 @@ CHECKS['fixed sections locked'] = await ev(`[...document.querySelectorAll('[data
 CHECKS['missing flag gone once typed'] = !(await ev(`!!document.querySelector('[data-testid=missing-values]')`));
 // 1 Nov notes: platforms are chips · hints on the two unclear fields · a clause opens full screen · edits survive a refresh
 CHECKS['platform chips → paper text «Instagram · TikTok»'] = (await text('[data-testid=contract-paper]')).includes('Instagram · TikTok') && (await ev(`document.querySelector('[data-testid=platform-Instagram]').getAttribute('aria-pressed')`)) === 'true';
+CHECKS['platform list = his 8 (تويتر, no فيسبوك/تيليجرام/بنترست)'] = await ev(`(()=>{const t=[...document.querySelectorAll('[data-testid=vars-platforms] button')].map(b=>b.textContent.trim());return t.includes('تويتر')&&!t.some(x=>/إكس|فيسبوك|تيليجرام|بنترست/.test(x))&&t.length===8})()`);
 CHECKS['late-days + support fields explained'] = (await text('[data-testid=contract-editor]')).includes('يتوقف الشغل لين يدفع') && (await text('[data-testid=contract-editor]')).includes('أشهر دعم مجاني');
 await clickSel('[data-testid=section-expand-02]'); await waitFor(`!!document.querySelector('[data-testid=section-focus]')`);
 CHECKS['clause opens full screen in big type'] = await ev(`(()=>{const b=document.querySelector('[data-testid=section-focus-body]');return parseFloat(getComputedStyle(b).fontSize)>=20 && b.value.includes('يلتزم')})()`);
