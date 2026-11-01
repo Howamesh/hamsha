@@ -396,7 +396,12 @@ const sMain = await sec('main'), sMsg = await sec('messages'), sAlert = await se
 CHECKS['phone: messages is its own section'] = await (async () => { await sec('messages'); return ev(`!!document.querySelector('aside [placeholder*="رسالة"]') && !document.querySelector('aside').innerText.includes('تقدم المشاريع')`); })();
 CHECKS['phone: progress has no chat in it'] = await (async () => { await sec('main'); return ev(`document.querySelector('aside').innerText.includes('تقدم المشاريع') && !document.querySelector('aside [placeholder*="رسالة"]')`); })();
 CHECKS['phone: alerts and settings differ from progress'] = sAlert !== sMain && sSet !== sMain && sMsg !== sMain;
+CHECKS['client alerts never show a creative\'s «عقد عمل»'] = await (async () => { await sec('alerts'); return ev(`![...document.querySelectorAll('[data-testid=activity-item]')].some(x=>x.innerText.includes('عقد عمل'))`) })();
 CHECKS['phone: bottom tabs carry names'] = (await text('[data-testid=nav-messages]')).includes('الرسائل') && (await text('[data-testid=nav-alerts]')).includes('التنبيهات');
+if (process.env.SHOT_DIR) for (const id of ['main', 'messages', 'alerts']) { // optional phone images for a visual check
+  await ev(`document.querySelector('[data-testid=nav-${id}]').click()`); await sleep(500);
+  const img = await send('Page.captureScreenshot', { format: 'png' }); (await import('node:fs')).writeFileSync(`${process.env.SHOT_DIR}/phone-client-${id}.png`, Buffer.from(img.result.data, 'base64'));
+}
 await ev(`document.querySelector('[data-testid=nav-main]').click()`); await sleep(200);
 await send('Emulation.setDeviceMetricsOverride',{width:1500,height:950,deviceScaleFactor:1,mobile:false}); await sleep(600);
 // reload: persisted

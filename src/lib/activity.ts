@@ -3,6 +3,8 @@
 // they can read + the contracts sent to them. Each entry knows who did it, so «my own» actions never count as new.
 import type { Snapshot } from '@/data/repo'
 import type { User } from '@/types'
+import { visibleContracts } from './contracts'
+import { visiblePosts } from './social'
 
 export type ActivityKind =
   | 'c_created' | 'c_version' | 'c_first_signed' | 'c_sent' | 'c_withdrawn' | 'c_opened' | 'c_signed' | 'c_changes' | 'c_rejected' | 'c_completed' | 'c_received'
@@ -26,19 +28,21 @@ export function activityFeed(s: Snapshot, user: User): Activity[] {
   const since = Date.now() - DAYS * 86400000
   const name = (id?: string) => (id ? s.users.find((u) => u.id === id)?.name : undefined)
   const out: Activity[] = []
-  const contracts = new Map(s.contracts.map((c) => [c.id, c]))
+  // 2 Nov (found in the overnight check): only what this person may SEE — the database already hides the rest, but the
+  // demo store and any wider snapshot must never put another client's or a creative's contract in someone's alerts
+  const contracts = new Map(visibleContracts(s, user).map((c) => [c.id, c]))
+  const visible = new Map(visiblePosts(s, user, null).map((p) => [p.id, p]))
   if (user.role === 'client') {
     // the client's own «inbox»: what was sent to them (their snapshot only holds sent versions) and what went live
     for (const v of s.contractVersions) {
       const c = contracts.get(v.contractId)
       if (c && v.sentAt) out.push({ id: `cr:${v.id}`, at: v.sentAt, kind: 'c_received', title: c.title, n: v.number, target: { type: 'contract', id: c.id } })
     }
-    const ps = new Map(s.posts.map((p) => [p.id, p]))
     for (const v of s.postVersions) {
-      const p = ps.get(v.postId)
+      const p = visible.get(v.postId)
       if (p && v.sentAt) out.push({ id: `pr:${v.id}`, at: v.sentAt, kind: 'p_received', title: p.title, n: v.number, target: { type: 'post', id: p.id } })
     }
-    for (const p of s.posts) if (p.publishedAt) out.push({ id: `pp:${p.id}`, at: p.publishedAt, kind: 'p_published', title: p.title, target: { type: 'post', id: p.id } })
+    for (const p of visible.values()) if (p.publishedAt) out.push({ id: `pp:${p.id}`, at: p.publishedAt, kind: 'p_published', title: p.title, target: { type: 'post', id: p.id } })
     return tidy(out, user, since)
   }
   if (user.role === 'admin') {
@@ -56,15 +60,14 @@ export function activityFeed(s: Snapshot, user: User): Activity[] {
       if (v.sentAt) out.push({ id: `cr:${v.id}`, at: v.sentAt, kind: 'c_received', title: c.title, n: v.number, target: { type: 'contract', id: c.id } })
     }
   }
-  const posts = new Map(s.posts.map((p) => [p.id, p]))
   for (const v of s.postVersions) {
-    const p = posts.get(v.postId)
+    const p = visible.get(v.postId)
     if (!p) continue
     out.push({ id: `pv:${v.id}`, at: v.createdAt, kind: 'p_version', title: p.title, n: v.number, who: name(v.createdBy), actorId: v.createdBy, target: { type: 'post', id: p.id } })
     if (v.sentAt) out.push({ id: `ps:${v.id}`, at: v.sentAt, kind: 'p_sent', title: p.title, n: v.number, target: { type: 'post', id: p.id } })
     if (v.decidedAt && v.decision) out.push({ id: `pd:${v.id}`, at: v.decidedAt, kind: v.decision === 'approved' ? 'p_approved' : 'p_changes', title: p.title, n: v.number, note: v.decisionNote, target: { type: 'post', id: p.id } })
   }
-  for (const p of s.posts) if (p.publishedAt) out.push({ id: `pp:${p.id}`, at: p.publishedAt, kind: 'p_published', title: p.title, target: { type: 'post', id: p.id } })
+  for (const p of visible.values()) if (p.publishedAt) out.push({ id: `pp:${p.id}`, at: p.publishedAt, kind: 'p_published', title: p.title, target: { type: 'post', id: p.id } })
   return tidy(out.filter((a) => !OWN[user.role]?.has(a.kind)), user, since)
 }
 
