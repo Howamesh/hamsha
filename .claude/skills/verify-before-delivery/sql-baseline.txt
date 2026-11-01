@@ -1,7 +1,7 @@
 # 3f2bb17397167b914831904d1e2523a3158dda32  supabase/tests/00_local_shim.sql
 # 6c258b8ca646eec00684fc3581d151a95cde21c4  supabase/tests/10_seed.sql
 # 93243ace9eb331abcc63c105d0406c48d8ce19b4  supabase/tests/20_harness.sql
-# db25566a268f53656c0aae67325ca8a97a36664c  supabase/tests/rls.sql
+# 47366087428cd17cb6f84ad6dcc3a8fcb93716f6  supabase/tests/rls.sql
 # be29f13300c05cd5bab788e28c478de9c52387fd  supabase/tests/run-ci.sh
 # 9cc4dea2c523159b3999365275536fd937accebf  supabase/tests/run-local.sh
 # caea3633e44c3bbf9141d67158499b5333438604  tests/smoke-client-summary.mjs
@@ -169,6 +169,15 @@ anon reads nothing from profiles
 [hard] creative1 cannot borrow P1's (other post) file into P3
 [hard] admin cannot either
 [hard] anon cannot call can_read_post_media
+[hard2] admin creates P4 for client 1
+[hard2] …version 1 of P4
+[hard2] …sent
+[hard2] client user 1 gets UNLINKED (its client deleted → client_id null)
+[hard2] an unlinked client cannot decide a post (null-safe ownership)
+[hard2] …P4 untouched (still sent)
+[hard2] (relink client user 1)
+[hard2] a malformed task channel is simply refused (no uuid error)
+[hard2] a malformed client channel is refused too
 [soc] admin deletes P2 (versions cascade)
 [acc] admin adds an Instagram account for client 1 (@ is stripped)
 [acc] …stored without the @
@@ -238,6 +247,9 @@ anon reads nothing from profiles
 [ctr] client cannot sign the OLD version 1
 [ctr] client signs version 2 straight from «sent» (opening is optional)
 [ctr] …signed: signature + signer + capacity stored, clients.contract = signed
+[hard2] admin starts a renewal DRAFT for the same (signed) client
+[hard2] …the client stays «signed»: an unsent draft does not flip it
+[hard2] (drop the renewal draft)
 [ctr] a signed contract cannot get a new version
 [ctr] a signed contract cannot be deleted
 [ctr] admin cannot delete a sent/signed version (record is kept)

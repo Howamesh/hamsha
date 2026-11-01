@@ -35,12 +35,16 @@ export default function Welcome() {
     let alive = true
     let tries = 0
     const ask = () => {
-      void repo.restoreSession().then((u) => {
-        if (!alive) return
-        if (u) setHasSession(true)
-        else if (++tries < 12) setTimeout(ask, 500)
-        else setHasSession(false)
-      })
+      // a failed read (network) is retried like «no session yet» — never stuck on «جارٍ التحقق» (council 1 Nov)
+      void repo
+        .restoreSession()
+        .catch(() => null)
+        .then((u) => {
+          if (!alive) return
+          if (u) setHasSession(true)
+          else if (++tries < 12) setTimeout(ask, 500)
+          else setHasSession(false)
+        })
     }
     const id = setTimeout(ask, 300)
     return () => {
@@ -53,13 +57,17 @@ export default function Welcome() {
     e.preventDefault()
     setError(null)
     if (pw.length < 8) return setError(t('pwShort'))
+    // production Auth requires letters AND digits: say so here instead of a vague error after the round trip
+    if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) return setError(t('pwLettersDigits')) // Supabase counts Latin letters/digits only
     if (pw !== pw2) return setError(t('pwMismatch'))
     setBusy(true)
     try {
       await completeInvite(pw)
       nav('/', { replace: true })
-    } catch {
-      setError(t('welcomeNoSession'))
+    } catch (err) {
+      // the real reason (council 1 Nov): weak password / network / expired session — not always «no session»
+      const m = err instanceof Error ? err.message : String(err)
+      setError(/password|weak|characters/i.test(m) ? t('pwLettersDigits') : /fetch|network|failed to/i.test(m) ? t('netError') : t('welcomeNoSession'))
     } finally {
       setBusy(false)
     }
@@ -82,7 +90,7 @@ export default function Welcome() {
         <PasswordInput autoComplete="new-password" placeholder={t('newPassword')} value={pw} onChange={(e) => setPw(e.target.value)} required />
         <PasswordInput autoComplete="new-password" placeholder={t('confirmPassword')} value={pw2} onChange={(e) => setPw2(e.target.value)} required />
         {error && <div className="rounded-md bg-danger-tint text-danger-dark text-[13px] font-semibold px-3 py-2 anim-fade">{error}</div>}
-        <Button type="submit" variant="primary" className="h-[44px] text-[14.5px]" disabled={busy || hasSession === false}>
+        <Button type="submit" variant="primary" className="h-[44px] text-[14.5px]" disabled={busy || hasSession !== true}>
           {busy ? t('signingIn') : t('savePassword')}
         </Button>
       </form>

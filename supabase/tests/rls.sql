@@ -190,6 +190,18 @@ select t.run('[hard] creative1 cannot borrow another client''s file path into P3
 select t.run('[hard] creative1 cannot borrow P1''s (other post) file into P3', :'C1', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P3') || ', array[' || quote_literal(:'MP' || '1.png') || '])', 'error');
 select t.run('[hard] admin cannot either', :'A', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P3') || ', array[' || quote_literal(:'MP' || '1.png') || '])', 'error');
 select t.run('[hard] anon cannot call can_read_post_media', null, 'select can_read_post_media(' || quote_literal(:'MP' || '2a.png') || ')', 'error');
+-- ===== 0011 (councils 20261101-18…): unlinked client, channel names =====
+\set P4 60000000-0000-0000-0000-000000000004
+\set MP4 '10000000-0000-0000-0000-000000000001/20000000-0000-0000-0000-000000000001/60000000-0000-0000-0000-000000000004/'
+select t.run('[hard2] admin creates P4 for client 1', :'A', 'insert into posts (id, org_id, client_id, title) values (' || quote_literal(:'P4') || ', ' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ''P4'')', 'rows:1');
+select t.run('[hard2] …version 1 of P4', :'A', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P4') || ', array[' || quote_literal(:'MP4' || '1-1-a.png') || '])', 'rows:1');
+select t.run('[hard2] …sent', :'A', 'update posts set status = ''sent'' where id = ' || quote_literal(:'P4'), 'rows:1');
+select t.run_su('[hard2] client user 1 gets UNLINKED (its client deleted → client_id null)', 'update profiles set client_id = null where id = ' || quote_literal(:'K1'), 'rows:1');
+select t.run('[hard2] an unlinked client cannot decide a post (null-safe ownership)', :'K1', 'select decide_post((select id from post_versions where post_id = ' || quote_literal(:'P4') || '), ''approved'')', 'error');
+select t.run('[hard2] …P4 untouched (still sent)', :'A', 'select 1 from posts where id = ' || quote_literal(:'P4') || ' and status = ''sent''', 'rows:1');
+select t.run_su('[hard2] (relink client user 1)', 'update profiles set client_id = ''20000000-0000-0000-0000-000000000001'' where id = ' || quote_literal(:'K1'), 'rows:1');
+select t.run('[hard2] a malformed task channel is simply refused (no uuid error)', :'C1', 'select 1 where can_access_channel(''task:xyz'') = false', 'rows:1');
+select t.run('[hard2] a malformed client channel is refused too', :'K1', 'select 1 where can_access_channel(''client:abc'') = false', 'rows:1');
 select t.run('[soc] admin deletes P2 (versions cascade)', :'A', 'delete from posts where id = ' || quote_literal(:'P2'), 'rows:1');
 
 -- ===== client accounts (0008): the real account behind the preview =====
@@ -272,6 +284,10 @@ select t.run('[ctr] client sees both sent versions (1 and 2)', :'K1', 'select * 
 select t.run('[ctr] client cannot sign the OLD version 1', :'K1', 'select decide_contract(' || quote_literal(:'CV1') || ', ''signed'', null, ' || quote_literal(:'SIG') || ', ''زياد'', ''المالك'')', 'error');
 select t.run('[ctr] client signs version 2 straight from «sent» (opening is optional)', :'K1', 'select decide_contract(' || quote_literal(:'CV2') || ', ''signed'', null, ' || quote_literal(:'SIG') || ', ''زياد بن محمد الجاسر'', ''مالك الشركة'')', 'rows:1');
 select t.run('[ctr] …signed: signature + signer + capacity stored, clients.contract = signed', :'A', 'select 1 from contracts c join contract_versions v on v.contract_id = c.id and v.number = 2 join clients k on k.id = c.client_id where c.id = ' || quote_literal(:'CT1') || ' and c.status = ''signed'' and v.signature = ' || quote_literal(:'SIG') || ' and v.signer_name = ''زياد بن محمد الجاسر'' and v.signer_capacity = ''مالك الشركة'' and k.contract = ''signed''', 'rows:1');
+\set CT9 90000000-0000-0000-0000-000000000009
+select t.run('[hard2] admin starts a renewal DRAFT for the same (signed) client', :'A', 'insert into contracts (id, org_id, party, client_id, kind, title) values (' || quote_literal(:'CT9') || ', ' || quote_literal(:'ORG') || ', ''client'', ''20000000-0000-0000-0000-000000000001'', ''full'', ''تجديد'')', 'rows:1');
+select t.run('[hard2] …the client stays «signed»: an unsent draft does not flip it', :'A', 'select 1 from clients where id = ''20000000-0000-0000-0000-000000000001'' and contract = ''signed''', 'rows:1');
+select t.run('[hard2] (drop the renewal draft)', :'A', 'delete from contracts where id = ' || quote_literal(:'CT9'), 'rows:1');
 select t.run('[ctr] a signed contract cannot get a new version', :'A', 'insert into contract_versions (org_id, contract_id, content) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'CT1') || ', ''{}''::jsonb)', 'error');
 select t.run('[ctr] a signed contract cannot be deleted', :'A', 'delete from contracts where id = ' || quote_literal(:'CT1'), 'error');
 select t.run('[ctr] admin cannot delete a sent/signed version (record is kept)', :'A', 'delete from contract_versions where id = ' || quote_literal(:'CV1'), 'error');

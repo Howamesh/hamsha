@@ -32,6 +32,8 @@ export const STR = {
   newPassword: { en: 'New password', ar: 'كلمة المرور الجديدة' },
   confirmPassword: { en: 'Confirm password', ar: 'تأكيد كلمة المرور' },
   savePassword: { en: 'Save and enter', ar: 'احفظ وادخل' },
+  pwLettersDigits: { en: 'Use at least 8 characters with letters and numbers.', ar: 'كلمة المرور لازم ٨ خانات أو أكثر، فيها حروف إنجليزية وأرقام إنجليزية (مثل Hamsha2026).' },
+  netError: { en: 'Could not reach the server — check the connection and try again.', ar: 'ما قدرنا نوصل للسيرفر — تأكد من الإنترنت وجرّب مرة ثانية.' },
   pwShort: { en: 'At least 8 characters.', ar: 'ثمانية أحرف على الأقل.' },
   pwMismatch: { en: 'The two passwords differ.', ar: 'كلمتا المرور غير متطابقتين.' },
   welcomeChecking: { en: 'Checking your link…', ar: 'جارٍ التحقق من الرابط…' },

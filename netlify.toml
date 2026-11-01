@@ -18,6 +18,10 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    # CSP (councils 1 Nov): REPORT-ONLY first — the browser only logs what it would block. Once the console is clean on
+    # staging + production for login/invite/fonts/images/signatures/print, rename the key to Content-Security-Policy.
+    # Both Supabase projects are listed so branch deploys (staging) and production share one header.
+    Content-Security-Policy-Report-Only = "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://ltwnqtbxntxyyujqiglb.supabase.co https://fvhalabzjbyzgwqfqqul.supabase.co; media-src 'self' blob: https://ltwnqtbxntxyyujqiglb.supabase.co https://fvhalabzjbyzgwqfqqul.supabase.co; connect-src 'self' https://ltwnqtbxntxyyujqiglb.supabase.co wss://ltwnqtbxntxyyujqiglb.supabase.co https://fvhalabzjbyzgwqfqqul.supabase.co wss://fvhalabzjbyzgwqfqqul.supabase.co; manifest-src 'self'; worker-src 'self' blob:; upgrade-insecure-requests"
 
 # Branch deploys (e.g. the `social` branch → https://social--hamsha-studio.netlify.app) and PR previews
 # talk to the STAGING Supabase project, never to production. These are public values (publishable key);
