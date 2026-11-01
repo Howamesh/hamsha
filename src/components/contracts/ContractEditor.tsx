@@ -136,7 +136,10 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   const [tab, setTab] = useState<'form' | 'paper'>('form')
   // a NEW version (saved here or elsewhere) replaces the form; the first render keeps a restored draft
   const seenVersion = useRef(current?.id)
-  const baseJson = useRef<string | null>(current ? JSON.stringify(deepLatin(current.content)) : null)
+  // what this tab started from — the saved version, or the empty template before the first version (verify round:
+  // with no version yet a save from another tab replaced unsaved typing without a word)
+  const baseJson = useRef<string | null>(null)
+  if (baseJson.current === null) baseJson.current = JSON.stringify(fresh())
   const [elsewhere, setElsewhere] = useState<number | null>(null)
   useEffect(() => {
     if (!current || seenVersion.current === current.id) return
@@ -145,7 +148,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
     const ownSave = sentFrom.current !== null
     const typedSince = ownSave && sentFrom.current !== now
     // saved from ANOTHER tab/person while this form had unsaved edits: keep them (now a draft on top), say so (council 1 Nov)
-    const editedHere = !ownSave && baseJson.current !== null && now !== baseJson.current
+    const editedHere = !ownSave && now !== baseJson.current
     sentFrom.current = null
     baseJson.current = JSON.stringify(deepLatin(current.content))
     setRestoredAt(null)
@@ -500,12 +503,13 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           <Button size="sm" variant="ghost" onClick={discardDraft} data-testid="discard-draft">{t('discardDraft')}</Button>
         </div>
       )}
-      <div className={cn('flex-1 min-h-0 grid', narrow ? 'grid-cols-1' : 'grid-cols-[minmax(380px,520px)_1fr]')}>
+      {/* relative: on a narrow screen the hidden paper tab stays laid out underneath, so the overflow check still measures it */}
+      <div className={cn('flex-1 min-h-0 grid relative', narrow ? 'grid-cols-1' : 'grid-cols-[minmax(380px,520px)_1fr]')}>
         <div ref={formScroll} className={cn('min-h-0 overflow-y-auto no-scrollbar p-4 border-e border-border', narrow && tab !== 'form' && 'hidden')}>
           <div className="text-[11.5px] text-fg-secondary mb-3">{t('saveVersionHint')}</div>
           {form}
         </div>
-        <div ref={smallScroll} className={cn('min-h-0 paper-preview relative cursor-zoom-in', narrow && tab !== 'paper' && 'hidden')} onClick={(e) => openPaper(e.target)} title={t('openPaperBig')}>
+        <div ref={smallScroll} className={cn('min-h-0 paper-preview relative cursor-zoom-in', narrow && tab !== 'paper' && 'invisible absolute inset-0 -z-10 pointer-events-none')} aria-hidden={narrow && tab !== 'paper' ? true : undefined} onClick={(e) => openPaper(e.target)} title={t('openPaperBig')}>
           <Button size="sm" className="sticky top-3 z-[2] ms-3 mt-3 shadow" onClick={(e) => { e.stopPropagation(); openPaper() }} data-testid="open-paper-big">
             <Maximize2 size={14} /> {t('openPaperBig')}
           </Button>

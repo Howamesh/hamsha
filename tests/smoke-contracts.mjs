@@ -250,6 +250,10 @@ await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid
 await setT('pricing-monthly', '3000'); await setT('pricing-months', '3'); await sleep(200);
 await ev(`document.querySelector('[data-anchor="sec:05"] button[title]').click()`); await sleep(150);
 await setInput(`document.querySelector('[data-anchor="sec:05"] textarea')`, 'نص طويل يتجاوز الصفحة. '.repeat(500)); await sleep(500);
+await send('Emulation.setDeviceMetricsOverride',{width:1000,height:900,deviceScaleFactor:1,mobile:false}); await sleep(700);
+await setInput(`document.querySelector('[data-anchor="sec:05"] textarea')`, 'نص طويل يتجاوز الصفحة. '.repeat(501)); await sleep(500);
+CHECKS['narrow screen, form tab open: overflow still blocks «وقّع وأرسل» (paper measured while hidden)'] = await ev(`!!document.querySelector('[data-testid=overflow-warning]') && document.querySelector('[data-testid=sign-send]').disabled === true`);
+await send('Emulation.setDeviceMetricsOverride',{width:1500,height:950,deviceScaleFactor:1,mobile:false}); await sleep(700);
 CHECKS['editor: overflow disables «وقّع وأرسل»'] = await ev(`!!document.querySelector('[data-testid=overflow-warning]') && document.querySelector('[data-testid=sign-send]').disabled === true`);
 await clickSel('[data-testid=save-version]'); await toastHas('انحفظت النسخة 1'); await closeToast();
 await ev(`document.querySelector('[data-testid=contract-editor] button[aria-label="إلغاء"]').click()`); await sleep(600);

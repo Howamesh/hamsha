@@ -6,6 +6,9 @@
 --   2. decide_post / new versions: the post row is locked first and the version re-read under the lock,
 --      like the contract functions (a decision racing a new version could mark the post «approved»
 --      while its current version was never approved).
+--   3. a version may only reference files inside ITS OWN post folder <org>/<client>/<post>/ (verify round
+--      20261101-163636-3a11: a creative could put another client's known path in a version of an allowed post and
+--      thereby gain read access to it through can_read_post_media).
 -- Safe to re-run.
 -- =====================================================================================================
 
@@ -39,10 +42,10 @@ begin
     return;
   end if;
   execute 'drop policy if exists hamsha_post_media_read on storage.objects';
-  -- owner = the uploader may read what they just uploaded (the version row is inserted right after the upload)
+  -- owner_id (not the deprecated `owner`) = the uploader may read what they just uploaded (the version row is inserted right after the upload)
   execute $p$create policy hamsha_post_media_read on storage.objects for select to authenticated
     using (bucket_id = 'post-media' and (storage.foldername(name))[1] = current_org()::text
-           and (current_role_() = 'admin' or owner = auth.uid() or can_read_post_media(name)))$p$;
+           and (current_role_() = 'admin' or owner_id = (select auth.uid())::text or can_read_post_media(name)))$p$;
 end $$;
 
 -- ---------- 2. decisions and new versions serialise on the post row ----------
@@ -74,10 +77,15 @@ language plpgsql security definer set search_path = public as $$
 declare p record;
 begin
   -- locked: two uploads never get the same number, and a decision in flight finishes before the post moves on
-  select org_id, status, current_version into p from posts where id = new.post_id for update;
+  select org_id, client_id, status, current_version into p from posts where id = new.post_id for update;
   if p is null then raise exception 'unknown post'; end if;
   if p.org_id <> new.org_id then raise exception 'organization mismatch'; end if;
   if p.status = 'published' then raise exception 'a published post cannot change'; end if;
+  -- every file must live in this post's own folder (the app uploads to <org>/<client>/<post>/…; kept images of
+  -- earlier versions are in the same folder): no borrowing another post's or client's files
+  if exists (select 1 from unnest(new.image_paths) x where x not like p.org_id::text || '/' || p.client_id::text || '/' || new.post_id::text || '/%') then
+    raise exception 'image path outside this post''s folder';
+  end if;
   new.number := p.current_version + 1;
   new.created_by := auth.uid();
   new.sent_at := null;

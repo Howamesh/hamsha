@@ -106,6 +106,7 @@ select t.run('[inv] new creative sees no tasks yet', '00000000-0000-0000-0000-00
 
 -- ===== social posts (0007): frozen versions, client decides only the current one =====
 \set P1 60000000-0000-0000-0000-000000000001
+\set MP '10000000-0000-0000-0000-000000000001/20000000-0000-0000-0000-000000000001/60000000-0000-0000-0000-000000000001/'
 \set P2 60000000-0000-0000-0000-000000000002
 \set V1 70000000-0000-0000-0000-000000000001
 \set V2 70000000-0000-0000-0000-000000000002
@@ -118,9 +119,9 @@ select t.run('[soc] creative1 (works with client 1) creates a post', :'C1', 'ins
 select t.run('[soc] creative2 (no task with client 1) cannot', :'C2', 'insert into posts (org_id, client_id, title) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ''x'')', 'error');
 select t.run('[soc] client cannot insert a post', :'K1', 'insert into posts (org_id, client_id, title) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ''x'')', 'error');
 select t.run('[soc] admin cannot send a post with no version', :'A', 'update posts set status = ''sent'' where id = ' || quote_literal(:'P1'), 'error');
-select t.run('[soc] admin uploads version 1 of P1 (number is assigned by the DB)', :'A', 'insert into post_versions (id, org_id, post_id, number, image_paths, caption, note) values (' || quote_literal(:'V1') || ', ' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', 77, array[''org/c1/p1/1.png''], ''نص المنشور'', ''ملاحظة داخلية للعميل'')', 'rows:1');
+select t.run('[soc] admin uploads version 1 of P1 (number is assigned by the DB)', :'A', 'insert into post_versions (id, org_id, post_id, number, image_paths, caption, note) values (' || quote_literal(:'V1') || ', ' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', 77, array[' || quote_literal(:'MP' || '1.png') || '], ''نص المنشور'', ''ملاحظة داخلية للعميل'')', 'rows:1');
 select t.run('[soc] …it is number 1 and the post points at it', :'A', 'select 1 from post_versions v join posts p on p.id = v.post_id where v.id = ' || quote_literal(:'V1') || ' and v.number = 1 and p.current_version = 1 and p.status = ''draft''', 'rows:1');
-select t.run('[soc] creative1 uploads a version to P1 (involved via T1)', :'C1', 'insert into post_versions (org_id, post_id, image_paths, caption) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', array[''org/c1/p1/2a.png'', ''org/c1/p1/2b.png''], ''v2'')', 'rows:1');
+select t.run('[soc] creative1 uploads a version to P1 (involved via T1)', :'C1', 'insert into post_versions (org_id, post_id, image_paths, caption) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', array[' || quote_literal(:'MP' || '2a.png') || ', ' || quote_literal(:'MP' || '2b.png') || '], ''v2'')', 'rows:1');
 select t.run('[soc] creative2 cannot upload to P1', :'C2', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', array[''x.png''])', 'error');
 select t.run('[soc] client cannot upload a version', :'K1', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', array[''x.png''])', 'error');
 select t.run('[soc2] a version with no image is rejected', :'A', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', ''{}'')', 'error');
@@ -144,7 +145,7 @@ select t.run('[soc] …sent_at was stamped', :'A', 'select 1 from posts where id
 select t.run('[soc2] …and version 2 carries sent_at, version 1 does not', :'A', 'select 1 from post_versions where post_id = ' || quote_literal(:'P1') || ' and number = 2 and sent_at is not null and exists (select 1 from post_versions where post_id = ' || quote_literal(:'P1') || ' and number = 1 and sent_at is null)', 'rows:1');
 select t.run('[soc2] client now sees exactly the sent post', :'K1', 'select * from client_posts', 'rows:1');
 select t.run('[soc2] client sees only the sent version (v2), never v1', :'K1', 'select 1 from client_post_versions where post_id = ' || quote_literal(:'P1') || ' and number = 2 and exists (select 1 from client_post_versions where post_id = ' || quote_literal(:'P1') || ') and not exists (select 1 from client_post_versions where number = 1)', 'rows:1');
-select t.run('[soc2] client version view carries the ordered image set', :'K1', 'select 1 from client_post_versions where number = 2 and image_paths = array[''org/c1/p1/2a.png'', ''org/c1/p1/2b.png'']', 'rows:1');
+select t.run('[soc2] client version view carries the ordered image set', :'K1', 'select 1 from client_post_versions where number = 2 and image_paths = array[' || quote_literal(:'MP' || '2a.png') || ', ' || quote_literal(:'MP' || '2b.png') || ']', 'rows:1');
 select t.run('[soc2] admin withdraws P1 → the post hides from the client again', :'A', 'update posts set status = ''draft'' where id = ' || quote_literal(:'P1'), 'rows:1');
 select t.run('[soc2] …client sees nothing while withdrawn', :'K1', 'select * from client_posts', 'none');
 select t.run('[soc2] …nor its versions', :'K1', 'select * from client_post_versions', 'none');
@@ -158,7 +159,7 @@ select t.run('[soc] client asks for changes with a note', :'K1', 'select decide_
 select t.run('[soc] …post is in «changes» and the note is on version 2', :'A', 'select 1 from posts p join post_versions v on v.post_id = p.id and v.number = 2 where p.id = ' || quote_literal(:'P1') || ' and p.status = ''changes'' and v.decision = ''changes'' and v.decision_note = ''كبّر الشعار'' and v.decided_by = ' || quote_literal(:'K1'), 'rows:1');
 select t.run('[soc] client cannot decide twice', :'K1', 'select decide_post((select id from client_post_versions where post_id = ' || quote_literal(:'P1') || ' and number = 2), ''approved'')', 'error');
 select t.run('[soc] admin cannot resend the same version after changes', :'A', 'update posts set status = ''sent'' where id = ' || quote_literal(:'P1'), 'error');
-select t.run('[soc] admin uploads version 3', :'A', 'insert into post_versions (id, org_id, post_id, image_paths, caption) values (' || quote_literal(:'V3') || ', ' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', array[''org/c1/p1/3.png''], ''v3'')', 'rows:1');
+select t.run('[soc] admin uploads version 3', :'A', 'insert into post_versions (id, org_id, post_id, image_paths, caption) values (' || quote_literal(:'V3') || ', ' || quote_literal(:'ORG') || ', ' || quote_literal(:'P1') || ', array[' || quote_literal(:'MP' || '3.png') || '], ''v3'')', 'rows:1');
 select t.run('[soc] …post back to draft at version 3, old decision untouched', :'A', 'select 1 from posts p where p.id = ' || quote_literal(:'P1') || ' and p.status = ''draft'' and p.current_version = 3 and p.sent_at is null and exists (select 1 from post_versions where post_id = p.id and number = 2 and decision = ''changes'')', 'rows:1');
 select t.run('[soc2] new unsent version 3: the client sees nothing of P1 again', :'K1', 'select * from client_post_versions where post_id = ' || quote_literal(:'P1'), 'none');
 select t.run('[soc2] client cannot decide the unsent version 3', :'K1', 'select decide_post(' || quote_literal(:'V3') || ', ''approved'')', 'error');
@@ -174,14 +175,21 @@ select t.run('[soc] client cannot delete a post', :'K1', 'delete from posts wher
 select t.run('[soc] anon reads nothing from client_posts', null, 'select * from client_posts', 'none');
 select t.run('[soc] anon cannot call decide_post', null, 'select decide_post(' || quote_literal(:'V3') || ', ''approved'')', 'error');
 -- ===== 0010 hardening (council 20261101-162105-f800): post-media follows the VERSION's visibility =====
-select t.run('[hard] client 1 may read an image of its SENT version', :'K1', 'select 1 where can_read_post_media(''org/c1/p1/2a.png'')', 'rows:1');
-select t.run('[hard] client 1 may NOT read the unsent version-1 image (draft leak via Storage)', :'K1', 'select 1 where can_read_post_media(''org/c1/p1/1.png'')', 'none');
-select t.run('[hard] client 2 may not read client-1 images', :'K2', 'select 1 where can_read_post_media(''org/c1/p1/2a.png'')', 'none');
-select t.run('[hard] creative 1 (works with client 1) may read them', :'C1', 'select 1 where can_read_post_media(''org/c1/p1/1.png'')', 'rows:1');
-select t.run('[hard] creative 2 (no task with client 1) may not', :'C2', 'select 1 where can_read_post_media(''org/c1/p1/2a.png'')', 'none');
-select t.run('[hard] admin may read any version image', :'A', 'select 1 where can_read_post_media(''org/c1/p1/1.png'')', 'rows:1');
-select t.run('[hard] a path that is in no version is readable by nobody but admin rule', :'K1', 'select 1 where can_read_post_media(''org/c1/p1/nope.png'')', 'none');
-select t.run('[hard] anon cannot call can_read_post_media', null, 'select can_read_post_media(''org/c1/p1/2a.png'')', 'error');
+select t.run('[hard] client 1 may read an image of its SENT version', :'K1', 'select 1 where can_read_post_media(' || quote_literal(:'MP' || '2a.png') || ')', 'rows:1');
+select t.run('[hard] client 1 may NOT read the unsent version-1 image (draft leak via Storage)', :'K1', 'select 1 where can_read_post_media(' || quote_literal(:'MP' || '1.png') || ')', 'none');
+select t.run('[hard] client 2 may not read client-1 images', :'K2', 'select 1 where can_read_post_media(' || quote_literal(:'MP' || '2a.png') || ')', 'none');
+select t.run('[hard] creative 1 (works with client 1) may read them', :'C1', 'select 1 where can_read_post_media(' || quote_literal(:'MP' || '1.png') || ')', 'rows:1');
+select t.run('[hard] creative 2 (no task with client 1) may not', :'C2', 'select 1 where can_read_post_media(' || quote_literal(:'MP' || '2a.png') || ')', 'none');
+select t.run('[hard] admin may read any version image', :'A', 'select 1 where can_read_post_media(' || quote_literal(:'MP' || '1.png') || ')', 'rows:1');
+select t.run('[hard] a path that is in no version is readable by nobody but admin rule', :'K1', 'select 1 where can_read_post_media(' || quote_literal(:'MP' || 'nope.png') || ')', 'none');
+\set P3 60000000-0000-0000-0000-000000000003
+\set MP3 '10000000-0000-0000-0000-000000000001/20000000-0000-0000-0000-000000000001/60000000-0000-0000-0000-000000000003/'
+select t.run('[hard] admin creates post P3 for client 1', :'A', 'insert into posts (id, org_id, client_id, title) values (' || quote_literal(:'P3') || ', ' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ''P3'')', 'rows:1');
+select t.run('[hard] creative1 adds a version with files in P3''s own folder', :'C1', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P3') || ', array[' || quote_literal(:'MP3' || '1-1-abc.png') || '])', 'rows:1');
+select t.run('[hard] creative1 cannot borrow another client''s file path into P3', :'C1', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P3') || ', array[''10000000-0000-0000-0000-000000000001/20000000-0000-0000-0000-000000000002/60000000-0000-0000-0000-0000000000ff/x.png''])', 'error');
+select t.run('[hard] creative1 cannot borrow P1''s (other post) file into P3', :'C1', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P3') || ', array[' || quote_literal(:'MP' || '1.png') || '])', 'error');
+select t.run('[hard] admin cannot either', :'A', 'insert into post_versions (org_id, post_id, image_paths) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'P3') || ', array[' || quote_literal(:'MP' || '1.png') || '])', 'error');
+select t.run('[hard] anon cannot call can_read_post_media', null, 'select can_read_post_media(' || quote_literal(:'MP' || '2a.png') || ')', 'error');
 select t.run('[soc] admin deletes P2 (versions cascade)', :'A', 'delete from posts where id = ' || quote_literal(:'P2'), 'rows:1');
 
 -- ===== client accounts (0008): the real account behind the preview =====

@@ -89,7 +89,7 @@ export function ContractSheet() {
     }
   }
   // the signature binds to the version that was on screen when the dialog opened; a newer version cancels it
-  const signHawamish = async (sig: SignatureInput) => { await act(async () => { if (!signing || signing.versionId !== current?.id) { setSigning(null); throw new Error('stale') } await sess.signContractFirst(signing.versionId, sig); setSigning(null) }, t('hawamishSigned')) }
+  const signHawamish = async (sig: SignatureInput) => { if (overflow.length > 0) { setSigning(null); return } await act(async () => { if (!signing || signing.versionId !== current?.id) { setSigning(null); throw new Error('stale') } await sess.signContractFirst(signing.versionId, sig); setSigning(null) }, t('hawamishSigned')) }
   const signCounterparty = async (sig: SignatureInput) => { await act(async () => { if (!signing || signing.versionId !== current?.id) { setSigning(null); throw new Error('stale') } await sess.decideContract(signing.versionId, 'signed', undefined, sig); setSigning(null) }, t('contractSignedToast')) }
   const evLabel = (e: string) => {
     const m: Record<string, string> = { created: t('evCreated'), version: t('evVersion'), first_signed: t('evFirstSigned'), sent: t('evSent'), withdrawn: t('evWithdrawn'), opened: t('evOpened'), signed: t('evSigned'), changes: t('evChanges'), rejected: t('evRejected'), completed: t('evCompleted') }
