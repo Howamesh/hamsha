@@ -68,10 +68,12 @@ export function activityFeed(s: Snapshot, user: User): Activity[] {
   return tidy(out.filter((a) => !OWN[user.role]?.has(a.kind)), user, since)
 }
 
-// 1 Nov (Yousef: «إذا أنا اللي أعدل مباشرة فليش تظهر لي كل هذه؟»): what a role does itself is never news to it —
-// the admin creates/saves/signs/sends/publishes, the creative uploads versions. Only the OTHER side's moves show.
+// 1 Nov (Yousef: «إذا أنا اللي أعدل مباشرة فليش تظهر لي كل هذه؟»): your OWN moves are never news to you. Contract
+// events and post versions carry who did them (actorId → dropped in tidy() when it is you), so a second admin — the
+// manager — still sees what the other one did. Only the moves stored WITHOUT a person (a post «sent» / «published»,
+// always the team's own click) are left out for the team.
 const OWN: Partial<Record<User['role'], Set<ActivityKind>>> = {
-  admin: new Set<ActivityKind>(['c_created', 'c_version', 'c_first_signed', 'c_sent', 'c_withdrawn', 'p_sent', 'p_published']),
+  admin: new Set<ActivityKind>(['p_sent', 'p_published']),
   creative: new Set<ActivityKind>(['p_sent']),
 }
 
