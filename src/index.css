@@ -201,6 +201,14 @@ button:focus-visible {
 .paper-row-light { background: #f3f3f3; font-size: 9.5px; justify-content: center; }
 .paper-row-label { font-weight: 700; }
 .paper-row-value { direction: ltr; text-align: left; }
+/* big paper (tap a part to edit it beside the paper) — wrappers vanish from layout unless picking */
+.paper-pick-static { display: contents; }
+.paper-pick { display: flex; flex-direction: column; gap: 3.5mm; cursor: pointer; border-radius: 1.5mm; outline: 2px dashed transparent; outline-offset: 1.2mm; transition: outline-color .15s, background-color .15s; }
+.paper-pick:hover { outline-color: color-mix(in srgb, var(--accent) 70%, #000); }
+.paper-pick-active, .paper-pick-active:hover { outline: 2.5px solid #e11d48; background: rgba(225,29,72,.04); }
+/* a page whose text runs past the bottom: red frame + label, on screen only */
+.paper-page[data-overflow] { box-shadow: 0 0 0 3px #dc2626, 0 10px 30px rgba(0,0,0,.12); }
+.paper-page[data-overflow]::after { content: "⚠ النص في هالصفحة أطول من مكانها — آخره ما يطلع في الطباعة"; position: absolute; top: 2mm; left: 50%; transform: translateX(-50%); background: #dc2626; color: #fff; font-size: 10px; font-weight: 700; padding: 1mm 3mm; border-radius: 1mm; white-space: nowrap; z-index: 2; }
 .paper-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
 .paper-party { display: flex; flex-direction: column; gap: 2mm; }
 .paper-months { display: flex; justify-content: space-between; gap: 1mm; }
@@ -226,4 +234,5 @@ button:focus-visible {
   body > *:not(.print-root) { display: none !important; }
   .print-root { display: block !important; }
   .print-root .paper-page { margin: 0; box-shadow: none; }
+  .paper-page[data-overflow]::after { display: none; }
 }

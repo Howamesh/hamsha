@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Lock, Maximize2, Minimize2, Plus, Save, Send, Trash2, Unlock, X } from 'lucide-react'
+import { Lock, Maximize2, Minimize2, Minus, Plus, Save, Send, Trash2, Unlock, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fmtTime, useNarrow, useStr } from '@/lib/useStr'
 import { useData, useSession } from '@/store/session'
@@ -9,7 +9,7 @@ import { CURRENCIES, EMPTY_LEGAL, amountWords, contractTotal, currencyWord, empt
 import { deepLatin, toLatin } from '@/lib/latinDigits'
 import { clearDraft, loadDraft, saveDraft } from '@/lib/contractDraft'
 import { Button, Input, SectionTitle } from '../ui'
-import { ContractPaper } from './ContractPaper'
+import { ContractPaper, type PaperOverflow } from './ContractPaper'
 import { SignDialog } from './SignDialog'
 
 const field = 'w-full rounded-md border border-border bg-bg px-3 py-2 text-[13px]'
@@ -51,6 +51,15 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   // the form as it was when «احفظ نسخة» was pressed: typing that continues while the save is in flight must survive it
   const sentFrom = useRef<string | null>(null)
   const [focusSec, setFocusSec] = useState<string | null>(null)
+  // ⭐٥ (1 Nov): the paper at full size; tapping a part opens its editor in a panel beside it
+  const [paperBig, setPaperBig] = useState(false)
+  const [pick, setPick] = useState<string | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const [overflow, setOverflow] = useState<PaperOverflow[]>([])
+  const closePaper = () => {
+    setPaperBig(false)
+    setPick(null)
+  }
   const [busy, setBusy] = useState(false)
   const [signing, setSigning] = useState(false)
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set())
@@ -66,6 +75,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
     if (!typedSince) setC(JSON.parse(JSON.stringify(current.content))) // else: keep the newer typing, now a draft on top of this version
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id])
+  const overflowText = overflow.length ? t('overflowWarn', { pages: overflow.map((o) => (o.sections.length ? `${o.page} (${t('clause')} ${o.sections.join('، ')})` : String(o.page))).join(' · ') }) : ''
   const dirtyContent = !current || JSON.stringify(current.content) !== JSON.stringify(c)
   // every change is kept in this browser at once (no debounce: a refresh right after typing loses nothing)
   // (a note alone is not a draft: on its own it cannot be saved as a version)
@@ -138,9 +148,8 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
     }
   }
 
-  const form = (
-    <div className="flex flex-col gap-5 min-w-0">
-      {/* basics */}
+  // the form in named blocks: the full form uses them all; the big-paper side panel shows only the block for what was tapped
+  const blkBasics = (
       <Group title={t('secBasics')}>
         <label className="flex flex-col gap-1"><SectionTitle>{t('contractTitleLabel')}</SectionTitle><Input value={c.title} onChange={(e) => up({ title: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
         <label className="flex flex-col gap-1"><SectionTitle>{t('fProject')}</SectionTitle><Input value={c.project} onChange={(e) => up({ project: e.target.value })} placeholder="مثال: تعزيز الحضور الرقمي وبناء هوية إعلامية" dir="auto" className="py-1.5 text-[13px]" data-testid="contract-project" /></label>
@@ -155,15 +164,18 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           </label>
         </div>
       </Group>
+  )
+  const blkParties = (
+    <>
       <Group title={t('secCounterparty')}>
         <PartyFields k="counterparty" p={c.counterparty} full={c.kind !== 'short'} onChange={upParty} />
       </Group>
       <Group title={t('secHawamish')} hint={!legal.party.cr ? t('missingValues') : undefined}>
         <PartyFields k="hawamish" p={c.hawamish} full={c.kind !== 'short'} onChange={upParty} />
       </Group>
-
-      {/* numbers */}
-      {c.kind !== 'offer' && (
+    </>
+  )
+  const blkVars = c.kind !== 'offer' && (
         <Group title={t('secVars')}>
           <div className="grid grid-cols-2 gap-2">
             <div className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fPlatforms')}</SectionTitle><PlatformPicker value={c.vars.platforms} onChange={(v) => up({ vars: { ...c.vars, platforms: v } })} /></div>
@@ -172,10 +184,8 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
             <Num label={t('fVideos')} value={c.vars.videos} onChange={(n) => up({ vars: { ...c.vars, videos: n } })} />
           </div>
         </Group>
-      )}
-
-      {/* pricing */}
-      {c.kind === 'full' && (
+      )
+  const blkPricing = c.kind === 'full' && (
         <Group title={t('secPricing')}>
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col gap-1"><SectionTitle>{t('secPricing')}</SectionTitle>
@@ -217,8 +227,8 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
             <b>{t('fTotal')}:</b> {total > 0 ? amountWords(total, cur) : '…'}
           </div>
         </Group>
-      )}
-      {c.kind === 'short' && (
+      )
+  const blkTracks = c.kind === 'short' && (
         <Group title={t('secTracks')}>
           <label className="flex flex-col gap-1"><SectionTitle>{t('fCurrency')}</SectionTitle>
             <select value={c.pricing.currency} onChange={(e) => upPricing({ currency: e.target.value })} className={cn(field, 'py-1.5 cursor-pointer w-[220px]')}>
@@ -244,8 +254,8 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           <Button size="sm" className="self-start" onClick={() => up({ tracks: [...c.tracks, { name: 'النطاق التسويقي', nameEn: 'Marketing Scope', months: c.tracks[0]?.months ?? 12, monthly: 0, quarters: ['', '', '', ''] }] })}><Plus size={14} /> {t('addTrack')}</Button>
           <div className="rounded-md bg-muted-bg px-3 py-2 text-[12.5px]"><b>{t('fTotal')}:</b> {total > 0 ? `${fmtAmount(total)} ${cur}` : '…'}</div>
         </Group>
-      )}
-      {c.kind === 'offer' && (
+      )
+  const blkPackages = c.kind === 'offer' && (
         <Group title={t('secPackages')}>
           {c.packages.map((p, k) => (
             <div key={k} className="rounded-md border border-border p-3 flex flex-col gap-2">
@@ -265,10 +275,8 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
             <label className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fPackageItems')}</SectionTitle><textarea value={c.unitItems.join('\n')} onChange={(e) => up({ unitItems: e.target.value.split('\n') })} rows={3} dir="auto" className={cn(field, 'resize-y')} /></label>
           </div>
         </Group>
-      )}
-
-      {/* scope + sections */}
-      {c.kind !== 'full' && (
+      )
+  const blkScope = c.kind !== 'full' && (
         <Group title={c.kind === 'offer' ? 'تمهيد' : t('secScope')}>
           <div className="relative">
             <textarea value={c.scope} onChange={(e) => up({ scope: e.target.value })} rows={7} dir="auto" className={cn(field, 'resize-y leading-relaxed pe-10')} data-testid="contract-scope" />
@@ -277,8 +285,8 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
             </Button>
           </div>
         </Group>
-      )}
-      {c.kind === 'full' && (
+      )
+  const blkSections = c.kind === 'full' && (
         <Group title={t('secSections')} note={t('sectionsNote')}>
           {c.sections.map((sec, k) => {
             const locked = !!sec.fixed && !unlocked.has(sec.num)
@@ -307,8 +315,8 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
             )
           })}
         </Group>
-      )}
-
+      )
+  const blkBank = (
       <Group title={t('secBank')}>
         <div className="grid grid-cols-2 gap-2">
           {legal.banks.length > 1 && (
@@ -324,6 +332,8 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           <label className="flex flex-col gap-1"><SectionTitle>Swift</SectionTitle><Input value={c.bank.swift} onChange={(e) => up({ bank: { ...c.bank, swift: e.target.value } })} dir="ltr" className="py-1.5 text-[13px]" /></label>
         </div>
       </Group>
+  )
+  const blkSigners = (
       <Group title={t('secSigners')}>
         <div className="grid grid-cols-2 gap-2">
           <label className="flex flex-col gap-1"><SectionTitle>{t('secHawamish')} · {t('signerName')}</SectionTitle><Input value={c.signers.hawamish.name} onChange={(e) => up({ signers: { ...c.signers, hawamish: { ...c.signers.hawamish, name: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /></label>
@@ -332,7 +342,40 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           <label className="flex flex-col gap-1"><SectionTitle>{t('signerCapacity')}</SectionTitle><Input value={c.signers.counterparty.capacity} onChange={(e) => up({ signers: { ...c.signers, counterparty: { ...c.signers.counterparty, capacity: e.target.value } } })} dir="auto" className="py-1.5 text-[13px]" /></label>
         </div>
       </Group>
+  )
+  const blkNote = (
       <label className="flex flex-col gap-1"><SectionTitle>{t('noteToClient')}</SectionTitle><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('noteToClientPh')} dir="auto" className="py-1.5 text-[13px]" data-testid="editor-note" /></label>
+  )
+  const pickLabel = (id: string) => {
+    if (id.startsWith('sec:')) {
+      const sec = c.sections.find((x) => x.num === id.slice(4))
+      return sec ? `${sec.num} · ${sec.title}` : ''
+    }
+    return ({ pricing: t('secPricing'), scope: c.kind === 'offer' ? 'تمهيد' : t('secScope'), tracks: t('secVars'), packages: t('secPackages'), parties: t('secParties'), bank: t('secBank'), signers: t('secSigners'), basics: t('secBasics') } as Record<string, string>)[id] ?? ''
+  }
+  const panelFor = (id: string) => {
+    if (id.startsWith('sec:')) {
+      const k = c.sections.findIndex((x) => x.num === id.slice(4))
+      const sec = c.sections[k]
+      if (!sec) return null
+      return (
+        <SectionPanel
+          title={sec.title}
+          body={sec.body}
+          locked={!!sec.fixed && !unlocked.has(sec.num)}
+          onUnlock={() => toggleLock(sec.num)}
+          onTitle={(v) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: v } : x)) })}
+          onBody={(v) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, body: v } : x)) })}
+        />
+      )
+    }
+    if (id === 'pricing') return <>{blkVars}{blkPricing}</>
+    if (id === 'tracks') return <>{blkVars}{blkTracks}</>
+    return ({ scope: blkScope, packages: blkPackages, parties: blkParties, bank: blkBank, signers: blkSigners, basics: blkBasics } as Record<string, React.ReactNode>)[id] ?? null
+  }
+  const form = (
+    <div className="flex flex-col gap-5 min-w-0">
+      {blkBasics}{blkParties}{blkVars}{blkPricing}{blkTracks}{blkPackages}{blkScope}{blkSections}{blkBank}{blkSigners}{blkNote}
     </div>
   )
 
@@ -345,6 +388,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           <div className="text-[11px] text-fg-secondary">{current ? `${t('version')} ${current.number}` : t('noVersionYet')}{dirtyContent && current ? ' · ' + t('unsavedChanges') : ''}</div>
         </div>
         {narrow && <SegmentedMini value={tab} onChange={setTab} labels={[t('secSections'), t('openPaper')]} />}
+        {overflow.length > 0 && <span className="text-[11.5px] text-accent font-semibold max-w-[320px] truncate" title={overflowText} data-testid="overflow-warning">⚠ {overflowText}</span>}
         {missing.length > 0 && <span className="text-[11.5px] text-warning-dark font-semibold max-w-[320px] truncate" title={missing.join(' · ')} data-testid="missing-values">{t('missingValues')} ({missing.length})</span>}
         <Button disabled={busy || !dirtyContent} onClick={() => void save()} data-testid="save-version">
           <Save size={14} /> {t('saveVersion')}
@@ -370,10 +414,44 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           <div className="text-[11.5px] text-fg-secondary mb-3">{t('saveVersionHint')}</div>
           {form}
         </div>
-        <div className={cn('min-h-0 paper-preview', narrow && tab !== 'paper' && 'hidden')}>
-          <ContractPaper content={c} number={contract.number} version={current && !dirtyContent ? current : undefined} stamp={legal.stamp || undefined} scale={narrow ? 0.45 : 0.62} />
+        <div className={cn('min-h-0 paper-preview relative cursor-zoom-in', narrow && tab !== 'paper' && 'hidden')} onClick={() => setPaperBig(true)} title={t('openPaperBig')}>
+          <Button size="sm" className="sticky top-3 z-[2] ms-3 mt-3 shadow" onClick={(e) => { e.stopPropagation(); setPaperBig(true) }} data-testid="open-paper-big">
+            <Maximize2 size={14} /> {t('openPaperBig')}
+          </Button>
+          <ContractPaper content={c} number={contract.number} version={current && !dirtyContent ? current : undefined} stamp={legal.stamp || undefined} scale={narrow ? 0.45 : 0.62} onOverflow={paperBig ? undefined : setOverflow} />
         </div>
       </div>
+      {paperBig && (
+        <div className="fixed inset-0 z-[80] bg-muted-bg flex flex-col anim-fade" role="dialog" aria-label={t('openPaperBig')} data-testid="paper-big">
+          <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-border bg-card flex-wrap">
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-semibold truncate" dir="auto">{c.title}</div>
+              <div className="text-[11.5px] text-fg-secondary">{t('paperBigHint')}</div>
+            </div>
+            {overflow.length > 0 && <span className="text-[12px] text-accent font-semibold max-w-[360px] truncate" title={overflowText}>⚠ {overflowText}</span>}
+            <div className="flex items-center gap-1 rounded-md border border-border bg-bg px-1">
+              <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.max(0.6, Math.round((z - 0.1) * 10) / 10))} aria-label={t('zoomOut')} data-testid="paper-zoom-out"><Minus size={15} /></Button>
+              <span className="w-[46px] text-center text-[12.5px] tabular-nums" data-testid="paper-zoom">{Math.round(zoom * 100)}%</span>
+              <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.min(1.8, Math.round((z + 0.1) * 10) / 10))} aria-label={t('zoomIn')} data-testid="paper-zoom-in"><Plus size={15} /></Button>
+            </div>
+            <Button variant="primary" onClick={closePaper} data-testid="paper-big-close"><Minimize2 size={16} /> {t('collapseSection')}</Button>
+          </div>
+          <div className="flex-1 min-h-0 flex">
+            {pick && (
+              <aside className="w-[440px] max-w-[46vw] shrink-0 border-e border-border bg-card flex flex-col min-h-0" data-testid="paper-panel">
+                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
+                  <div className="flex-1 text-[14px] font-semibold">{pickLabel(pick)}</div>
+                  <Button size="icon" variant="ghost" onClick={() => setPick(null)} aria-label={t('cancel')}><X size={16} /></Button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-5">{panelFor(pick)}</div>
+              </aside>
+            )}
+            <div className="flex-1 min-w-0 overflow-auto py-6" onClick={() => setPick(null)}>
+              <ContractPaper content={c} number={contract.number} version={current && !dirtyContent ? current : undefined} stamp={legal.stamp || undefined} scale={zoom} onPick={setPick} active={pick} onOverflow={setOverflow} />
+            </div>
+          </div>
+        </div>
+      )}
       {focusSec && (() => {
         if (focusSec === 'scope') return <SectionFocus num="" title={c.kind === 'offer' ? 'تمهيد' : t('secScope')} body={c.scope} locked={false} onBody={(v) => up({ scope: v })} onClose={() => setFocusSec(null)} />
         const k = c.sections.findIndex((x) => x.num === focusSec)
@@ -473,6 +551,25 @@ function PlatformPicker({ value, onChange }: { value: string; onChange: (v: stri
         </button>
       ))}
       <Input value={other} onChange={(e) => setOther(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addOther() } }} onBlur={addOther} placeholder={t('otherPlatform')} dir="auto" className="py-1 text-[12.5px] w-[140px]" data-testid="platform-other" />
+    </div>
+  )
+}
+
+/** A clause in the big-paper side panel: raw text with its {placeholders}, the paper beside it updates as he types. */
+function SectionPanel({ title, body, locked, onUnlock, onTitle, onBody }: { title: string; body: string; locked: boolean; onUnlock: () => void; onTitle: (v: string) => void; onBody: (v: string) => void }) {
+  const { t } = useStr()
+  return (
+    <div className="flex flex-col gap-3 min-h-full">
+      {locked && (
+        <div className="flex items-center gap-2 rounded-md bg-muted-bg px-3 py-2 text-[12px]">
+          <Lock size={14} className="shrink-0" />
+          <span className="flex-1">{t('lockedExplain')}</span>
+          <Button size="sm" onClick={onUnlock} data-testid="panel-unlock">{t('unlockNow')}</Button>
+        </div>
+      )}
+      <Input value={title} onChange={(e) => onTitle(e.target.value)} disabled={locked} dir="auto" className="py-2 text-[16px] font-semibold" data-testid="panel-title" />
+      <textarea value={body} onChange={(e) => onBody(e.target.value)} readOnly={locked} dir="auto" className={cn(field, 'flex-1 min-h-[50vh] text-[16px] leading-[1.95] resize-none', locked && 'opacity-70')} data-testid="panel-body" />
+      <div className="text-[11px] text-fg-secondary leading-relaxed">{t('sectionsNote')}</div>
     </div>
   )
 }

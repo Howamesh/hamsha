@@ -111,6 +111,24 @@ CHECKS['full-screen edit lands in the clause + paper'] = !(await ev(`!!document.
 await send('Page.reload'); await sleep(1500);
 CHECKS['refresh: editor reopens with the unsaved edits'] = await waitFor(`!!document.querySelector('[data-testid=contract-editor]') && !!document.querySelector('[data-testid=draft-restored]') && document.querySelector('[data-testid=pricing-months]')?.value === '12'`, 20000).then(()=>true).catch(()=>false)
   && (await text('[data-testid=contract-paper]')).includes('سطر تجربة من الشاشة الكاملة') && (await ev(`document.querySelector('[data-testid=platform-TikTok]').getAttribute('aria-pressed')`)) === 'true';
+// ⭐٥ (1 Nov): the paper full size; tap a part → its editor beside the paper; text that runs past a page is flagged
+await clickSel('[data-testid=open-paper-big]'); await waitFor(`!!document.querySelector('[data-testid=paper-big]')`);
+await clickSel('[data-testid=paper-zoom-in]');
+CHECKS['big paper opens + zoom 110%'] = (await text('[data-testid=paper-zoom]')).trim() === '110%';
+await clickSel('[data-testid=paper-big] [data-pick="sec:05"]'); await waitFor(`!!document.querySelector('[data-testid=paper-panel] [data-testid=panel-body]')`);
+CHECKS['tap a clause → its text beside the paper (locked until unlocked)'] = await ev(`document.querySelector('[data-testid=panel-body]').readOnly === true && !!document.querySelector('[data-testid=paper-big] .paper-pick-active')`);
+await clickSel('[data-testid=panel-unlock]');
+const sec05 = await ev(`document.querySelector('[data-testid=panel-body]').value`);
+await setT('panel-body', sec05 + '\nإضافة من الورقة الكبيرة'); await sleep(250);
+CHECKS['panel edit shows on the big paper + the form'] = (await text('[data-testid=paper-big] [data-testid=contract-paper]')).includes('إضافة من الورقة الكبيرة') && await ev(`[...document.querySelectorAll('[data-testid=section-editor] textarea')].some(t=>t.value.includes('إضافة من الورقة الكبيرة'))`);
+await setT('panel-body', sec05 + '\n' + 'سطر طويل جداً لاختبار تجاوز الصفحة. '.repeat(400)); await sleep(400);
+CHECKS['text past the page is flagged (paper + header)'] = await ev(`!!document.querySelector('[data-testid=paper-big] .paper-page[data-overflow]') && !!document.querySelector('[data-testid=overflow-warning]')`);
+await setT('panel-body', sec05); await sleep(400);
+CHECKS['flag clears once it fits again'] = await ev(`!document.querySelector('[data-testid=paper-big] .paper-page[data-overflow]') && !document.querySelector('[data-testid=overflow-warning]')`);
+await clickSel('[data-testid=paper-big] [data-pick=pricing]'); await sleep(250);
+CHECKS['tap the amount → pricing fields in the panel'] = await ev(`!!document.querySelector('[data-testid=paper-panel] [data-testid=pricing-months]')`);
+await clickSel('[data-testid=paper-big-close]');
+CHECKS['«صغّر» closes the big paper'] = !(await ev(`!!document.querySelector('[data-testid=paper-big]')`));
 await clickSel('[data-testid=save-version]');
 CHECKS['version 1 saved'] = await toastHas('انحفظت النسخة 1'); await closeToast();
 CHECKS['saved → draft cleared'] = await ev(`!document.querySelector('[data-testid=draft-restored]') && !Object.keys(localStorage).some(k=>k.startsWith('hamsha.contractDraft.'))`);

@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from 'react'
+import { createContext, useContext, useLayoutEffect, useMemo, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { deepLatin } from '@/lib/latinDigits'
 import { SHORT_FOOTNOTE, agreementDateLine, contractTotal, currencyShort, fillText, fmtAmount, signDate } from '@/lib/contracts'
@@ -12,6 +12,37 @@ import type { ContractContent, ContractPartyInfo, ContractVersion } from '@/type
  */
 
 type Signer = { name: string; cap: string; at?: string }
+
+/** Pages whose text runs past the bottom (the page clips it): page number + the clauses on it. */
+export type PaperOverflow = { page: number; sections: string[] }
+
+// The big paper (1 Nov, his pick ⭐٥): every part can be tapped to open its editor beside the paper. Without onPick the
+// wrapper is display:contents, so the printed/normal paper lays out exactly as before.
+const PickCtx = createContext<{ onPick?: (id: string) => void; active?: string | null }>({})
+function Pick({ id, children }: { id: string; children: React.ReactNode }) {
+  const { onPick, active } = useContext(PickCtx)
+  if (!onPick) return <div className="paper-pick-static" data-pick={id}>{children}</div>
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      data-pick={id}
+      className={cn('paper-pick', active === id && 'paper-pick-active')}
+      onClick={(e) => {
+        e.stopPropagation()
+        onPick(id)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onPick(id)
+        }
+      }}
+    >
+      {children}
+    </div>
+  )
+}
 const Page = ({ c, children, cover }: { c: ContractContent; children: React.ReactNode; cover?: boolean }) => (
   <section className={cn('paper-page', cover && 'paper-cover')} style={{ ['--accent' as string]: c.accent }}>
     {!cover && <div className="paper-head"><Wordmark /></div>}
@@ -62,6 +93,7 @@ const Party = ({ p, title, full }: { p: ContractPartyInfo; title: string; full: 
 )
 const SignBlock = ({ c, first, second, firstSig, secondSig, firstSigner, secondSigner, hawamishIsFirst, stamp }: { c: ContractContent; first: ContractPartyInfo; second: ContractPartyInfo; firstSig?: string; secondSig?: string; firstSigner: Signer; secondSigner: Signer; hawamishIsFirst: boolean; stamp?: string }) => (
   <>
+    <Pick id="bank">
     <Bar title="بيانات الحساب البنكي" />
     <div className="paper-cols">
       <div className="paper-party">
@@ -71,6 +103,8 @@ const SignBlock = ({ c, first, second, firstSig, secondSig, firstSigner, secondS
         <Row label="Swift Code" value={c.bank.swift} />
       </div>
     </div>
+    </Pick>
+    <Pick id="signers">
     <div className="paper-cols paper-sign" data-testid="paper-signatures">
       {[{ title: 'الطرف الأول', p: first, sig: firstSig, s: firstSigner, stampHere: hawamishIsFirst }, { title: 'الطرف الثاني', p: second, sig: secondSig, s: secondSigner, stampHere: !hawamishIsFirst }].map((col) => (
         <div key={col.title} className="paper-party">
@@ -87,10 +121,11 @@ const SignBlock = ({ c, first, second, firstSig, secondSig, firstSigner, secondS
         </div>
       ))}
     </div>
+    </Pick>
   </>
 )
 
-export function ContractPaper({ content, version, number, stamp: stampProp, className, scale }: { content: ContractContent; version?: ContractVersion; number: number; stamp?: string; className?: string; scale?: number }) {
+export function ContractPaper({ content, version, number, stamp: stampProp, className, scale, onPick, active, onOverflow }: { content: ContractContent; version?: ContractVersion; number: number; stamp?: string; className?: string; scale?: number; onPick?: (id: string) => void; active?: string | null; onOverflow?: (pages: PaperOverflow[]) => void }) {
   // digits typed in Arabic before the «كل الأرقام إنجليزي» rule still show in English on the paper (display only)
   const c = useMemo(() => deepLatin(content), [content])
   const first = c.counterpartySide === 'first' ? c.counterparty : c.hawamish
@@ -103,9 +138,37 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
   const stamp = c.stamp || stampProp
   const draftLabel = c.kind === 'offer' ? `عرض #${number}` : `مسودة #${number}`
   const cur = currencyShort(c.pricing.currency)
+  // a page is fixed A4 and clips what does not fit: measure after every render, flag the page (screen only, never printed)
+  const root = useRef<HTMLDivElement>(null)
+  const lastOverflow = useRef('')
+  const lastReporter = useRef<typeof onOverflow>(undefined)
+  useLayoutEffect(() => {
+    const el = root.current
+    if (!el) return
+    const over: PaperOverflow[] = []
+    el.querySelectorAll<HTMLElement>(':scope > .paper-page').forEach((page, i) => {
+      // the body stretches with its content (flex), so compare where the text ENDS with where the footer starts —
+      // in layout units (offsetTop/Height, relative to the page), which CSS zoom does not distort like client rects
+      const body = page.querySelector<HTMLElement>('.paper-body')
+      const foot = page.querySelector<HTMLElement>('.paper-foot')
+      const end = body ? contentBottom(body) : 0
+      // (the cover is laid out to sit right on the footer by design — never flagged; a hidden paper measures 0)
+      const o = !page.classList.contains('paper-cover') && !!foot && foot.offsetTop > 0 && end > foot.offsetTop + 1
+      page.toggleAttribute('data-overflow', o)
+      if (o) over.push({ page: i + 1, sections: [...page.querySelectorAll<HTMLElement>('[data-pick^="sec:"]')].map((x) => x.dataset.pick!.slice(4)) })
+    })
+    const key = JSON.stringify(over)
+    // report on a change — or when this paper becomes the reporting one (the small preview hands over to the big paper)
+    if (key !== lastOverflow.current || lastReporter.current !== onOverflow) {
+      lastOverflow.current = key
+      lastReporter.current = onOverflow
+      onOverflow?.(over)
+    }
+  })
 
   return (
-    <div className={cn('paper', className)} dir="rtl" style={scale ? { zoom: scale } : undefined} data-testid="contract-paper">
+    <PickCtx.Provider value={{ onPick, active }}>
+    <div ref={root} className={cn('paper', onPick && 'paper-picking', className)} dir="rtl" style={scale ? { zoom: scale } : undefined} data-testid="contract-paper">
       {/* ---- cover ---- */}
       <Page c={c} cover>
         <div className="paper-cover-card">
@@ -121,17 +184,21 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
           <Page c={c}>
             <Bar title={c.title} sub={draftLabel} />
             <div className="paper-row paper-row-split"><span>الشريك</span><span dir="auto">{c.counterparty.name || '…'}</span></div>
+            <Pick id="parties">
             <div className="paper-cols">
               <Party p={first} title="الطرف الأول" full={false} />
               <Party p={second} title="الطرف الثاني" full={false} />
             </div>
+            </Pick>
             <div className="paper-row paper-row-split"><span dir="auto">{c.project || '…'}</span><span>مدة العقد : {c.tracks[0]?.months || '…'} شهر</span></div>
+            <Pick id="scope">
             <Bar title="نطاق العمل" sub="Scope of work" />
             <Box c={c} text={c.scope} className="paper-box-tall" />
+            </Pick>
           </Page>
           <Page c={c}>
             {c.tracks.map((t, k) => (
-              <Fragment key={k}>
+              <Pick key={k} id="tracks">
                 <Bar title={t.name} sub={t.nameEn} />
                 <div className="paper-months" dir="rtl">
                   {Array.from({ length: 13 }, (_, i) => ((new Date(c.date).getMonth() + i) % 12) + 1).map((m, i) => (
@@ -146,12 +213,13 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
                     </div>
                   ))}
                 </div>
-              </Fragment>
+              </Pick>
             ))}
           </Page>
           <Page c={c}>
             <Bar title={draftLabel} />
             <div className="paper-row paper-row-split"><span>الشريك</span><span dir="auto">{c.counterparty.name || '…'}</span></div>
+<Pick id="tracks">
             {c.tracks.map((t, k) => (
               <div key={k} className="paper-row paper-row-split">
                 <span>{t.name}</span>
@@ -160,6 +228,7 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
             ))}
             <div className="paper-note">{fillText(SHORT_FOOTNOTE, c)}</div>
             <div className="paper-row paper-row-split"><span>الإجمالي</span><span>{contractTotal(c) ? fmtAmount(contractTotal(c)) : '…'} {cur}</span></div>
+            </Pick>
             <SignBlock c={c} first={first} second={second} firstSig={firstSig} secondSig={secondSig} firstSigner={firstSigner} secondSigner={secondSigner} hawamishIsFirst={hawamishIsFirst} stamp={stamp} />
           </Page>
         </>
@@ -170,18 +239,20 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
           <Page c={c}>
             <Bar title={c.title} sub={draftLabel} />
             <div className="paper-row paper-row-split paper-row-accent"><span>تم الاتفاق بين كلٍ من</span><span>{agreementDateLine(c.date)}</span></div>
+            <Pick id="parties">
             <div className="paper-cols">
               <Party p={first} title="الطرف الأول" full />
               <Party p={second} title="الطرف الثاني" full />
             </div>
+            </Pick>
             {c.sections.slice(0, 1).map((s) => (
-              <Fragment key={s.num}><Bar num={s.num} title={s.title} /><Box c={c} text={s.body} /></Fragment>
+              <Pick key={s.num} id={s.num === '04' ? 'pricing' : `sec:${s.num}`}><Bar num={s.num} title={s.title} /><Box c={c} text={s.body} /></Pick>
             ))}
           </Page>
           {chunk(c.sections.slice(1), [2, 3, 2, 3, 2, 1]).map((group, i) => (
             <Page key={i} c={c}>
               {group.map((s) => (
-                <Fragment key={s.num}><Bar num={s.num} title={s.title} /><Box c={c} text={s.body} /></Fragment>
+                <Pick key={s.num} id={s.num === '04' ? 'pricing' : `sec:${s.num}`}><Bar num={s.num} title={s.title} /><Box c={c} text={s.body} /></Pick>
               ))}
               {i === 5 && <SignBlock c={c} first={first} second={second} firstSig={firstSig} secondSig={secondSig} firstSigner={firstSigner} secondSigner={secondSigner} hawamishIsFirst={hawamishIsFirst} stamp={stamp} />}
             </Page>
@@ -194,14 +265,19 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
           <Page c={c}>
             <Bar title={`(*) ${c.title}`} sub={draftLabel} />
             <div className="paper-row paper-row-split paper-row-accent"><span>تم إنشاء العرض</span><span>{agreementDateLine(c.date)}</span></div>
+            <Pick id="parties">
             <div className="paper-cols">
               <Party p={first} title="الطرف الأول" full />
               <Party p={second} title="الطرف الثاني" full />
             </div>
+            </Pick>
+            <Pick id="scope">
             <Bar num="01" title="تمهيد" />
             <Box c={c} text={c.scope} />
+            </Pick>
           </Page>
           <Page c={c}>
+            <Pick id="packages">
             <Bar num="02" title={c.project || 'الباقات'} />
             <div className="paper-packages">
               {c.packages.map((p, k) => (
@@ -214,6 +290,7 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
                 </div>
               ))}
             </div>
+            </Pick>
             {c.unitName && (
               <>
                 <Bar num="03" title={c.unitName} />
@@ -230,7 +307,19 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
         </>
       )}
     </div>
+    </PickCtx.Provider>
   )
+}
+
+/** Lowest edge of the content inside a page body, in page layout units (looks through display:contents wrappers). */
+function contentBottom(el: HTMLElement): number {
+  let max = 0
+  for (const child of el.children) {
+    const x = child as HTMLElement
+    if (getComputedStyle(x).display === 'contents') max = Math.max(max, contentBottom(x))
+    else max = Math.max(max, x.offsetTop + x.offsetHeight)
+  }
+  return max
 }
 
 function chunk<T>(items: T[], sizes: number[]): T[][] {
