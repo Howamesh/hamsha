@@ -171,12 +171,21 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
       ownDraftAt.current = null
     }
   }, [c, note, dirtyContent, current?.id, contract.id])
+  // 1 Nov: «تجاهلها» read like «close this message» and wiped his whole morning of edits. Now: hiding the banner is its
+  // own harmless button, going back to the saved version asks first, and it can be undone in this session.
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [undo, setUndo] = useState<{ c: ContractContent; note: string } | null>(null)
+  const replaceWith = (next: ContractContent) => {
+    setUndo({ c, note })
+    setC(next)
+  }
   const discardDraft = () => {
     clearDraft(contract.id)
     ownDraftAt.current = null
-    setC(fresh())
+    replaceWith(fresh())
     setNote('')
     setRestoredAt(null)
+    setConfirmDiscard(false)
   }
   // after «يبي تعديل» / «مرفوض» the decided version can never be re-sent: re-sending always freezes a new one
   const mustFreeze = contract.status === 'changes' || contract.status === 'rejected'
@@ -490,7 +499,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
       {elsewhere !== null && (
         <div className="flex items-center gap-3 px-4 py-2 bg-warning-tint/40 border-b border-border text-[12.5px]" role="alert" data-testid="version-elsewhere">
           <span className="flex-1">{t('versionElsewhere', { n: elsewhere })}</span>
-          <Button size="sm" variant="ghost" onClick={() => { setC(fresh()); setElsewhere(null) }} data-testid="take-their-version">{t('takeTheirVersion')}</Button>
+          <Button size="sm" variant="ghost" onClick={() => { replaceWith(fresh()); setElsewhere(null) }} data-testid="take-their-version">{t('takeTheirVersion')}</Button>
           <Button size="sm" variant="ghost" onClick={() => setElsewhere(null)}>{t('keepMine')}</Button>
         </div>
       )}
@@ -498,9 +507,27 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         <div className="px-4 py-2 bg-warning-tint/40 border-b border-border text-[12.5px] text-warning-dark" role="alert" data-testid="draft-failed">{t('draftFailed')}</div>
       )}
       {restoredAt && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-warning-tint/40 border-b border-border text-[12.5px]" role="status" data-testid="draft-restored">
-          <span className="flex-1">{t('draftRestored', { time: fmtTime(restoredAt, lang) })}</span>
-          <Button size="sm" variant="ghost" onClick={discardDraft} data-testid="discard-draft">{t('discardDraft')}</Button>
+        <div className="flex items-center gap-3 px-4 py-2 bg-warning-tint/40 border-b border-border text-[12.5px] flex-wrap" role="status" data-testid="draft-restored">
+          {!confirmDiscard ? (
+            <>
+              <span className="flex-1 min-w-0">{t('draftRestored', { time: fmtTime(restoredAt, lang) })}</span>
+              <Button size="sm" variant="primary" onClick={() => setRestoredAt(null)} data-testid="draft-restored-ok">{t('draftRestoredOk')}</Button>
+              <Button size="sm" variant="ghost" className="text-fg-secondary" onClick={() => setConfirmDiscard(true)} data-testid="discard-ask">{t('discardAsk')}</Button>
+            </>
+          ) : (
+            <>
+              <span className="flex-1 min-w-0 font-semibold text-danger-dark">{t('discardConfirm')}</span>
+              <Button size="sm" variant="ghost" className="text-danger-dark" onClick={discardDraft} data-testid="discard-draft">{t('discardYes')}</Button>
+              <Button size="sm" variant="primary" onClick={() => setConfirmDiscard(false)}>{t('discardNo')}</Button>
+            </>
+          )}
+        </div>
+      )}
+      {undo && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-info-tint/40 border-b border-border text-[12.5px]" role="status" data-testid="undo-bar">
+          <span className="flex-1">{t('discardedUndo')}</span>
+          <Button size="sm" variant="primary" onClick={() => { setC(undo.c); setNote(undo.note); setUndo(null) }} data-testid="undo-discard">{t('undo')}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setUndo(null)} aria-label={t('cancel')}><X size={14} /></Button>
         </div>
       )}
       {/* relative: on a narrow screen the hidden paper tab stays laid out underneath, so the overflow check still measures it */}

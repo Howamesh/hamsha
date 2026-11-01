@@ -118,6 +118,17 @@ CHECKS['full-screen edit lands in the clause + paper'] = !(await ev(`!!document.
 await send('Page.reload'); await sleep(1500);
 CHECKS['refresh: editor reopens with the unsaved edits'] = await waitFor(`!!document.querySelector('[data-testid=contract-editor]') && !!document.querySelector('[data-testid=draft-restored]') && document.querySelector('[data-testid=pricing-months]')?.value === '12'`, 20000).then(()=>true).catch(()=>false)
   && (await text('[data-testid=contract-paper]')).includes('سطر تجربة من الشاشة الكاملة') && (await ev(`document.querySelector('[data-testid=platform-TikTok]').getAttribute('aria-pressed')`)) === 'true';
+// 1 Nov (his lost edits): the banner's dismiss button must NOT erase anything; erasing asks first and can be undone
+await clickSel('[data-testid=discard-ask]'); await sleep(200);
+CHECKS['«back to saved» asks before erasing'] = await ev(`!!document.querySelector('[data-testid=discard-draft]') && document.querySelector('[data-testid=pricing-months]').value === '12'`);
+await clickSel('[data-testid=discard-draft]'); await sleep(300);
+CHECKS['…erased, with an undo bar'] = !(await text('[data-testid=contract-paper]')).includes('سطر تجربة من الشاشة الكاملة') && await ev(`!!document.querySelector('[data-testid=undo-discard]')`);
+await clickSel('[data-testid=undo-discard]'); await sleep(300);
+CHECKS['…«تراجع» brings every edit back'] = await ev(`document.querySelector('[data-testid=pricing-months]').value === '12'`) && (await text('[data-testid=contract-paper]')).includes('سطر تجربة من الشاشة الكاملة');
+await send('Page.reload'); await sleep(1500);
+await waitFor(`!!document.querySelector('[data-testid=draft-restored]')`, 20000);
+await clickSel('[data-testid=draft-restored-ok]'); await sleep(300);
+CHECKS['«تمام» only hides the banner — edits stay'] = await ev(`!document.querySelector('[data-testid=draft-restored]') && document.querySelector('[data-testid=pricing-months]').value === '12'`);
 // ⭐٥ (1 Nov): the paper full size; tap a part → its editor beside the paper; text that runs past a page is flagged
 await clickSel('[data-testid=open-paper-big]'); await waitFor(`!!document.querySelector('[data-testid=paper-big]')`);
 await clickSel('[data-testid=paper-zoom-in]');
