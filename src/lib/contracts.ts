@@ -348,5 +348,7 @@ export function contractsNeedingAction(cs: Contract[], role: User['role']): numb
 export function clientBlocked(s: Snapshot, user: User): boolean {
   if (user.role !== 'client' || !user.clientId) return false
   const c = s.clients.find((x) => x.id === user.clientId)
-  return !!c?.contractBlock && c.contract !== 'signed'
+  // 1 Nov: Yousef removed «احظر العميل حتى التوقيع» — a flag left on from before must never block anyone
+  void c
+  return false
 }

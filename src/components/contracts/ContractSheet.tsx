@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, FileSignature, MessageSquareWarning, Pencil, Printer, Send, ShieldBan, Trash2, Undo2, X, XCircle } from 'lucide-react'
+import { Check, FileSignature, Maximize2, MessageSquareWarning, Minimize2, Minus, Pencil, Plus, Printer, Send, Trash2, Undo2, X, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fmtDate, fmtTime, useNarrow, useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
@@ -40,6 +40,9 @@ export function ContractSheet() {
   const [deciding, setDeciding] = useState<'changes' | 'rejected' | null>(null)
   // a page whose text runs past its footer prints cut: no Hawamish signature and no sending until it fits (council 1 Nov)
   const [overflow, setOverflow] = useState<PaperOverflow[]>([])
+  // 1 Nov: admin, client and creative can all open the contract full size to read it (read-only here)
+  const [big, setBig] = useState(false)
+  const [zoom, setZoom] = useState(1)
   const [note, setNote] = useState('')
   const [printing, setPrinting] = useState(false)
   const counterparty = !!me && me.role !== 'admin'
@@ -120,7 +123,12 @@ export function ContractSheet() {
       </div>
 
       <div className={cn('flex-1 min-h-0 grid', narrow ? 'grid-cols-1 overflow-y-auto no-scrollbar' : 'grid-cols-[1fr_380px]')}>
-        <div className={cn('min-h-0 paper-preview', narrow && 'max-h-[60vh]')}>
+        <div className={cn('min-h-0 paper-preview relative', view && 'cursor-zoom-in', narrow && 'max-h-[60vh]')} onClick={() => view && setBig(true)} title={view ? t('openPaperBig') : undefined}>
+          {view && (
+            <Button size="sm" className="sticky top-3 z-[2] ms-3 mt-3 shadow" onClick={(e) => { e.stopPropagation(); setBig(true) }} data-testid="sheet-open-big">
+              <Maximize2 size={14} /> {t('openPaperBig')}
+            </Button>
+          )}
           {view ? <ContractPaper content={view.content} version={view} number={contract.number} stamp={legal.stamp || undefined} scale={narrow ? 0.42 : 0.6} onOverflow={view.number === contract.currentVersion ? setOverflow : undefined} /> : <div className="p-6 text-[13px] text-fg-secondary text-center">{t('noVersionYet')}</div>}
         </div>
 
@@ -221,19 +229,18 @@ export function ContractSheet() {
                   </Button>
                 )}
               </div>
-              {client && (
-                <label className="flex items-center gap-2 text-[12.5px] cursor-pointer">
-                  <input type="checkbox" checked={!!client.contractBlock} onChange={(e) => void act(() => sess.updateClient(client.id, { contractBlock: e.target.checked }))} data-testid="contract-block" />
-                  <ShieldBan size={14} /> {t('contractBlock')}
-                </label>
-              )}
             </div>
           )}
 
           {view && (
-            <Button onClick={() => setPrinting(true)} data-testid="print-contract">
-              <Printer size={14} /> {t('printContract')}
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={() => setBig(true)} data-testid="sheet-open-big-2">
+                <Maximize2 size={14} /> {t('openPaperBig')}
+              </Button>
+              <Button onClick={() => setPrinting(true)} data-testid="print-contract">
+                <Printer size={14} /> {t('printContract')}
+              </Button>
+            </div>
           )}
 
           {/* ---- signatures summary ---- */}
@@ -274,6 +281,26 @@ export function ContractSheet() {
 
       {signing?.who === 'hawamish' && current && signing.versionId === current.id && <SignDialog title={t('signHawamish')} defaultName={current.content.signers.hawamish.name} defaultCapacity={current.content.signers.hawamish.capacity} onConfirm={signHawamish} onClose={() => setSigning(null)} busy={busy} />}
       {signing?.who === 'counterparty' && current && signing.versionId === current.id && <SignDialog title={t('signContract')} defaultName={current.content.signers.counterparty.name || me.name} defaultCapacity={current.content.signers.counterparty.capacity} onConfirm={signCounterparty} onClose={() => setSigning(null)} busy={busy} />}
+      {big && view && (
+        <div className="fixed inset-0 z-[90] bg-muted-bg flex flex-col anim-fade" role="dialog" aria-label={t('openPaperBig')} data-testid="sheet-paper-big"
+          onKeyDown={(e) => e.key === 'Escape' && setBig(false)} tabIndex={-1}>
+          <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-border bg-card flex-wrap">
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-semibold truncate" dir="auto">{contract.title}</div>
+              <div className="text-[11.5px] text-fg-secondary">{t('version')} {view.number}</div>
+            </div>
+            <div className="flex items-center gap-1 rounded-md border border-border bg-bg px-1">
+              <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.max(0.5, Math.round((z - 0.1) * 10) / 10))} aria-label={t('zoomOut')}><Minus size={15} /></Button>
+              <span className="w-[46px] text-center text-[12.5px] tabular-nums" data-testid="sheet-zoom">{Math.round(zoom * 100)}%</span>
+              <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.min(1.8, Math.round((z + 0.1) * 10) / 10))} aria-label={t('zoomIn')} data-testid="sheet-zoom-in"><Plus size={15} /></Button>
+            </div>
+            <Button variant="primary" onClick={() => setBig(false)} data-testid="sheet-paper-close"><Minimize2 size={16} /> {t('collapseSection')}</Button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto py-6">
+            <ContractPaper content={view.content} version={view} number={contract.number} stamp={legal.stamp || undefined} scale={narrow ? Math.min(zoom, 0.55) : zoom} />
+          </div>
+        </div>
+      )}
       {printing && view && createPortal(<div className="print-root"><ContractPaper content={view.content} version={view} number={contract.number} stamp={legal.stamp || undefined} /></div>, document.body)}
     </div>
   )

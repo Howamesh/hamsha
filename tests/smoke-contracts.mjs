@@ -239,6 +239,13 @@ await ev(`document.querySelector('[data-testid=contract-card]').click()`); await
 await waitFor(`document.querySelector('[data-testid=contract-sheet] [data-status]')?.dataset.status === 'opened'`);
 CHECKS['opening marks the contract «فُتح»'] = (await status()) === 'opened';
 CHECKS['client sees sign / changes / reject only'] = await ev(`!!document.querySelector('[data-testid=sign-contract]') && !document.querySelector('[data-testid=contract-admin-actions]') && !document.querySelector('[data-testid=contract-trail]')`);
+// 1 Nov: everyone (here: the client) can open the contract full size to read it
+await clickSel('[data-testid=sheet-open-big]'); await sleep(300);
+CHECKS['client opens the contract full size (read-only, zoom)'] = await ev(`!!document.querySelector('[data-testid=sheet-paper-big] [data-testid=contract-paper]') && !document.querySelector('[data-testid=sheet-paper-big] .paper-pick')`);
+await clickSel('[data-testid=sheet-zoom-in]'); await sleep(100);
+CHECKS['…zoom works'] = (await text('[data-testid=sheet-zoom]')).trim() === '110%';
+await clickSel('[data-testid=sheet-paper-close]'); await sleep(200);
+CHECKS['…«صغّر» returns to the sheet'] = !(await ev(`!!document.querySelector('[data-testid=sheet-paper-big]')`)) && await ev(`!!document.querySelector('[data-testid=sign-contract]')`);
 CHECKS['client paper carries Hawamish signature'] = (await ev(`document.querySelectorAll('[data-testid=contract-paper] [data-testid=paper-signature]').length`)) === 1;
 await click('اطلب تعديلاً'); await waitFor(`!!document.querySelector('[data-testid=contract-note]')`);
 await setT('contract-note', 'قللوا المدة إلى 6 أشهر');
@@ -321,8 +328,8 @@ CHECKS['editor: overflow disables «وقّع وأرسل»'] = await ev(`!!docume
 await clickSel('[data-testid=save-version]'); await toastHas('انحفظت النسخة 1'); await closeToast();
 await ev(`document.querySelector('[data-testid=contract-editor] button[aria-label="إلغاء"]').click()`); await sleep(600);
 CHECKS['sheet: overflow blocks Hawamish signing (second send path)'] = await waitFor(`!!document.querySelector('[data-testid=sheet-overflow-block]') && document.querySelector('[data-testid=sign-hawamish]')?.disabled === true`, 5000).then(()=>true).catch(()=>false);
-await waitFor(`!!document.querySelector('[data-testid=contract-block]')`);
-await ev(`document.querySelector('[data-testid=contract-block]').click()`); await sleep(300);
+// 1 Nov: «احظر العميل حتى التوقيع» removed at Yousef's request
+CHECKS['no «block the client» option anymore'] = !(await ev(`!!document.querySelector('[data-testid=contract-block]')`));
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
 CHECKS['admin sees 3 cards'] = (await ev(`document.querySelectorAll('[data-testid=contract-card]').length`)) === 3;
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=social-board]')`);
@@ -339,9 +346,9 @@ await setT('contract-note', 'المبلغ غير مناسب'); await click('أر
 CHECKS['creative rejected'] = (await status()) === 'rejected';
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
 await click('تسجيل الخروج'); await sleep(700);
-// client: blocked banner (latest client contract is a draft) + the unsent draft is invisible
+// client: never blocked (option removed) + the unsent draft is invisible
 await click('ادخل كعميل'); await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='العقود')`, 20000); await sleep(400);
-CHECKS['client blocked banner'] = await ev(`!!document.querySelector('[data-testid=contract-blocked]')`);
+CHECKS['client is never blocked'] = !(await ev(`!!document.querySelector('[data-testid=contract-blocked]')`));
 await click('العقود'); await waitFor(`!!document.querySelector('[data-testid=contracts-board]')`);
 CHECKS['client never sees the unsent draft'] = (await ev(`document.querySelectorAll('[data-testid=contract-card]').length`)) === 1;
 // reload: persisted
