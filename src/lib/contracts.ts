@@ -227,6 +227,15 @@ export function contractTotal(c: ContractContent): number {
 export type MissingField = { label: string; field: string }
 export function missingFields(c: ContractContent): MissingField[] {
   const out: MissingField[] = []
+  // 1 Nov («ليش بس على الفلوس؟»): every automatic word the contract TEXT actually uses must be filled, or the paper
+  // prints «…» there. If a clause does not mention videos, 0 videos is fine; if it does, it must be a real number.
+  const text = [...(c.kind === 'full' ? c.sections.map((x) => x.body) : [c.scope]), c.kind === 'short' ? SHORT_FOOTNOTE : ''].join('\n')
+  const uses = (w: string) => text.includes(`{${w}}`)
+  if (uses('الهدف') && !c.project.trim()) out.push({ label: 'المشروع', field: 'contract-project' })
+  if (uses('المنصات') && !c.vars.platforms.trim()) out.push({ label: 'المنصات', field: 'platform-Instagram' })
+  if (uses('المنشورات') && !(c.vars.posts > 0)) out.push({ label: 'عدد المنشورات شهرياً', field: 'vars-posts' })
+  if (uses('التصاميم') && !(c.vars.designs > 0)) out.push({ label: 'عدد التصاميم شهرياً', field: 'vars-designs' })
+  if (uses('الفيديوهات') && !(c.vars.videos > 0)) out.push({ label: 'عدد الفيديوهات شهرياً', field: 'vars-videos' })
   if (c.kind === 'short') {
     c.tracks.forEach((t, i) => {
       if (!(t.monthly > 0)) out.push({ label: `المبلغ الشهري للمسار ${i + 1}`, field: `track-${i}-monthly` })

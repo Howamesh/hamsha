@@ -79,12 +79,14 @@ CHECKS['editor opens with missing values flagged'] = await ev(`!!document.queryS
 CHECKS['Hawamish party prefilled from the legal profile'] = (await ev(`document.querySelector('[data-testid=hawamish-name]').value`)).includes('هوامش');
 CHECKS['sign-send disabled while values are missing'] = await ev(`document.querySelector('[data-testid=sign-send]').disabled === true`);
 // 1 Nov: the bar names the missing field and takes him there (focus + flash)
-CHECKS['missing bar names the field'] = (await text('[data-testid=missing-values]')).includes('ناقص: المبلغ الشهري');
+CHECKS['missing bar names the field (first: the project the text uses)'] = (await text('[data-testid=missing-values]')).includes('ناقص: المشروع');
 await clickSel('[data-testid=missing-values]'); await sleep(300);
-CHECKS['missing bar → focuses that field'] = await ev(`document.activeElement?.dataset?.testid === 'pricing-monthly' && !!document.activeElement.closest('label.form-flash')`);
+CHECKS['missing bar → focuses that field'] = await ev(`document.activeElement?.dataset?.testid === 'contract-project' && !!document.activeElement.closest('label.form-flash')`);
 await setT('contract-project', 'تعزيز الحضور الرقمي وبناء هوية إعلامية');
 await setT('counterparty-rep', 'زياد بن محمد الجاسر');
-await clickSel('[data-testid=platform-Instagram]'); await clickSel('[data-testid=platform-TikTok]'); await setT('vars-posts', '8');
+await clickSel('[data-testid=platform-Instagram]'); await clickSel('[data-testid=platform-TikTok]'); await setT('vars-posts', '8'); await setT('vars-designs', '4');
+// 1 Nov: counts the contract text uses are required too — after posts + designs the bar moves on to the money
+CHECKS['bar now asks for the monthly amount (posts/designs filled)'] = (await text('[data-testid=missing-values]')).includes('ناقص: المبلغ الشهري');
 await setT('pricing-monthly', '4000'); await setT('pricing-months', '12'); await sleep(300);
 // real typing, one key at a time (1 Nov: inner components remounted every keystroke → the field lost focus after one character; Arabic digits counted as 0)
 const typeKeys = async (testid, chars) => { await setT(testid, ''); await ev(`document.querySelector('[data-testid=${testid}]').focus()`); for (const ch of chars) { await send('Input.insertText', { text: ch }); await sleep(60); } await sleep(150); return ev(`[document.querySelector('[data-testid=${testid}]').value, document.activeElement?.dataset?.testid || '']`); };
@@ -250,6 +252,18 @@ await setT('contract-party', 'creative'); await sleep(200);
 CHECKS['creative select appears'] = await ev(`!!document.querySelector('[data-testid=contract-creative]')`);
 await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`, 20000);
 await setT('track-0-monthly', '3000'); await setT('counterparty-rep', 'المبدع'); await sleep(200);
+// the short template's text uses the project/platforms/counts too: fill whatever the bar asks for (1 Nov rule)
+for (let i = 0; i < 6 && await ev(`!!document.querySelector('[data-testid=missing-values]')`); i++) {
+  const ask = await text('[data-testid=missing-values]');
+  if (ask.includes('المشروع')) await setT('contract-project', 'تطوير المحتوى');
+  else if (ask.includes('المنصات')) await clickSel('[data-testid=platform-Instagram]');
+  else if (ask.includes('المنشورات')) await setT('vars-posts', '8');
+  else if (ask.includes('التصاميم')) await setT('vars-designs', '4');
+  else if (ask.includes('الفيديوهات')) await setT('vars-videos', '2');
+  else break;
+  await sleep(150);
+}
+CHECKS['short contract: nothing missing once its text words are filled'] = !(await ev(`!!document.querySelector('[data-testid=missing-values]')`));
 CHECKS['short paper: track price + total'] = (await text('[data-testid=contract-paper]')).includes('3,000 ريال شهرياً') && (await text('[data-testid=contract-paper]')).includes('36,000');
 await clickSel('[data-testid=sign-send]'); CHECKS['creative contract signed + sent'] = await signFlow(); await toastHas('أُرسل'); await closeToast();
 await waitFor(`!!document.querySelector('[data-testid=contract-sheet]')`);

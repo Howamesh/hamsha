@@ -271,9 +271,9 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         <Group title={t('secVars')}>
           <div className="grid grid-cols-2 gap-2">
             <div className="flex flex-col gap-1 col-span-2"><SectionTitle>{t('fPlatforms')}</SectionTitle><PlatformPicker value={c.vars.platforms} onChange={(v) => up({ vars: { ...c.vars, platforms: v } })} /></div>
-            <Num label={t('fPosts')} value={c.vars.posts} onChange={(n) => up({ vars: { ...c.vars, posts: n } })} testId="vars-posts" />
-            <Num label={t('fDesigns')} value={c.vars.designs} onChange={(n) => up({ vars: { ...c.vars, designs: n } })} />
-            <Num label={t('fVideos')} value={c.vars.videos} onChange={(n) => up({ vars: { ...c.vars, videos: n } })} />
+            <Num label={t('fPosts')} value={c.vars.posts} onChange={(n) => up({ vars: { ...c.vars, posts: n } })} testId="vars-posts" optional={!missingList.some((m) => m.field === 'vars-posts')} />
+            <Num label={t('fDesigns')} value={c.vars.designs} onChange={(n) => up({ vars: { ...c.vars, designs: n } })} testId="vars-designs" optional={!missingList.some((m) => m.field === 'vars-designs')} />
+            <Num label={t('fVideos')} value={c.vars.videos} onChange={(n) => up({ vars: { ...c.vars, videos: n } })} testId="vars-videos" optional={!missingList.some((m) => m.field === 'vars-videos')} />
           </div>
         </Group>
       )
