@@ -7,7 +7,7 @@ import { useData, useSession, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
 import type { ContractVersion, SignatureInput } from '@/types'
 import { loadDraft } from '@/lib/contractDraft'
-import { EMPTY_LEGAL, contractTotal, currencyShort, fmtAmount, missingFields, visibleContractVersions } from '@/lib/contracts'
+import { EMPTY_LEGAL, contractTotal, coreMissing, currencyShort, fmtAmount, missingFields, visibleContractVersions } from '@/lib/contracts'
 import { Button, SectionTitle } from '../ui'
 import { ContractStatusChip } from './ContractsBoard'
 import { ContractPaper, type PaperOverflow } from './ContractPaper'
@@ -32,7 +32,10 @@ export function ContractSheet() {
   const contract = s.contracts.find((c) => c.id === ui.contractId)
   const versions = useMemo(() => (contract && me ? visibleContractVersions(s, me, contract.id) : []), [s, me, contract])
   const current = versions.find((v) => v.number === contract?.currentVersion) ?? versions[0]
-  const sheetMissing = useMemo(() => (current ? missingFields(current.content).map((m) => m.label) : []), [current])
+  const sheetGaps = useMemo(() => (current ? missingFields(current.content) : []), [current])
+  const sheetMissing = sheetGaps.map((m) => m.label)
+  // only the core blocks signing/sending here too (the database refuses the same); the rest warns (Yousef 2 Nov)
+  const sheetCore = useMemo(() => (current ? coreMissing(current.content).map((m) => m.label) : []), [current])
   const [pick, setPick] = useState<{ key: string; id: string } | null>(null)
   const key = `${contract?.id}:${contract?.currentVersion}`
   const view = (pick?.key === key ? versions.find((v) => v.id === pick.id) : undefined) ?? current
@@ -41,6 +44,8 @@ export function ContractSheet() {
   const [deciding, setDeciding] = useState<'changes' | 'rejected' | null>(null)
   // a page whose text runs past its footer prints cut: no Hawamish signature and no sending until it fits (council 1 Nov)
   const [overflow, setOverflow] = useState<PaperOverflow[]>([])
+  // a gap tapped in the sign window → the editor opens ON that field (Codex check 2 Nov)
+  const [jump, setJump] = useState<string | null>(null)
   // 1 Nov: admin, client and creative can all open the contract full size to read it (read-only here)
   const [big, setBig] = useState(false)
   const [zoom, setZoom] = useState(1)
@@ -64,7 +69,7 @@ export function ContractSheet() {
   }, [printing])
   if (!contract || !me) return null
   if (ui.contractEditing && me.role === 'admin') {
-    return <ContractEditor contract={contract} current={versions.find((v) => v.number === contract.currentVersion)} onClose={() => ui.openContract(contract.id, false)} />
+    return <ContractEditor contract={contract} current={versions.find((v) => v.number === contract.currentVersion)} onClose={() => ui.openContract(contract.id, false)} initialField={jump} onJumped={() => setJump(null)} />
   }
   const client = contract.clientId ? s.clients.find((c) => c.id === contract.clientId) : undefined
   const creative = contract.creativeId ? s.users.find((u) => u.id === contract.creativeId) : undefined
@@ -93,7 +98,7 @@ export function ContractSheet() {
     }
   }
   // the signature binds to the version that was on screen when the dialog opened; a newer version cancels it
-  const signHawamish = async (sig: SignatureInput) => { if (overflow.length > 0 || sheetMissing.length > 0) { setSigning(null); return } await act(async () => { if (!signing || signing.versionId !== current?.id) { setSigning(null); throw new Error('stale') } await sess.signContractFirst(signing.versionId, sig); setSigning(null) }, t('hawamishSigned')) }
+  const signHawamish = async (sig: SignatureInput) => { if (overflow.length > 0 || sheetCore.length > 0) { setSigning(null); return } await act(async () => { if (!signing || signing.versionId !== current?.id) { setSigning(null); throw new Error('stale') } await sess.signContractFirst(signing.versionId, sig); setSigning(null) }, t('hawamishSigned')) }
   const signCounterparty = async (sig: SignatureInput) => { await act(async () => { if (!signing || signing.versionId !== current?.id) { setSigning(null); throw new Error('stale') } await sess.decideContract(signing.versionId, 'signed', undefined, sig); setSigning(null) }, t('contractSignedToast')) }
   const evLabel = (e: string) => {
     const m: Record<string, string> = { created: t('evCreated'), version: t('evVersion'), first_signed: t('evFirstSigned'), sent: t('evSent'), withdrawn: t('evWithdrawn'), opened: t('evOpened'), signed: t('evSigned'), changes: t('evChanges'), rejected: t('evRejected'), completed: t('evCompleted') }
@@ -199,7 +204,9 @@ export function ContractSheet() {
                   (and the database refuses too, 0014) */}
               {sheetMissing.length > 0 && contract.status === 'draft' && current && (
                 <button type="button" onClick={() => ui.openContract(contract.id, true)} className="text-start rounded-md bg-warning-tint/40 border border-warning-dark/30 px-3 py-2 text-[12.5px] text-warning-dark cursor-pointer" data-testid="sheet-missing-block">
-                  {t('missingBlocksSend', { list: sheetMissing.slice(0, 4).join('، ') + (sheetMissing.length > 4 ? ` (+${sheetMissing.length - 4})` : '') })}
+                  {sheetCore.length > 0
+                    ? t('coreBlocksSend', { list: sheetCore.join('، ') })
+                    : t('missingBlocksSend', { list: sheetMissing.slice(0, 4).join('، ') + (sheetMissing.length > 4 ? ` (+${sheetMissing.length - 4})` : '') })}
                 </button>
               )}
               {overflow.length > 0 && contract.status === 'draft' && (
@@ -212,12 +219,12 @@ export function ContractSheet() {
                   </Button>
                 )}
                 {contract.status === 'draft' && current && !current.firstSignature && (
-                  <Button variant="dark" disabled={busy || overflow.length > 0 || sheetMissing.length > 0} onClick={() => current && setSigning({ who: 'hawamish', versionId: current.id })} data-testid="sign-hawamish">
+                  <Button variant="dark" disabled={busy || overflow.length > 0 || sheetCore.length > 0} onClick={() => current && setSigning({ who: 'hawamish', versionId: current.id })} data-testid="sign-hawamish">
                     <FileSignature size={14} /> {t('signHawamish')}
                   </Button>
                 )}
                 {contract.status === 'draft' && current?.firstSignature && (
-                  <Button variant="primary" disabled={busy || overflow.length > 0 || sheetMissing.length > 0} onClick={() => act(() => sess.updateContract(contract.id, { status: 'sent' }), t('contractSentToast'))} data-testid="send-contract">
+                  <Button variant="primary" disabled={busy || overflow.length > 0 || sheetCore.length > 0} onClick={() => act(() => sess.updateContract(contract.id, { status: 'sent' }), t('contractSentToast'))} data-testid="send-contract">
                     <Send size={14} /> {t('sendContract')}
                   </Button>
                 )}
@@ -287,7 +294,7 @@ export function ContractSheet() {
         </div>
       </div>
 
-      {signing?.who === 'hawamish' && current && signing.versionId === current.id && <SignDialog title={t('signHawamish')} defaultName={current.content.signers.hawamish.name} defaultCapacity={current.content.signers.hawamish.capacity} onConfirm={signHawamish} onClose={() => setSigning(null)} busy={busy} />}
+      {signing?.who === 'hawamish' && current && signing.versionId === current.id && <SignDialog title={t('signHawamish')} gaps={sheetGaps} onGo={(f) => { setSigning(null); setJump(f); ui.openContract(contract.id, true) }} defaultName={current.content.signers.hawamish.name} defaultCapacity={current.content.signers.hawamish.capacity} onConfirm={signHawamish} onClose={() => setSigning(null)} busy={busy} />}
       {signing?.who === 'counterparty' && current && signing.versionId === current.id && <SignDialog title={t('signContract')} defaultName={current.content.signers.counterparty.name || me.name} defaultCapacity={current.content.signers.counterparty.capacity} onConfirm={signCounterparty} onClose={() => setSigning(null)} busy={busy} />}
       {big && view && (
         <div className="fixed inset-0 z-[90] bg-muted-bg flex flex-col anim-fade" role="dialog" aria-label={t('openPaperBig')} data-testid="sheet-paper-big"

@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react'
-import { PenLine, X } from 'lucide-react'
+import { AlertTriangle, PenLine, X } from 'lucide-react'
 import { useStr } from '@/lib/useStr'
 import type { SignatureInput } from '@/types'
 import { Button, Input, SectionTitle } from '../ui'
 import { SignaturePad } from './SignaturePad'
 
 /** Name + capacity + a drawn / uploaded signature + the acknowledgement checkbox. Used by both sides. */
-export function SignDialog({ title, defaultName, defaultCapacity, onConfirm, onClose, busy }: { title: string; defaultName?: string; defaultCapacity?: string; onConfirm: (sig: SignatureInput) => Promise<void> | void; onClose: () => void; busy?: boolean }) {
+export function SignDialog({ title, defaultName, defaultCapacity, onConfirm, onClose, busy, gaps, onGo }: { title: string; defaultName?: string; defaultCapacity?: string; onConfirm: (sig: SignatureInput) => Promise<void> | void; onClose: () => void; busy?: boolean; /** empty fields the paper prints — a warning, signing stays allowed (2 Nov) */ gaps?: Array<{ label: string; field: string }>; onGo?: (field: string) => void }) {
   const { t } = useStr()
   const [name, setName] = useState(defaultName ?? '')
   const [capacity, setCapacity] = useState(defaultCapacity ?? '')
@@ -29,6 +29,22 @@ export function SignDialog({ title, defaultName, defaultCapacity, onConfirm, onC
             <X size={16} />
           </Button>
         </div>
+        {/* 2 Nov (Yousef): «أي نقص… يقلي ترا عندك كذا فاضي ويوديني له، وأقدر أوقّع على أي حال» */}
+        {!!gaps?.length && (
+          <div className="rounded-md border border-warning-dark/40 bg-warning-tint/50 px-3 py-2.5 flex flex-col gap-2" data-testid="sign-gaps">
+            <div className="flex items-center gap-2 text-[12.5px] font-semibold text-warning-dark">
+              <AlertTriangle size={15} className="shrink-0" /> {t('signGapsTitle', { n: gaps.length })}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {gaps.map((g) => (
+                <button key={g.field + g.label} type="button" onClick={() => onGo?.(g.field)} className="rounded-full border border-warning-dark/40 bg-bg px-2.5 py-1 text-[11.5px] text-warning-dark cursor-pointer hover:bg-warning-tint" data-testid="sign-gap">
+                  {g.label} ←
+                </button>
+              ))}
+            </div>
+            <div className="text-[11px] text-fg-secondary">{t('signGapsHint')}</div>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1.5">
             <SectionTitle>{t('signerName')}</SectionTitle>

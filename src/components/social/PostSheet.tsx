@@ -6,7 +6,7 @@ import { useData, useSession, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
 import { MEDIA_MAX, POST_FORMATS, POST_PLATFORMS, type MediaItem, type Post, type PostVersion } from '@/types'
 import { Button, Input, SectionTitle } from '../ui'
-import { statusTone, visibleVersions } from '@/lib/social'
+import { accountFor, statusTone, visibleVersions } from '@/lib/social'
 import { useMediaUrls, useObjectUrls } from '@/lib/useMedia'
 import { FeedPreview } from './FeedPreview'
 import { PostViewer } from './PostViewer'
@@ -60,7 +60,7 @@ export function PostSheet() {
   const [busy, setBusy] = useState(false)
   if (!post || !me) return null
   const client = s.clients.find((c) => c.id === post.clientId)
-  const account = s.clientAccounts.find((a) => a.id === post.accountId)
+  const account = accountFor(s, post)
   const task = post.taskId ? s.tasks.find((x) => x.id === post.taskId) : undefined
   const admin = me.role === 'admin'
   const team = me.role !== 'client'
@@ -290,7 +290,7 @@ export function PostSheet() {
 
       {uploading && <NewVersionDialog post={post} from={view} onClose={() => setUploading(false)} />}
       {full && view && <PostViewer {...previewProps} onClose={() => setFull(false)} />}
-      {bare && view && <DesignViewer media={media} onClose={() => setBare(false)} />}
+      {bare && view && <DesignViewer media={media} format={post.format} onClose={() => setBare(false)} />}
       {accounts && <ClientAccountsDialog clientId={post.clientId} platform={post.platform} onClose={() => setAccounts(false)} onPicked={(a) => { if (a.platform === post.platform) void act(() => sess.updatePost(post.id, { accountId: a.id })); setAccounts(false) }} />}
     </div>
   )
@@ -336,7 +336,7 @@ function NewVersionDialog({ post, from, onClose }: { post: Post; from?: PostVers
   const s = useData()
   const sess = useSession()
   const client = s.clients.find((c) => c.id === post.clientId)
-  const account = s.clientAccounts.find((a) => a.id === post.accountId)
+  const account = accountFor(s, post)
   const [media, setMedia] = useState<MediaItem[]>(() => (from?.imagePaths ?? []).map((path) => ({ path })))
   const [caption, setCaption] = useState(from?.caption ?? '')
   const [note, setNote] = useState('')

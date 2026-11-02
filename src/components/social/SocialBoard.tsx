@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react'
-import { Images, Plus } from 'lucide-react'
+import { Clapperboard, Images, LayoutGrid, Plus, SquareUser } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fmtDate, useStr } from '@/lib/useStr'
 import { useData, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
 import { POST_PLATFORMS, type Post } from '@/types'
-import { postsNeedingAction, visiblePosts, visibleVersions } from '@/lib/social'
+import { accountFor, postsNeedingAction, visiblePosts, visibleVersions } from '@/lib/social'
 import { useMediaUrl } from '@/lib/useMedia'
 import { Button, Segmented } from '../ui'
-import { PostViewer } from './PostViewer'
+import { DesignViewer } from './DesignViewer'
+import { ClientAccountsDialog } from './ClientAccountsDialog'
 import { useMediaUrls } from '@/lib/useMedia'
 import { BrandTile } from '../BrandTile'
 import { repo } from '@/data'
@@ -88,7 +89,7 @@ function PostCard({ post, onOpen, lang }: { post: Post; onOpen: () => void; lang
   const s = useData()
   const me = useUser()!
   const client = s.clients.find((c) => c.id === post.clientId)
-  const account = s.clientAccounts.find((a) => a.id === post.accountId)
+  const account = accountFor(s, post)
   // a client only has the sent versions: the card shows the newest one they may see
   const v = visibleVersions(s, me, post.id).find((x) => x.number === post.currentVersion) ?? visibleVersions(s, me, post.id)[0]
   const src = useMediaUrl(v?.imagePaths[0])
@@ -143,62 +144,87 @@ function FeedGrid({ posts }: { posts: Post[] }) {
   const { t } = useStr()
   const s = useData()
   const me = useUser()!
-  const items = posts
+  // 2 Nov (Yousef: «كأني دخلت فعليا على الانستقرام… اليوزر والبايو وصورة الحساب… وأي شيء ننشره ينضاف»): the
+  // client's own profile page. One profile per account (or per client while it has no saved account).
+  const all = posts
     .filter((p) => p.status === 'approved' || p.status === 'published')
     .sort((a, b) => (b.publishedAt ?? b.updatedAt).localeCompare(a.publishedAt ?? a.updatedAt))
     .map((p) => ({ post: p, v: visibleVersions(s, me, p.id).find((x) => x.number === p.currentVersion) }))
     .filter((x) => !!x.v)
+  const keyOf = (p: Post) => accountFor(s, p)?.id ?? `client:${p.clientId}`
+  const keys = [...new Set(all.map((x) => keyOf(x.post)))]
+  const [picked, setPicked] = useState<string | null>(null)
+  const key = picked && keys.includes(picked) ? picked : keys[0]
+  const items = all.filter((x) => keyOf(x.post) === key)
   const covers = useMediaUrls(useMemo(() => items.map((x) => x.v!.imagePaths[0]), [items]))
-  // one account across these posts → show its profile head (the client's own feed)
-  const accIds = [...new Set(items.map((x) => x.post.accountId).filter(Boolean))]
-  const profile = accIds.length === 1 ? s.clientAccounts.find((a) => a.id === accIds[0]) : undefined
-  const avatar = profile?.avatarPath ? repo.publicUrl(profile.avatarPath) : null
   const [open, setOpen] = useState<number | null>(null)
+  const [editing, setEditing] = useState(false)
   const cur = open !== null ? items[open] : null
   const curMedia = useMediaUrls(useMemo(() => (cur ? cur.v!.imagePaths : []), [cur]))
-  if (items.length === 0) return <Empty text={t('gridEmpty')} />
+  if (all.length === 0) return <Empty text={t('gridEmpty')} />
+  const first = items[0]?.post
+  const account = first ? accountFor(s, first) : undefined
+  const client = s.clients.find((c) => c.id === first?.clientId)
+  const name = account?.displayName?.trim() || client?.name || '—'
+  const handle = account?.handle?.trim() || ''
+  const avatar = account?.avatarPath ? repo.publicUrl(account.avatarPath) : null
+  const labelOf = (k: string) => {
+    const p = all.find((x) => keyOf(x.post) === k)!.post
+    const a = accountFor(s, p)
+    return a?.handle ? `@${a.handle}` : s.clients.find((c) => c.id === p.clientId)?.name ?? '—'
+  }
   return (
-    <div className="mx-auto w-full max-w-[520px] flex flex-col gap-2" data-testid="feed-grid">
-      <div className="text-[11.5px] text-fg-muted text-center">{t('gridHint')}</div>
-      {/* 1 Nov («كأنه داخل الانستقرام»): the client's profile head, real data only — picture, handle, name, bio and
-          the true number of posts here; never invented followers */}
-      {profile && (
-        <div className="flex flex-col gap-2 px-1 py-2" data-testid="grid-profile">
-          <div className="flex items-center gap-4">
-            <span className="shrink-0 rounded-full p-[2.5px]" style={{ background: 'linear-gradient(45deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5)' }}>
-              <span className="block rounded-full p-[2.5px] bg-bg">
-                {avatar ? <img src={avatar} alt="" className="w-[72px] h-[72px] rounded-full object-cover" /> : <span className="w-[72px] h-[72px] rounded-full grid place-items-center bg-muted-bg text-[26px] font-bold">{profile.displayName.trim().charAt(0) || '•'}</span>}
-              </span>
-            </span>
-            <div className="min-w-0 flex flex-col gap-0.5">
-              <b className="text-[15px] truncate" dir="ltr">{profile.handle}</b>
-              <span className="text-[13px] font-semibold truncate" dir="auto">{profile.displayName}</span>
-              <span className="text-[12px] text-fg-secondary"><b className="text-fg tabular-nums">{items.length}</b> {t('gridPosts')}</span>
-            </div>
-          </div>
-          {profile.bio && <div className="text-[12.5px] leading-snug whitespace-pre-wrap" dir="auto">{profile.bio}</div>}
+    <div className="mx-auto w-full max-w-[470px] flex flex-col" data-testid="feed-grid">
+      {keys.length > 1 && (
+        <div className="flex flex-wrap gap-1.5 justify-center pb-3" data-testid="grid-accounts">
+          {keys.map((k) => (
+            <button key={k} type="button" onClick={() => setPicked(k)} className={cn('rounded-full border px-3 py-1 text-[12px] cursor-pointer', k === key ? 'border-fg bg-fg text-bg' : 'border-border hover:border-fg-faint')} dir="auto">{labelOf(k)}</button>
+          ))}
         </div>
       )}
+      {/* the app's own profile head: handle bar, picture with the ring, name, the TRUE number of posts, bio */}
+      <div className="flex flex-col gap-3 pb-3" data-testid="grid-profile">
+        <div className="flex items-center justify-center gap-1.5 pt-1">
+          <b className="text-[16px]" dir="ltr">{handle || name}</b>
+        </div>
+        <div className="flex items-center gap-5 px-1">
+          <span className="shrink-0 rounded-full p-[2.5px]" style={{ background: 'linear-gradient(45deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5)' }}>
+            <span className="block rounded-full p-[3px] bg-bg">
+              {avatar ? <img src={avatar} alt="" className="w-[80px] h-[80px] rounded-full object-cover" /> : <span className="w-[80px] h-[80px] rounded-full grid place-items-center bg-muted-bg text-[28px] font-bold">{name.trim().charAt(0) || '•'}</span>}
+            </span>
+          </span>
+          <div className="min-w-0 flex-1 flex flex-col gap-1.5">
+            <span className="text-[14px] font-semibold truncate" dir="auto">{name}</span>
+            <span className="text-[13px]"><b className="tabular-nums">{items.length}</b> {t('gridPosts')}</span>
+          </div>
+        </div>
+        {account?.bio ? <div className="text-[13px] leading-snug whitespace-pre-wrap px-1" dir="auto">{account.bio}</div> : null}
+        {me.role === 'admin' && client && (
+          <Button size="sm" className="w-full" onClick={() => setEditing(true)} data-testid="grid-edit-account">
+            {account ? t('gridEditAccount') : t('gridAddAccount')}
+          </Button>
+        )}
+        {!account && me.role !== 'admin' && <div className="text-[11.5px] text-fg-muted text-center">{t('gridNoAccount')}</div>}
+      </div>
+      {/* tabs bar of the profile (grid active) */}
+      <div className="flex border-t border-border">
+        <span className="flex-1 grid place-items-center py-2.5 border-t-2 border-fg -mt-px"><LayoutGrid size={20} /></span>
+        <span className="flex-1 grid place-items-center py-2.5 text-fg-muted"><Clapperboard size={20} /></span>
+        <span className="flex-1 grid place-items-center py-2.5 text-fg-muted"><SquareUser size={20} /></span>
+      </div>
       <div className="grid grid-cols-3 gap-[2px]">
         {items.map((x, i) => (
           <button key={x.post.id} type="button" onClick={() => setOpen(i)} className="relative aspect-[3/4] bg-muted-bg overflow-hidden cursor-pointer" data-testid="grid-cell" data-status={x.post.status}>
             {covers[i] ? <img src={covers[i]!} alt="" className="w-full h-full object-cover" draggable={false} /> : null}
             {x.v!.imagePaths.length > 1 && <Images size={14} className="absolute top-1.5 end-1.5 text-white drop-shadow" />}
-            {x.post.status === 'approved' && <span className="absolute bottom-1 start-1 text-[9.5px] font-bold rounded px-1 py-0.5 bg-black/60 text-white">{t('postStatusApproved')}</span>}
+            {x.post.status === 'approved' && <span className="absolute bottom-1 start-1 text-[9.5px] font-bold rounded px-1 py-0.5 bg-black/60 text-white">{t('gridNotYetPublished')}</span>}
           </button>
         ))}
       </div>
-      {cur && (
-        <PostViewer
-          platform={cur.post.platform}
-          format={cur.post.format}
-          media={curMedia}
-          caption={cur.v!.caption}
-          account={s.clientAccounts.find((a) => a.id === cur.post.accountId)}
-          clientName={s.clients.find((c) => c.id === cur.post.clientId)?.name ?? '—'}
-          onClose={() => setOpen(null)}
-        />
-      )}
+      <div className="text-[11px] text-fg-muted text-center pt-3">{t('gridHint')}</div>
+      {/* a tapped post opens ALONE at post size — no phone (2 Nov) */}
+      {cur && <DesignViewer media={curMedia} format={cur.post.format} onClose={() => setOpen(null)} />}
+      {editing && client && <ClientAccountsDialog clientId={client.id} platform={first?.platform} onClose={() => setEditing(false)} />}
     </div>
   )
 }

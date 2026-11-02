@@ -1280,8 +1280,8 @@ alter type contract_kind add value if not exists 'employment';
 
 -- ================================ 0014_contract_integrity.sql ================================
 -- 0014 contract + activity integrity (overnight council 20261101-233827-bff0, Codex findings 1, 2, 5; 2 Nov 2026)
--- 1. The database itself refuses to SIGN or SEND a contract whose essential fields are empty (the app's «ناقص» bar
---    was only checked in the editor; the contract panel's «وقّع هوامش» / «إرسال» skipped it). Drafts may stay incomplete.
+-- 1. The database itself refuses to SIGN or SEND a contract whose CORE is empty (title, date, both names, signer).
+--    Every other empty printed field is a warning (Yousef 2 Nov: sign anyway is allowed) recorded in the trail.
 -- 2. A version that already reached the other side can never be re-signed: after «سحب» a new signature needs a NEW
 --    version, so the copy the client/creative already saw keeps its signature and date.
 -- 3. posts.sent_by / posts.published_by: who clicked «أرسل للعميل» / «تم النشر», so a second admin's alerts can show
@@ -1294,32 +1294,35 @@ create or replace function _c_pos(c jsonb, path text[]) returns boolean
 language sql immutable set search_path = public as $$
   select case when jsonb_typeof(c #> path) = 'number' then (c #>> path)::numeric > 0 else false end $$;
 
-/** NULL when the frozen content has what the paper must print; otherwise the first missing thing (Arabic label).
- *  Mirrors missingFields() in src/lib/contracts.ts (council verify round 2 Nov: amounts, durations, contacts too). */
-create or replace function contract_content_missing(c jsonb) returns text
+/** Every field the paper prints that is still empty (Arabic labels, form order) — mirrors missingFields() in
+ *  src/lib/contracts.ts. 2 Nov (Yousef: «أي نقص… يقلي ترا عندك كذا فاضي… وأقدر أوقّع على أي حال»): these are
+ *  WARNINGS; signing anyway is allowed and the list is written into the contract's trail. Only contract_core_missing()
+ *  blocks. */
+create or replace function contract_content_gaps(c jsonb) returns text[]
 language plpgsql immutable set search_path = public as $$
 declare k text := coalesce(c ->> 'kind', '');
+  g text[] := '{}';
   txt text;
   side text; who text;
   i int;
 begin
-  if c is null then return 'المحتوى'; end if;
-  if _c_empty(c, '{title}') then return 'عنوان العقد'; end if;
-  if coalesce(c ->> 'date', '') !~ '^\d{4}-\d{2}-\d{2}$' then return 'تاريخ العقد'; end if;
+  if c is null then return array['المحتوى']; end if;
+  if _c_empty(c, '{title}') then g := array_append(g, 'عنوان العقد'); end if;
+  if coalesce(c ->> 'date', '') !~ '^\d{4}-\d{2}-\d{2}$' then g := array_append(g, 'تاريخ العقد'); end if;
   if k = 'employment' then
-    if _c_empty(c, '{jobTitle}') then return 'الوظيفة'; end if;
-    if _c_empty(c, '{counterparty,name}') then return 'اسم الموظف'; end if;
-    if _c_empty(c, '{counterparty,nationalId}') then return 'رقم هوية الموظف'; end if;
-    if _c_empty(c, '{counterparty,phone}') then return 'رقم التواصل (الموظف)'; end if;
-    if _c_empty(c, '{counterparty,email}') then return 'إيميل التواصل (الموظف)'; end if;
-    if _c_empty(c, '{hawamish,name}') then return 'اسم هوامش'; end if;
-    if _c_empty(c, '{hawamish,cr}') then return 'السجل التجاري (هوامش)'; end if;
-    if _c_empty(c, '{hawamish,repName}') then return 'ممثل هوامش'; end if;
-    if _c_empty(c, '{hawamish,phone}') then return 'رقم التواصل (هوامش)'; end if;
-    if _c_empty(c, '{hawamish,email}') then return 'إيميل التواصل (هوامش)'; end if;
-    if _c_empty(c, '{bank,owner}') then return 'صاحب الحساب (الموظف)'; end if;
-    if _c_empty(c, '{bank,account}') then return 'رقم الحساب (الموظف)'; end if;
-    if _c_empty(c, '{bank,iban}') then return 'آيبان الموظف'; end if;
+    if _c_empty(c, '{jobTitle}') then g := array_append(g, 'الوظيفة'); end if;
+    if _c_empty(c, '{counterparty,name}') then g := array_append(g, 'اسم الموظف'); end if;
+    if _c_empty(c, '{counterparty,nationalId}') then g := array_append(g, 'رقم هوية الموظف'); end if;
+    if _c_empty(c, '{counterparty,phone}') then g := array_append(g, 'رقم التواصل (الموظف)'); end if;
+    if _c_empty(c, '{counterparty,email}') then g := array_append(g, 'إيميل التواصل (الموظف)'); end if;
+    if _c_empty(c, '{hawamish,name}') then g := array_append(g, 'اسم هوامش'); end if;
+    if _c_empty(c, '{hawamish,cr}') then g := array_append(g, 'السجل التجاري (هوامش)'); end if;
+    if _c_empty(c, '{hawamish,repName}') then g := array_append(g, 'ممثل هوامش'); end if;
+    if _c_empty(c, '{hawamish,phone}') then g := array_append(g, 'رقم التواصل (هوامش)'); end if;
+    if _c_empty(c, '{hawamish,email}') then g := array_append(g, 'إيميل التواصل (هوامش)'); end if;
+    if _c_empty(c, '{bank,owner}') then g := array_append(g, 'صاحب الحساب (الموظف)'); end if;
+    if _c_empty(c, '{bank,account}') then g := array_append(g, 'رقم الحساب (الموظف)'); end if;
+    if _c_empty(c, '{bank,iban}') then g := array_append(g, 'آيبان الموظف'); end if;
   else
     -- the words the contract TEXT uses must be filled (unused counts stay optional), like the editor's bar
     if k = 'full' then
@@ -1327,42 +1330,60 @@ begin
     else
       txt := coalesce(c ->> 'scope', '');
     end if;
-    if position('{الهدف}' in txt) > 0 and _c_empty(c, '{project}') then return 'المشروع'; end if;
+    if position('{الهدف}' in txt) > 0 and _c_empty(c, '{project}') then g := array_append(g, 'المشروع'); end if;
     foreach side in array array['counterparty', 'hawamish'] loop
       who := case side when 'counterparty' then 'الطرف الآخر' else 'هوامش' end;
-      if _c_empty(c, array[side, 'name']) then return 'اسم ' || who; end if;
-      if _c_empty(c, array[side, 'cr']) and _c_empty(c, array[side, 'nationalId']) then return 'السجل التجاري أو الهوية (' || who || ')'; end if;
-      if k <> 'short' and _c_empty(c, array[side, 'city']) then return 'المدينة (' || who || ')'; end if;
-      if _c_empty(c, array[side, 'repName']) then return 'الممثل (' || who || ')'; end if;
-      if _c_empty(c, array[side, 'phone']) then return 'رقم التواصل (' || who || ')'; end if;
-      if _c_empty(c, array[side, 'email']) then return 'إيميل التواصل (' || who || ')'; end if;
+      if _c_empty(c, array[side, 'name']) then g := array_append(g, 'اسم ' || who); end if;
+      if _c_empty(c, array[side, 'cr']) then g := array_append(g, 'السجل التجاري (' || who || ')'); end if;
+      if _c_empty(c, array[side, 'nationalId']) then g := array_append(g, 'الهوية الوطنية (' || who || ')'); end if;
+      if k <> 'short' and _c_empty(c, array[side, 'city']) then g := array_append(g, 'المدينة (' || who || ')'); end if;
+      if _c_empty(c, array[side, 'repName']) then g := array_append(g, 'الممثل (' || who || ')'); end if;
+      if _c_empty(c, array[side, 'phone']) then g := array_append(g, 'رقم التواصل (' || who || ')'); end if;
+      if _c_empty(c, array[side, 'email']) then g := array_append(g, 'إيميل التواصل (' || who || ')'); end if;
     end loop;
-    if position('{المنصات}' in txt) > 0 and _c_empty(c, '{vars,platforms}') then return 'المنصات'; end if;
-    if position('{المنشورات}' in txt) > 0 and not _c_pos(c, '{vars,posts}') then return 'عدد المنشورات شهرياً'; end if;
-    if position('{التصاميم}' in txt) > 0 and not _c_pos(c, '{vars,designs}') then return 'عدد التصاميم شهرياً'; end if;
-    if position('{الفيديوهات}' in txt) > 0 and not _c_pos(c, '{vars,videos}') then return 'عدد الفيديوهات شهرياً'; end if;
+    if position('{المنصات}' in txt) > 0 and _c_empty(c, '{vars,platforms}') then g := array_append(g, 'المنصات'); end if;
+    if position('{المنشورات}' in txt) > 0 and not _c_pos(c, '{vars,posts}') then g := array_append(g, 'عدد المنشورات شهرياً'); end if;
+    if position('{التصاميم}' in txt) > 0 and not _c_pos(c, '{vars,designs}') then g := array_append(g, 'عدد التصاميم شهرياً'); end if;
+    if position('{الفيديوهات}' in txt) > 0 and not _c_pos(c, '{vars,videos}') then g := array_append(g, 'عدد الفيديوهات شهرياً'); end if;
     if k = 'short' then
-      if jsonb_array_length(coalesce(c -> 'tracks', '[]'::jsonb)) = 0 then return 'المسار'; end if;
-      for i in 0 .. jsonb_array_length(c -> 'tracks') - 1 loop
-        if not _c_pos(c, array['tracks', i::text, 'monthly']) then return 'المبلغ الشهري للمسار ' || (i + 1); end if;
-        if not _c_pos(c, array['tracks', i::text, 'months']) then return 'مدة المسار ' || (i + 1); end if;
+      if jsonb_array_length(coalesce(c -> 'tracks', '[]'::jsonb)) = 0 then g := array_append(g, 'المسار'); end if;
+      for i in 0 .. jsonb_array_length(coalesce(c -> 'tracks', '[]'::jsonb)) - 1 loop
+        if not _c_pos(c, array['tracks', i::text, 'monthly']) then g := array_append(g, 'المبلغ الشهري للمسار ' || (i + 1)); end if;
+        if not _c_pos(c, array['tracks', i::text, 'months']) then g := array_append(g, 'مدة المسار ' || (i + 1)); end if;
       end loop;
     elsif k = 'offer' then
       for i in 0 .. jsonb_array_length(coalesce(c -> 'packages', '[]'::jsonb)) - 1 loop
-        if not _c_pos(c, array['packages', i::text, 'price']) then return 'سعر الباقة ' || (i + 1); end if;
+        if not _c_pos(c, array['packages', i::text, 'price']) then g := array_append(g, 'سعر الباقة ' || (i + 1)); end if;
       end loop;
     elsif coalesce(c #>> '{pricing,mode}', 'monthly') = 'monthly' then
-      if not _c_pos(c, '{pricing,monthly}') then return 'المبلغ الشهري'; end if;
-      if not _c_pos(c, '{pricing,months}') then return 'عدد الأشهر'; end if;
+      if not _c_pos(c, '{pricing,monthly}') then g := array_append(g, 'المبلغ الشهري'); end if;
+      if not _c_pos(c, '{pricing,months}') then g := array_append(g, 'عدد الأشهر'); end if;
     else
       if not (_c_pos(c, '{pricing,projectTotal}') or exists (
               select 1 from jsonb_array_elements(coalesce(c #> '{pricing,installments}', '[]'::jsonb)) x
-              where jsonb_typeof(x -> 'amount') = 'number' and (x ->> 'amount')::numeric > 0)) then return 'إجمالي المشروع'; end if;
+              where jsonb_typeof(x -> 'amount') = 'number' and (x ->> 'amount')::numeric > 0)) then g := array_append(g, 'إجمالي المشروع'); end if;
       if exists (select 1 from jsonb_array_elements(coalesce(c #> '{pricing,installments}', '[]'::jsonb)) x
-                 where not (jsonb_typeof(x -> 'amount') = 'number' and (x ->> 'amount')::numeric > 0)) then return 'مبالغ الدفعات'; end if;
+                 where not (jsonb_typeof(x -> 'amount') = 'number' and (x ->> 'amount')::numeric > 0)) then g := array_append(g, 'مبالغ الدفعات'); end if;
     end if;
-    if _c_empty(c, '{bank,iban}') then return 'الآيبان (الحساب البنكي)'; end if;
+    if _c_empty(c, '{bank,iban}') then g := array_append(g, 'الآيبان (الحساب البنكي)'); end if;
   end if;
+  if _c_empty(c, '{signers,hawamish,name}') then g := array_append(g, 'اسم موقّع هوامش'); end if;
+  return g;
+end $$;
+
+/** The first gap (NULL when none) — kept for the release check and messages. */
+create or replace function contract_content_missing(c jsonb) returns text
+language sql immutable set search_path = public as $$ select (contract_content_gaps(c))[1] $$;
+
+/** What makes a paper meaningless — the only things that BLOCK signing and sending. */
+create or replace function contract_core_missing(c jsonb) returns text
+language plpgsql immutable set search_path = public as $$
+begin
+  if c is null then return 'المحتوى'; end if;
+  if _c_empty(c, '{title}') then return 'عنوان العقد'; end if;
+  if coalesce(c ->> 'date', '') !~ '^\d{4}-\d{2}-\d{2}$' then return 'تاريخ العقد'; end if;
+  if _c_empty(c, '{counterparty,name}') then return 'اسم الطرف الآخر'; end if;
+  if _c_empty(c, '{hawamish,name}') then return 'اسم هوامش'; end if;
   if _c_empty(c, '{signers,hawamish,name}') then return 'اسم موقّع هوامش'; end if;
   return null;
 end $$;
@@ -1388,7 +1409,7 @@ begin
       -- 0014: never send an incomplete contract. Checked on the FIRST send only: a version that already went out once
       -- (re-sent after «سحب») keeps the content it was sent with (council verify round, 2 Nov)
       if v.sent_at is null then
-        miss := contract_content_missing(v.content);
+        miss := contract_core_missing(v.content);
         if miss is not null then raise exception 'contract incomplete: %', miss; end if;
       end if;
       new.sent_at := now();
@@ -1414,7 +1435,7 @@ end $$;
 create or replace function sign_contract_first(p_version uuid, p_signature text, p_name text, p_capacity text)
 returns void
 language plpgsql security definer set search_path = public as $$
-declare v record; c record; miss text;
+declare v record; c record; miss text; gaps text[];
 begin
   if auth.uid() is null or current_role_() is distinct from 'admin' then raise exception 'only admins sign for Hawamish'; end if;
   select id, contract_id, number, sent_at into v from contract_versions where id = p_version;
@@ -1425,14 +1446,16 @@ begin
   if c.org_id is distinct from current_org() then raise exception 'not your contract'; end if;
   if c.status <> 'draft' or v.number <> c.current_version then raise exception 'only the current draft version can be signed'; end if;
   if v.sent_at is not null then raise exception 'this version was already sent — save a new version to sign again'; end if;
-  select contract_content_missing(content) into miss from contract_versions where id = v.id;
+  select contract_core_missing(content), contract_content_gaps(content) into miss, gaps from contract_versions where id = v.id;
   if miss is not null then raise exception 'contract incomplete: %', miss; end if;
   if p_signature is null or p_signature not like 'data:image/png;base64,%' or length(p_signature) > 400000 then raise exception 'bad signature'; end if;
   if length(trim(coalesce(p_name, ''))) = 0 then raise exception 'signer name required'; end if;
   perform set_config('hamsha.sys', '1', true);
   update contract_versions set first_signature = p_signature, first_signer = trim(p_name), first_capacity = nullif(trim(coalesce(p_capacity, '')), ''), first_signed_at = now() where id = v.id;
   perform set_config('hamsha.sys', '', true);
-  perform log_contract_event(v.contract_id, v.number, 'first_signed', jsonb_build_object('signer', trim(p_name)));
+  -- signed knowingly with empty fields → the trail says which (his choice: warn, never block)
+  perform log_contract_event(v.contract_id, v.number, 'first_signed', jsonb_build_object('signer', trim(p_name))
+    || case when coalesce(array_length(gaps, 1), 0) > 0 then jsonb_build_object('gaps', to_jsonb(gaps)) else '{}'::jsonb end);
 end $$;
 revoke execute on function sign_contract_first(uuid, text, text, text) from public, anon;
 grant  execute on function sign_contract_first(uuid, text, text, text) to authenticated;
@@ -1476,6 +1499,7 @@ begin
   if to_regprocedure('public.decide_contract(uuid,contract_decision,text,text,text,text)') is null then miss := miss || ' decide_contract'; end if;
   if not exists (select 1 from information_schema.columns where table_name = 'clients' and column_name = 'contract_block') then miss := miss || ' clients.contract_block'; end if;
   if to_regprocedure('public.contract_content_missing(jsonb)') is null then miss := miss || ' contract_content_missing'; end if;
+  if to_regprocedure('public.contract_core_missing(jsonb)') is null then miss := miss || ' contract_core_missing'; end if;
   if not exists (select 1 from information_schema.columns where table_name = 'posts' and column_name = 'published_by') then miss := miss || ' posts.published_by'; end if;
   if not exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid where t.typname = 'contract_kind' and e.enumlabel = 'employment') then miss := miss || ' contract_kind.employment'; end if;
   if miss <> '' then raise exception 'RELEASE ROLLED BACK — missing:%', miss; end if;

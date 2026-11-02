@@ -1,5 +1,5 @@
 import type { Snapshot } from '@/data/repo'
-import type { Post, PostVersion, User } from '@/types'
+import type { ClientAccount, Post, PostVersion, User } from '@/types'
 
 /** Posts a user may see on the board (the database enforces the same with RLS / the client views). */
 export function visiblePosts(s: Snapshot, user: User, calId: string | null): Post[] {
@@ -25,4 +25,10 @@ export function postsNeedingAction(posts: Post[], role: User['role']): number {
 
 export function statusTone(st: Post['status']) {
   return st === 'sent' ? 'bg-warning-tint text-warning-dark' : st === 'approved' ? 'bg-success-tint text-success-dark' : st === 'changes' ? 'bg-danger-tint text-danger-dark' : st === 'published' ? 'bg-info-tint text-info' : 'bg-muted-bg text-fg-secondary'
+}
+
+/** The account a post shows: its own, else the client's saved account on that platform (2 Nov, Codex check: an
+ *  account added from «الشبكة» must show at once on the client's posts that were never linked to one). */
+export function accountFor(s: Snapshot, post: Pick<Post, 'accountId' | 'clientId' | 'platform'>): ClientAccount | undefined {
+  return (post.accountId ? s.clientAccounts.find((a) => a.id === post.accountId) : undefined) ?? s.clientAccounts.find((a) => a.clientId === post.clientId && a.platform === post.platform)
 }

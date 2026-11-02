@@ -97,7 +97,7 @@ await setT('contract-title', 'عقد إنشاء موقع وتفعيل التوا
 await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`, 20000);
 CHECKS['editor opens with missing values flagged'] = await ev(`!!document.querySelector('[data-testid=missing-values]')`);
 CHECKS['Hawamish party prefilled from the legal profile'] = (await ev(`document.querySelector('[data-testid=hawamish-name]').value`)).includes('هوامش');
-CHECKS['sign-send disabled while values are missing'] = await ev(`document.querySelector('[data-testid=sign-send]').disabled === true`);
+CHECKS['sign-send stays open with empty fields (only the core blocks — Yousef 2 Nov)'] = await ev(`document.querySelector('[data-testid=sign-send]').disabled === false`);
 // 1 Nov: the bar names the missing field and takes him there (focus + flash)
 CHECKS['missing bar names the field (first: the project the text uses)'] = (await text('[data-testid=missing-values]')).includes('ناقص: المشروع');
 await clickSel('[data-testid=missing-values]'); await sleep(300);
@@ -318,6 +318,15 @@ CHECKS['employment: the job is asked, with suggestions'] = await ev(`!!document.
 CHECKS['employment: the missing bar asks for the job first'] = (await text('[data-testid=missing-values]')).includes('الوظيفة');
 await ev(`document.querySelector('[data-testid=job-chip]').click()`); await sleep(200);
 CHECKS['employment: a suggestion fills the job'] = await ev(`document.querySelector('[data-testid=contract-job]').value === 'مصمم جرافيك'`);
+// 2 Nov: «وقّع وأرسل» opens even with empty fields — the sign window lists them and each one takes you to its field
+CHECKS['editor: sign window opens with empty fields and lists them'] = await (async () => {
+  await clickSel('[data-testid=sign-send]'); await sleep(400);
+  return ev(`!!document.querySelector('[data-testid=sign-gaps]') && document.querySelector('[data-testid=sign-gaps]').innerText.includes('الهوية') && !document.querySelector('[data-testid=sign-confirm]')?.closest('form')?.querySelector('[data-testid=sign-gaps]')?.hidden`);
+})();
+CHECKS['…tapping an empty field closes the window and jumps to it'] = await (async () => {
+  await ev(`[...document.querySelectorAll('[data-testid=sign-gap]')].find(b=>b.innerText.includes('الهوية')).click()`); await sleep(700);
+  return ev(`!document.querySelector('[data-testid=sign-dialog]') && document.activeElement?.dataset?.testid === 'counterparty-nid'`);
+})();
 await fillMissing();
 CHECKS['employment: nothing missing once filled'] = !(await ev(`!!document.querySelector('[data-testid=missing-values]')`));
 const empPaper = await text('[data-testid=contract-paper]');
@@ -344,6 +353,13 @@ await clickSel('[data-testid=new-contract]'); await waitFor(`!!document.querySel
 await ev(`document.querySelector('[data-testid=contract-kind] [data-kind=short]').click()`); await sleep(100);
 await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`, 20000);
 await setT('track-0-monthly', '3000'); await sleep(200);
+// Codex check 2 Nov: save WITH gaps → panel → «وقّع عن هوامش» → the window lists the gaps → a tap opens the editor ON it
+await clickSel('[data-testid=save-version]'); await toastHas('انحفظت'); await closeToast();
+await ev(`document.querySelector('[data-testid=contract-editor] button[aria-label="إلغاء"]')?.click()`); await sleep(700);
+await clickSel('[data-testid=sign-hawamish]'); await sleep(400);
+CHECKS['panel: sign window lists the empty fields'] = await ev(`document.querySelectorAll('[data-testid=sign-gap]').length > 0`);
+await ev(`document.querySelector('[data-testid=sign-gap]').click()`); await sleep(1200);
+CHECKS['…a tapped gap opens the editor ON that field'] = await ev(`!!document.querySelector('[data-testid=contract-editor]') && ['INPUT','TEXTAREA','SELECT','BUTTON'].includes(document.activeElement?.tagName) && !!document.activeElement?.dataset?.testid`);
 await fillMissing();
 CHECKS['short contract: nothing missing once its text words are filled'] = !(await ev(`!!document.querySelector('[data-testid=missing-values]')`));
 CHECKS['short paper: track price + total'] = (await text('[data-testid=contract-paper]')).includes('3,000 ريال شهرياً') && (await text('[data-testid=contract-paper]')).includes('36,000');
@@ -367,7 +383,8 @@ await clickSel('[data-testid=save-version]'); await toastHas('انحفظت ال�
 await ev(`document.querySelector('[data-testid=contract-editor] button[aria-label="إلغاء"]').click()`); await sleep(600);
 CHECKS['sheet: overflow blocks Hawamish signing (second send path)'] = await waitFor(`!!document.querySelector('[data-testid=sheet-overflow-block]') && document.querySelector('[data-testid=sign-hawamish]')?.disabled === true`, 5000).then(()=>true).catch(()=>false);
 // 2 Nov (council 🔴): an INCOMPLETE saved version can't be signed/sent from the panel either — it says what is missing
-CHECKS['sheet: missing data blocks Hawamish signing too, and names it'] = await ev(`!!document.querySelector('[data-testid=sheet-missing-block]') && document.querySelector('[data-testid=sheet-missing-block]').innerText.includes('ناقص') && document.querySelector('[data-testid=sign-hawamish]')?.disabled === true`);
+// 2 Nov (Yousef): empty fields WARN (named, tap to complete) but signing stays possible — only the core blocks
+CHECKS['sheet: empty fields are named and say you can still sign'] = await ev(`!!document.querySelector('[data-testid=sheet-missing-block]') && document.querySelector('[data-testid=sheet-missing-block]').innerText.includes('فاضية') && document.querySelector('[data-testid=sheet-missing-block]').innerText.includes('على أي حال')`);
 // 1 Nov: «احظر العميل حتى التوقيع» removed at Yousef's request
 CHECKS['no «block the client» option anymore'] = !(await ev(`!!document.querySelector('[data-testid=contract-block]')`));
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);

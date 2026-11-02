@@ -523,7 +523,10 @@ export const STR = {
   actPostSent: { en: '«{title}» was sent to the client', ar: 'انرسل «{title}» للعميل' },
   actPostApproved: { en: 'The client approved «{title}» ✅', ar: 'العميل اعتمد «{title}» ✅' },
   actPostChanges: { en: 'The client asked for changes on «{title}»', ar: 'العميل طلب تعديل على «{title}»' },
-  missingBlocksSend: { en: 'Missing before signing/sending: {list} — tap to complete it.', ar: 'ناقص قبل التوقيع والإرسال: {list} — اضغط هنا وكمّله.' },
+  missingBlocksSend: { en: 'Empty fields: {list} — tap to complete them (you can still sign).', ar: 'خانات فاضية: {list} — اضغط هنا وكمّلها (وتقدر توقّع على أي حال).' },
+  coreBlocksSend: { en: 'Cannot sign without: {list} — tap to fill it.', ar: 'ما ينفع التوقيع بدون: {list} — اضغط هنا وعبّيه.' },
+  signGapsTitle: { en: '{n} empty fields will show as «…» on the contract:', ar: 'تنبيه: فيه {n} خانات فاضية بتطلع «…» في العقد:' },
+  signGapsHint: { en: 'Tap one to go to it, or sign anyway — the trail will record what was empty.', ar: 'اضغط أي وحدة يوديك لها، أو وقّع على أي حال — وسجل العقد يحفظ وش كان فاضي.' },
   kindEmployment: { en: 'Employment contract', ar: 'عقد عمل' },
   kindEmploymentHint: { en: 'For a full-time creative: job, term, pay by the work done, their bank account.', ar: 'للمبدع اللي دوامه كامل معنا: الوظيفة، المدة، المستحقات حسب العمل المنجز، وحسابه البنكي.' },
   fJobTitle: { en: 'Job', ar: 'الوظيفة' },
@@ -564,6 +567,10 @@ export const STR = {
   filterGrid: { en: 'Grid', ar: 'الشبكة' },
   gridHint: { en: 'How the feed will look: approved and published posts, newest first.', ar: 'شكل الحساب: المنشورات المعتمدة والمنشورة، الأحدث أولاً.' },
   gridPosts: { en: 'posts', ar: 'منشورات' },
+  gridEditAccount: { en: 'Edit the account (handle · picture · bio)', ar: 'عدّل الحساب (اليوزر · الصورة · البايو)' },
+  gridAddAccount: { en: 'Add the account: handle, picture, bio', ar: 'أضف الحساب: اليوزر والصورة والبايو' },
+  gridNoAccount: { en: 'The team has not added the account details yet.', ar: 'الفريق ما أضاف بيانات الحساب بعد.' },
+  gridNotYetPublished: { en: 'Approved', ar: 'معتمد، ما انتشر' },
   gridEmpty: { en: 'Nothing approved or published yet.', ar: 'ما فيه شيء معتمد أو منشور بعد.' },
 
 } as const

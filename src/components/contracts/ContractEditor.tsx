@@ -5,7 +5,7 @@ import { fmtTime, useNarrow, useStr } from '@/lib/useStr'
 import { useData, useSession } from '@/store/session'
 import { useUi } from '@/store/ui'
 import type { Contract, ContractContent, ContractPartyInfo, ContractVersion } from '@/types'
-import { CURRENCIES, EMPTY_LEGAL, JOB_TITLES, TERMS, amountWords, contractTotal, currencyWord, emptyContent, fmtAmount, missingFields, originalIfChanged, partyFromClient, partyFromCreative } from '@/lib/contracts'
+import { CURRENCIES, EMPTY_LEGAL, JOB_TITLES, TERMS, coreMissing, amountWords, contractTotal, currencyWord, emptyContent, fmtAmount, missingFields, originalIfChanged, partyFromClient, partyFromCreative } from '@/lib/contracts'
 import { deepLatin, toLatin } from '@/lib/latinDigits'
 import { clearDraft, loadDraft, saveDraft } from '@/lib/contractDraft'
 import { Button, Input, SectionTitle } from '../ui'
@@ -20,7 +20,7 @@ const num = (v: string) => (v === '' ? 0 : Math.max(0, Number(toLatin(v).replace
  * (unlock on purpose); amounts/counts start EMPTY and the paper shows «…» until typed; «احفظ نسخة» freezes a
  * numbered version; «وقّع وأرسل» = Hawamish's signature on that version, then the contract goes out.
  */
-export function ContractEditor({ contract, current, onClose }: { contract: Contract; current?: ContractVersion; onClose: () => void }) {
+export function ContractEditor({ contract, current, onClose, initialField, onJumped }: { contract: Contract; current?: ContractVersion; onClose: () => void; /** open ON this field (a gap tapped in the panel's sign window) */ initialField?: string | null; onJumped?: () => void }) {
   const { t, lang } = useStr()
   const s = useData()
   const sess = useSession()
@@ -92,6 +92,13 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
     }))
     if (changed) ui.setToast(t('paperEditApplied'), 'info')
   }
+  // opened from the panel's sign window on a tapped gap → go straight to that field once the form is laid out
+  useEffect(() => {
+    if (!initialField) return
+    const id = setTimeout(() => { goToField(initialField); onJumped?.() }, 350)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialField])
   /** The missing-values bar: close the big paper / show the form tab, scroll to the field, focus it, flash it. */
   const goToField = (field: string) => {
     if (paperBig) {
@@ -216,6 +223,8 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   const emp = c.kind === 'employment'
   const missingList = missingFields(c)
   const missing = missingList.map((m) => m.label)
+  // only the core blocks «وقّع وأرسل»; the rest is shown as a warning inside the sign window (Yousef 2 Nov)
+  const core = coreMissing(c)
   const total = contractTotal(c)
   const cur = currencyWord(c.pricing.currency)
   const up = (patch: Partial<ContractContent>) => setC((x) => ({ ...x, ...patch }))
@@ -269,7 +278,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
   // the form in named blocks: the full form uses them all; the big-paper side panel shows only the block for what was tapped
   const blkBasics = (
       <Group title={t('secBasics')} anchor="basics">
-        <label className="flex flex-col gap-1"><SectionTitle>{t('contractTitleLabel')}</SectionTitle><Input value={c.title} onChange={(e) => up({ title: e.target.value })} dir="auto" className="py-1.5 text-[13px]" /></label>
+        <label className="flex flex-col gap-1"><SectionTitle>{t('contractTitleLabel')}</SectionTitle><Input value={c.title} onChange={(e) => up({ title: e.target.value })} dir="auto" className="py-1.5 text-[13px]" data-testid="contract-title-input" /></label>
         {emp ? (
           <>
             <div className="flex flex-col gap-1"><SectionTitle>{t('fJobTitle')}</SectionTitle><Input value={c.jobTitle ?? ''} onChange={(e) => up({ jobTitle: e.target.value })} placeholder="مثال: مصمم جرافيك" dir="auto" className="py-1.5 text-[13px]" data-testid="contract-job" /><Recall value={c.jobTitle ?? ''} memo={mem.jobTitle} onPick={(v) => up({ jobTitle: v })} />
@@ -541,7 +550,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
         <Button disabled={busy || !dirtyContent} onClick={() => void save()} data-testid="save-version">
           <Save size={14} /> {t('saveVersion')}
         </Button>
-        <Button variant="primary" disabled={busy || missing.length > 0 || overflow.length > 0} onClick={() => setSigning(true)} title={overflow.length > 0 ? overflowText : undefined} data-testid="sign-send">
+        <Button variant="primary" disabled={busy || core.length > 0 || overflow.length > 0} onClick={() => setSigning(true)} title={overflow.length > 0 ? overflowText : undefined} data-testid="sign-send">
           <Send size={14} /> {t('signAndSend')}
         </Button>
         <Button size="icon" variant="ghost" onClick={onClose} aria-label={t('cancel')}>
@@ -649,7 +658,7 @@ export function ContractEditor({ contract, current, onClose }: { contract: Contr
           />
         )
       })()}
-      {signing && <SignDialog title={t('signAndSend')} defaultName={c.signers.hawamish.name} defaultCapacity={c.signers.hawamish.capacity} onConfirm={signAndSend} onClose={() => setSigning(false)} busy={busy} />}
+      {signing && <SignDialog title={t('signAndSend')} defaultName={c.signers.hawamish.name} defaultCapacity={c.signers.hawamish.capacity} onConfirm={signAndSend} onClose={() => setSigning(false)} busy={busy} gaps={missingList} onGo={(f) => { setSigning(false); goToField(f) }} />}
     </div>
   )
 }

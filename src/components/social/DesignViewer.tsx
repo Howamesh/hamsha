@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStr } from '@/lib/useStr'
+import { POST_FORMATS, type PostFormat } from '@/types'
 import { Button } from '../ui'
 
 /**
  * «عرض التصميم» (1 Nov, Yousef: «يطلع لحاله مثل ما صمم»): the design ALONE — no phone, no Instagram frame,
- * no caption — as large as the screen allows, so the client (or anyone) can look at it clearly.
+ * no caption. 2 Nov («أبيه بنفس حجم البوست العادي»): at the post's own shape (4:5 / 1:1 / 9:16) and the size a post
+ * has on a phone — cropped exactly as the app crops it — never blown up to the whole screen.
  * Carousel: arrows, ← → keys, dots. Esc / tap outside / ✕ closes.
  */
-export function DesignViewer({ media, onClose }: { media: Array<string | null>; onClose: () => void }) {
+export function DesignViewer({ media, format, onClose }: { media: Array<string | null>; format?: PostFormat; onClose: () => void }) {
   const { t, lang } = useStr()
   const [i, setI] = useState(0)
   const n = media.length
+  const ratio = POST_FORMATS[format ?? 'portrait'].ratio
   // reading direction: in Arabic the next slide is on the LEFT
   const left = lang === 'ar' ? 1 : -1
   useEffect(() => {
@@ -36,9 +39,13 @@ export function DesignViewer({ media, onClose }: { media: Array<string | null>; 
         </Button>
       </div>
       <div className="relative flex-1 min-h-0 grid place-items-center px-3 pb-4">
-        {src
-          ? <img src={src} alt="" onClick={(e) => e.stopPropagation()} className="max-w-full max-h-full object-contain select-none" draggable={false} data-testid="design-image" />
-          : <div className="text-white/70 text-[13px]">{t('imageLoading')}</div>}
+        {/* a phone-sized post: ≤ 430 px wide (a phone's width), never taller than the screen */}
+        <div className="relative overflow-hidden rounded-[6px] bg-white/5" onClick={(e) => e.stopPropagation()} data-testid="design-box"
+          style={{ aspectRatio: String(ratio), width: `min(430px, 92vw, calc((100dvh - 150px) * ${ratio}))` }}>
+          {src
+            ? <img src={src} alt="" className="absolute inset-0 w-full h-full object-cover select-none" draggable={false} data-testid="design-image" />
+            : <div className="absolute inset-0 grid place-items-center text-white/70 text-[13px]">{t('imageLoading')}</div>}
+        </div>
         {n > 1 && (
           <>
             <button type="button" onClick={step(left)} aria-label="›" className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white grid place-items-center cursor-pointer"><ChevronLeft size={22} /></button>

@@ -194,6 +194,7 @@ CHECKS['client sees the two SENT versions (v1, v2) and nothing unsent'] = (await
 // 1 Nov: «عرض التصميم» = the design alone, full screen (no phone/IG frame), closes with Esc
 await ev(`document.querySelector('[data-testid=view-design]').click()`); await sleep(400);
 CHECKS['client: «عرض التصميم» shows the design alone'] = await ev(`!!document.querySelector('[data-testid=design-viewer] [data-testid=design-image]') && !document.querySelector('[data-testid=design-viewer] [data-testid=carousel-dots]')`);
+CHECKS['…at post size (≤ 430 px wide, the post\'s 4:5 shape), not the whole screen'] = await ev(`(()=>{const b=document.querySelector('[data-testid=design-box]').getBoundingClientRect();return b.width<=431 && Math.abs(b.width/b.height-0.8)<0.02})()`);
 await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await sleep(300);
 CHECKS['…Esc closes it'] = await ev(`!document.querySelector('[data-testid=design-viewer]')`);
 await click('موافق'); await toastHas('وصل قرارك'); await closeToast();
@@ -229,6 +230,7 @@ CHECKS['client archive has exactly one card (the draft never leaked)'] = (await 
 await click('الشبكة'); await sleep(400);
 CHECKS['grid: profile head with the real handle + post count'] = await ev(`(()=>{const p=document.querySelector('[data-testid=grid-profile]');return !!p && p.innerText.includes('sana.sa') && p.innerText.includes('سنا للبطاقات') && p.innerText.includes('منشورات') && p.querySelector('b.tabular-nums')?.textContent==='1'})()`);
 CHECKS['grid: no invented followers'] = !/متابع|followers/i.test(await text('[data-testid=feed-grid]'));
+CHECKS['grid: a tapped post opens ALONE (no phone)'] = await (async () => { await ev(`document.querySelector('[data-testid=grid-cell]').click()`); await sleep(400); const ok = await ev(`!!document.querySelector('[data-testid=design-viewer] [data-testid=design-box]') && !document.querySelector('[data-testid=design-viewer] [data-testid=feed-preview]')`); await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await sleep(300); return ok })();
 await shotEl('[data-testid=feed-grid]', 'grid');
 await click('الأرشيف'); await sleep(300);
 await ev(`document.querySelector('[data-testid=post-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=post-sheet]')`);

@@ -61,6 +61,7 @@ begin
   if to_regprocedure('public.decide_contract(uuid,contract_decision,text,text,text,text)') is null then miss := miss || ' decide_contract'; end if;
   if not exists (select 1 from information_schema.columns where table_name = 'clients' and column_name = 'contract_block') then miss := miss || ' clients.contract_block'; end if;
   if to_regprocedure('public.contract_content_missing(jsonb)') is null then miss := miss || ' contract_content_missing'; end if;
+  if to_regprocedure('public.contract_core_missing(jsonb)') is null then miss := miss || ' contract_core_missing'; end if;
   if not exists (select 1 from information_schema.columns where table_name = 'posts' and column_name = 'published_by') then miss := miss || ' posts.published_by'; end if;
   if not exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid where t.typname = 'contract_kind' and e.enumlabel = 'employment') then miss := miss || ' contract_kind.employment'; end if;
   if miss <> '' then raise exception 'RELEASE ROLLED BACK — missing:%', miss; end if;

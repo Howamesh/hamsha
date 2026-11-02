@@ -270,7 +270,9 @@ export function missingFields(c: ContractContent): MissingField[] {
   const party = (k: 'counterparty' | 'hawamish', who: string) => {
     const p = c[k]
     if (!p.name.trim()) out.push({ label: `اسم ${who}`, field: `${k}-name` })
-    if (!p.cr.trim() && !p.nationalId.trim()) out.push({ label: `السجل التجاري أو الهوية (${who})`, field: `${k}-cr` })
+    // 2 Nov (his note: the empty ID never showed because a CR was there): every printed field counts on its own
+    if (!p.cr.trim()) out.push({ label: `السجل التجاري (${who})`, field: `${k}-cr` })
+    if (!p.nationalId.trim()) out.push({ label: `الهوية الوطنية (${who})`, field: `${k}-nid` })
     if (full && !p.city.trim()) out.push({ label: `المدينة (${who})`, field: `${k}-city` })
     if (!p.repName.trim()) out.push({ label: `الممثل (${who})`, field: `${k}-rep` })
     if (!p.phone.trim()) out.push({ label: `رقم التواصل (${who})`, field: `${k}-phone` })
@@ -321,6 +323,17 @@ function missingEmployment(c: ContractContent): MissingField[] {
   if (!c.bank.owner.trim()) out.push({ label: 'صاحب الحساب (الموظف)', field: 'bank-owner' })
   if (!c.bank.account.trim()) out.push({ label: 'رقم الحساب (الموظف)', field: 'bank-account' })
   if (!c.bank.iban.trim()) out.push({ label: 'الآيبان (الموظف)', field: 'bank-iban' })
+  if (!c.signers.hawamish.name.trim()) out.push({ label: 'اسم موقّع هوامش', field: 'signer-hawamish-name' })
+  return out
+}
+/** The CORE — without these the paper is meaningless, so they BLOCK signing (the database refuses too: 0014
+ *  contract_core_missing). Everything else in missingFields() is a WARNING: Yousef 2 Nov «أقدر أوقّع على أي حال». */
+export function coreMissing(c: ContractContent): MissingField[] {
+  const out: MissingField[] = []
+  if (!c.title.trim()) out.push({ label: 'عنوان العقد', field: 'contract-title-input' })
+  if (!validIsoDate(c.date)) out.push({ label: 'تاريخ العقد', field: 'contract-date' })
+  if (!c.counterparty.name.trim()) out.push({ label: c.kind === 'employment' ? 'اسم الموظف' : 'اسم الطرف الآخر', field: 'counterparty-name' })
+  if (!c.hawamish.name.trim()) out.push({ label: 'اسم هوامش', field: 'hawamish-name' })
   if (!c.signers.hawamish.name.trim()) out.push({ label: 'اسم موقّع هوامش', field: 'signer-hawamish-name' })
   return out
 }
