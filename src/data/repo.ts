@@ -3,7 +3,7 @@
  * Supabase project exists; the Supabase implementation will satisfy the same
  * interface so no screen has to change.
  */
-import type { ChannelId, Client, ClientAccount, ClientAccountInput, Contract, ContractContent, ContractDecision, ContractEvent, ContractVersion, InviteInput, InviteResult, Message, NewContractInput, NewPostInput, NewVersionInput, OrgLegal, PendingInvite, Post, PostDecision, PostVersion, Presence, Profile, Project, SignatureInput, Task, TaskPart, User } from '@/types'
+import type { ChatMember, InboxRow, ChannelId, Client, ClientAccount, ClientAccountInput, Contract, ContractContent, ContractDecision, ContractEvent, ContractVersion, InviteInput, InviteResult, Message, NewContractInput, NewPostInput, NewVersionInput, OrgLegal, PendingInvite, Post, PostDecision, PostVersion, Presence, Profile, Project, SignatureInput, Task, TaskPart, User } from '@/types'
 
 export interface Snapshot {
   users: User[]
@@ -23,6 +23,14 @@ export interface Snapshot {
   legal: OrgLegal | null
   presence: Record<string, Presence>
   profiles: Record<string, Profile>
+  /** 0016: creatives the admin let into a client's chat (admin: all; creative: its own) */
+  chatMembers: ChatMember[]
+  /** 0016: the server's inbox (Supabase). The mock leaves it out and the app computes it from chatReads. */
+  inbox?: InboxRow[]
+  /** mock only: per person and chat, the time of the last message that was on screen */
+  chatReads?: Array<{ userId: string; channel: string; at: string }>
+  /** 0016 chat_people: names of senders this person may not read in profiles (a client sees a granted creative) */
+  people?: Record<string, { name: string; color: string }>
 }
 
 export interface Repo {
@@ -50,6 +58,12 @@ export interface Repo {
   deletePart(id: string): Promise<void>
 
   sendMessage(channel: ChannelId, senderId: string, body: string): Promise<Message>
+  /** 0016: the newest page of ONE chat (older pages with `before`), merged into the snapshot */
+  fetchChannel(channel: ChannelId, before?: string): Promise<Message[]>
+  /** 0016: this message was on screen → the chat is read up to it (server time; never moves back) */
+  markRead(messageId: string): Promise<void>
+  /** 0016 admin: let a creative into a client's chat (on) or take it back (off) */
+  setChatMember(clientId: string, userId: string, on: boolean): Promise<void>
   setPresence(userId: string, p: Presence): Promise<void>
   updateProfile(userId: string, patch: Partial<Profile>): Promise<Profile>
   updateUser(id: string, patch: Partial<User>): Promise<User>

@@ -82,11 +82,26 @@ export interface Attachment {
   url?: string
 }
 
-export type ChannelId = 'team' | `client:${string}` | `task:${string}`
+export type ChannelId = 'team' | `client:${string}` | `task:${string}` | `dm:${string}:${string}`
+
+/** «الرسائل» (0016): one row per chat in the inbox — computed by the server (inbox_summary) */
+export interface InboxRow {
+  channel: ChannelId
+  lastBody: string
+  lastSender: string | null
+  lastAt: string
+  unread: number
+}
+/** The admin let this creative into this client's chat (0016 client_chat_members). */
+export interface ChatMember {
+  clientId: string
+  userId: string
+}
 
 export interface Message {
   id: string
   channel: ChannelId
+  /** null = the sender's account was deleted (the history stays — 0016) */
   senderId: string
   body: string
   at: string // ISO datetime

@@ -29,7 +29,9 @@ interface TaskRow { id: string; client_id: string; project_id: string; title: st
 interface ClientTaskRow { id: string; client_id: string; project_id: string; title: string; type: Task['type']; start_date: string; end_date: string; approval: Task['approval']; version: number }
 interface PartRow { id: string; task_id: string; label: string; assignee_id: string | null; hours: number; day: string; hand_off: string | null; done: boolean; position: number }
 interface ClientPartRow { id: string; task_id: string; label: string; done: boolean; position: number }
-interface MessageRow { id: string; channel: string; sender_id: string; body: string; created_at: string }
+interface MessageRow { id: string; channel: string; sender_id: string | null; body: string; created_at: string }
+interface InboxRpcRow { channel: string; last_body: string; last_sender: string | null; last_at: string; unread: number }
+interface PeopleRow { id: string; name: string; color: string }
 interface PostRow { id: string; client_id: string; task_id: string | null; account_id: string | null; title: string; platform: Post['platform']; format: Post['format']; status: Post['status']; current_version: number; sent_at: string | null; published_url: string | null; published_at: string | null; created_by?: string | null; sent_by?: string | null; published_by?: string | null; created_at: string; updated_at: string }
 interface ContractRow { id: string; number: number; kind: Contract['kind']; party?: Contract['party']; client_id: string | null; creative_id?: string | null; title: string; accent: string; status: Contract['status']; current_version: number; sent_at: string | null; decided_at: string | null; created_by?: string | null; created_at: string; updated_at: string }
 interface CVersionRow { id: string; contract_id: string; number: number; content: ContractContent; content_hash: string; note: string | null; first_signature: string | null; first_signer: string | null; first_capacity: string | null; first_signed_at: string | null; sent_at: string | null; opened_at: string | null; decision: ContractVersion['decision'] | null; decision_note: string | null; signature: string | null; signer_name: string | null; signer_capacity: string | null; decided_at: string | null; created_by?: string | null; created_at: string }
@@ -41,7 +43,7 @@ interface VersionRow { id: string; post_id: string; number: number; image_paths:
 const PALETTE = ['#D9B600', '#9B7BF2', '#4CB782', '#F06FA7', '#4E9BFA', '#F2994A', '#3B8EA5', '#7FA23B']
 const CLIENT_REFRESH_MS = 60_000
 const MESSAGE_LIMIT = 2000
-const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], posts: [], postVersions: [], clientAccounts: [], contracts: [], contractVersions: [], contractEvents: [], legal: null, presence: {}, profiles: {} }
+const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], posts: [], postVersions: [], clientAccounts: [], contracts: [], contractVersions: [], contractEvents: [], legal: null, presence: {}, profiles: {}, chatMembers: [] }
 const POST_MEDIA_BUCKET = 'post-media'
 const AVATAR_BUCKET = 'client-logos' // public bucket (0006): avatars live under <org>/<client>/accounts/
 const SIGNED_URL_TTL_S = 60 * 60
@@ -68,7 +70,7 @@ const toPart = (r: PartRow | ClientPartRow): TaskPart => ({
   time: 'hand_off' in r && r.hand_off ? r.hand_off.slice(0, 5) : undefined,
   done: r.done, order: r.position,
 })
-const toMessage = (r: MessageRow): Message => ({ id: r.id, channel: r.channel as ChannelId, senderId: r.sender_id, body: r.body, at: r.created_at })
+const toMessage = (r: MessageRow): Message => ({ id: r.id, channel: r.channel as ChannelId, senderId: r.sender_id ?? '', body: r.body, at: r.created_at })
 const toPost = (r: PostRow): Post => ({
   id: r.id, clientId: r.client_id, taskId: r.task_id ?? undefined, accountId: r.account_id ?? undefined, title: r.title, platform: r.platform, format: r.format, status: r.status, currentVersion: r.current_version,
   sentAt: r.sent_at ?? undefined, publishedUrl: r.published_url ?? undefined, publishedAt: r.published_at ?? undefined, createdBy: r.created_by ?? undefined, sentBy: r.sent_by ?? undefined, publishedBy: r.published_by ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at,
@@ -186,6 +188,19 @@ export function createSupabaseRepo(): Repo {
       isAdmin ? sb.from('contract_events').select('*').order('at', { ascending: false }).limit(2000).returns<CEventRow[]>() : Promise.resolve({ data: [] as CEventRow[], error: null }),
       isAdmin ? sb.from('org_legal').select('*').maybeSingle<LegalRow>() : Promise.resolve({ data: null as LegalRow | null, error: null }),
     ])
+    // 0016: the inbox comes from the server (counts never depend on what this device loaded) + chat permissions
+    const [inbox, members, people] = await Promise.all([
+      sb.rpc('inbox_summary'),
+      isClient ? Promise.resolve({ data: [] as Array<{ client_id: string; user_id: string }>, error: null }) : sb.from('client_chat_members').select('client_id, user_id').returns<Array<{ client_id: string; user_id: string }>>(),
+      isClient && me.clientId ? sb.rpc('chat_people', { p_channel: `client:${me.clientId}` }) : Promise.resolve({ data: [] as PeopleRow[], error: null }),
+    ])
+    // a database without 0016 yet (staging/production before the release): the app keeps working the old way —
+    // inbox computed from the loaded messages, no chat permissions — instead of refusing to open
+    const missing = (e: { code?: string } | null) => !!e && ['PGRST202', 'PGRST205', '42883', '42P01'].includes(e.code ?? '')
+    if (!missing(inbox.error)) fail(inbox.error, 'inbox_summary')
+    if (!missing(members.error)) fail(members.error, 'client_chat_members')
+    if (!missing(people.error)) fail(people.error, 'chat_people')
+    const has0016 = !missing(inbox.error)
     for (const [r, what] of [[users, 'profiles'], [settings, 'settings'], [clients, 'clients'], [projects, 'projects'], [tasks, 'tasks'], [parts, 'parts'], [messages, 'messages'], [posts, 'posts'], [versions, 'post_versions'], [accounts, 'client_accounts'], [contracts, 'contracts'], [cversions, 'contract_versions'], [cevents, 'contract_events'], [legal, 'org_legal']] as const) fail(r.error, what)
     const presence: Record<string, Presence> = {}
     for (const u of users.data ?? []) presence[u.id] = u.presence
@@ -207,6 +222,9 @@ export function createSupabaseRepo(): Repo {
       legal: legal.data?.legal ?? null,
       presence,
       profiles,
+      chatMembers: (members.data ?? []).map((m) => ({ clientId: m.client_id, userId: m.user_id })),
+      inbox: !has0016 ? undefined : ((inbox.data ?? []) as InboxRpcRow[]).map((r) => ({ channel: r.channel as ChannelId, lastBody: r.last_body, lastSender: r.last_sender, lastAt: r.last_at, unread: r.unread })),
+      people: Object.fromEntries(((people.data ?? []) as PeopleRow[]).map((p) => [p.id, { name: p.name, color: p.color }])),
     }
   }
 
@@ -220,7 +238,7 @@ export function createSupabaseRepo(): Repo {
       return
     }
     channel = sb.channel('team-live')
-    for (const table of ['messages', 'tasks', 'task_parts', 'profiles', 'clients', 'projects', 'posts', 'post_versions', 'client_accounts', 'contracts', 'contract_versions']) {
+    for (const table of ['messages', 'tasks', 'task_parts', 'profiles', 'clients', 'projects', 'posts', 'post_versions', 'client_accounts', 'contracts', 'contract_versions', 'client_chat_members']) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleReload)
     }
     channel.subscribe()
@@ -411,6 +429,31 @@ export function createSupabaseRepo(): Repo {
       fail(error, 'sendMessage')
       const m = toMessage(data)
       return commit(m, (s) => ({ ...s, messages: upsert(s.messages, m) }))
+    },
+    async fetchChannel(channel, before) {
+      let q = sb.from('messages').select('*').eq('channel', channel).order('created_at', { ascending: false }).limit(200)
+      if (before) q = q.lt('created_at', before)
+      const { data, error } = await q.returns<MessageRow[]>()
+      fail(error, 'fetchChannel')
+      const got = (data ?? []).map(toMessage).reverse()
+      if (snap && got.length) publish({ ...snap, messages: [...snap.messages.filter((m) => !got.some((g) => g.id === m.id)), ...got].sort((a, b) => a.at.localeCompare(b.at)) })
+      return got
+    },
+    async markRead(messageId) {
+      const { error } = await sb.rpc('mark_channel_read', { p_message: messageId })
+      if (error && ['PGRST202', '42883'].includes(error.code ?? '')) return   // no 0016 yet: nothing to mark
+      fail(error, 'markRead')
+      const m = snap?.messages.find((x) => x.id === messageId)
+      if (snap && m) publish({ ...snap, inbox: snap.inbox?.map((r) => (r.channel === m.channel ? { ...r, unread: 0 } : r)) })
+      scheduleReload()
+    },
+    async setChatMember(clientId, userId, on) {
+      const { error } = on
+        ? await sb.from('client_chat_members').insert({ org_id: orgId, client_id: clientId, user_id: userId })
+        : await sb.from('client_chat_members').delete().eq('client_id', clientId).eq('user_id', userId)
+      fail(error, 'setChatMember')
+      if (snap) publish({ ...snap, chatMembers: on ? [...snap.chatMembers.filter((m) => !(m.clientId === clientId && m.userId === userId)), { clientId, userId }] : snap.chatMembers.filter((m) => !(m.clientId === clientId && m.userId === userId)) })
+      scheduleReload()
     },
     async setPresence(userId, p) {
       const { error } = await sb.from('profiles').update({ presence: p, last_seen: new Date().toISOString() }).eq('id', userId)

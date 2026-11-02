@@ -7,7 +7,7 @@ import { clock12FromHHMM } from '@/lib/dates'
 import { useData, useSession } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
 import { Avatar, Bar, Button, Card, Input, SectionTitle, Segmented } from '../ui'
-import { Chat } from '../Chat'
+import { Inbox } from '../Inbox'
 import { AlertsList, useBellCount } from '../Alerts'
 import { SettingsPanel } from '../Settings'
 import { InviteDialog } from '../InviteDialog'
@@ -42,7 +42,7 @@ export function AdminPanel() {
       <PanelTabs tabs={tabs} />
       <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-5 pt-3 flex flex-col gap-4">
         {ui.panelTab === 'main' && (client ? <ClientSetup clientId={client.id} /> : <Master />)}
-        {ui.panelTab === 'messages' && <Chat channel={client ? `client:${client.id}` : 'team'} className="flex-1 min-h-[320px]" />}
+        {ui.panelTab === 'messages' && <Inbox />}
         {ui.panelTab === 'alerts' && <AlertsList />}
         {ui.panelTab === 'team' && <Team />}
         {ui.panelTab === 'settings' && (
@@ -416,6 +416,24 @@ function ClientSetup({ clientId }: { clientId: string }) {
               </option>
             ))}
         </select>
+      </Card>
+
+      {/* 2 Nov (his «أحياناً أخلي المبدع يتواصل مع أحد العملاء لو أعطيته صلاحية»): admin lets a creative into this chat */}
+      <SectionTitle>{t('chatAccessTitle')}</SectionTitle>
+      <Card className="p-3 -mt-2 flex flex-col gap-2">
+        <span className="text-[12px] text-fg-secondary" data-testid="chat-access">{t('chatAccessHint')}</span>
+        <div className="flex flex-wrap gap-1.5">
+          {team.filter((u) => u.role === 'creative').length === 0 && <span className="text-[12px] text-fg-muted">{t('chatAccessNone')}</span>}
+          {team.filter((u) => u.role === 'creative').map((u) => {
+            const on = s.chatMembers.some((m) => m.clientId === c.id && m.userId === u.id)
+            return (
+              <button key={u.id} type="button" aria-pressed={on} onClick={() => void sess.setChatMember(c.id, u.id, !on)} data-testid="chat-access-toggle"
+                className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold cursor-pointer', on ? 'border-fg bg-fg text-bg' : 'border-border text-fg-secondary hover:text-fg')}>
+                <Avatar name={u.name} color={u.color} size={18} /> {u.name}
+              </button>
+            )
+          })}
+        </div>
       </Card>
 
       <SectionTitle>{t('contract')}</SectionTitle>

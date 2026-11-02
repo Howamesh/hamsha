@@ -56,7 +56,12 @@ interface UiState {
   resetForUser: () => void
   toast: string | null
   toastKind: 'error' | 'info'
-  setToast: (m: string | null, kind?: 'error' | 'info') => void
+  /** a toast you can tap (e.g. «عبدالله أرسل رسالة» opens that chat) */
+  toastAction: (() => void) | null
+  /** «الرسائل»: the open chat (null = the list) — not persisted */
+  chatChannel: string | null
+  openChat: (ch: string | null) => void
+  setToast: (m: string | null, kind?: 'error' | 'info', action?: (() => void) | null) => void
 }
 
 export const useUi = create<UiState>()(
@@ -100,10 +105,13 @@ export const useUi = create<UiState>()(
       setCheckin: (checkinOpen) => set({ checkinOpen }),
       setContractsFilter: (contractsFilter) => set({ contractsFilter }),
       goHome: (openPanel) => set({ calId: null, workspace: 'calendar', taskId: null, postId: null, contractId: null, contractEditing: false, panelTab: 'main', panelOpen: openPanel, focus: todayIso() }),
-      resetForUser: () => set({ calId: null, taskId: null, postId: null, contractId: null, contractEditing: false, workspace: 'calendar', panelTab: 'main', checkinOpen: false }),
+      resetForUser: () => set({ chatChannel: null, calId: null, taskId: null, postId: null, contractId: null, contractEditing: false, workspace: 'calendar', panelTab: 'main', checkinOpen: false }),
       toast: null,
       toastKind: 'error',
-      setToast: (toast, kind = 'error') => set({ toast, toastKind: kind }),
+      toastAction: null,
+      setToast: (toast, kind = 'error', action = null) => set({ toast, toastKind: kind, toastAction: action }),
+      chatChannel: null,
+      openChat: (chatChannel) => set({ chatChannel }),
     }),
     {
       name: 'hamsha.ui',

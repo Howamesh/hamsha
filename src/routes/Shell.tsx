@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Users, Bell, Calendar, ChevronLeft, ChevronRight, Home, LogOut, MessageCircle, PieChart, Settings, Share2, User, FileSignature } from 'lucide-react'
 import { addDays, addMonths, addWeeks } from 'date-fns'
@@ -30,6 +30,7 @@ import { ContractsBoard } from '@/components/contracts/ContractsBoard'
 import { ContractSheet } from '@/components/contracts/ContractSheet'
 import { clientBlocked, contractsNeedingAction, visibleContracts } from '@/lib/contracts'
 import { loadDraft } from '@/lib/contractDraft'
+import { inboxRows, senderOf, unreadTotal } from '@/lib/inbox'
 
 export default function Shell() {
   const me = useUser()
@@ -45,6 +46,22 @@ function App() {
   const narrow = useNarrow()
   const sess = useSession()
   const alertCount = useBellCount()
+  // «الرسائل»: unread from the server's inbox; a new message from someone else → a small toast that opens that chat
+  const msgUnread = useMemo(() => unreadTotal(s, me), [s, me])
+  const seenUnread = useRef<Record<string, number> | null>(null)
+  useEffect(() => {
+    const rows = inboxRows(s, me)
+    const prev = seenUnread.current
+    seenUnread.current = Object.fromEntries(rows.map((r) => [r.channel, r.unread]))
+    if (!prev) return   // first load: no toast for what was already waiting
+    const viewing = ui.panelOpen && ui.panelTab === 'messages' ? ui.chatChannel : null
+    const fresh = rows.filter((r) => r.unread > (prev[r.channel] ?? 0) && r.channel !== viewing && r.lastSender && r.lastSender !== me.id)
+      .sort((a, b) => b.lastAt.localeCompare(a.lastAt))[0]
+    if (!fresh) return
+    const who = senderOf(s, fresh.lastSender)?.name ?? t('someone')
+    ui.setToast(t('newMessageFrom', { who }), 'info', () => { ui.setPanelTab('messages'); ui.openChat(fresh.channel) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s, me])
   const f = fromIso(ui.focus)
   const isAdmin = me.role === 'admin'
   const isCreative = me.role === 'creative'
@@ -98,8 +115,8 @@ function App() {
   const Panel = isAdmin ? AdminPanel : isCreative ? CreativePanel : ClientPanel
   // one tab = one section, each with its own name (1 Nov: three unlabeled icons all opened the same panel)
   const railTabs: Array<{ id: PanelTab; icon: React.ReactNode; badge?: number; label: string }> = isCreative
-    ? [{ id: 'main', icon: <Home size={18} />, label: t('tabHome') }, { id: 'profile', icon: <User size={18} />, label: t('tabProfile') }, { id: 'messages', icon: <MessageCircle size={18} />, label: t('tabMessages') }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount, label: t('tabAlerts') }, { id: 'settings', icon: <Settings size={18} />, label: t('tabSettings') }]
-    : [{ id: 'main', icon: <PieChart size={18} />, label: isAdmin ? (client ? t('tabSetup') : t('tabClients')) : t('tabProgress') }, ...(isAdmin ? [{ id: 'team' as PanelTab, icon: <Users size={18} />, label: t('tabTeam') }] : []), { id: 'messages', icon: <MessageCircle size={18} />, label: t('tabMessages') }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount, label: t('tabAlerts') }, { id: 'settings', icon: <Settings size={18} />, label: t('tabSettings') }]
+    ? [{ id: 'main', icon: <Home size={18} />, label: t('tabHome') }, { id: 'profile', icon: <User size={18} />, label: t('tabProfile') }, { id: 'messages', icon: <MessageCircle size={18} />, badge: msgUnread, label: t('tabMessages') }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount, label: t('tabAlerts') }, { id: 'settings', icon: <Settings size={18} />, label: t('tabSettings') }]
+    : [{ id: 'main', icon: <PieChart size={18} />, label: isAdmin ? (client ? t('tabSetup') : t('tabClients')) : t('tabProgress') }, ...(isAdmin ? [{ id: 'team' as PanelTab, icon: <Users size={18} />, label: t('tabTeam') }] : []), { id: 'messages', icon: <MessageCircle size={18} />, badge: msgUnread, label: t('tabMessages') }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount, label: t('tabAlerts') }, { id: 'settings', icon: <Settings size={18} />, label: t('tabSettings') }]
 
   const spaces: Array<{ id: Workspace; icon: React.ReactNode; badge?: number; label: string }> = [
     { id: 'calendar', icon: <Calendar size={18} />, label: t('calendar') },

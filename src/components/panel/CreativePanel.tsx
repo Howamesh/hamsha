@@ -8,6 +8,7 @@ import { useData, useSession, useUser } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
 import { Avatar, Bar, Button, Card, SectionTitle } from '../ui'
 import { Chat } from '../Chat'
+import { Inbox } from '../Inbox'
 import { AlertsList, useBellCount } from '../Alerts'
 import { SettingsPanel } from '../Settings'
 import { PanelTabs } from './PanelTabs'
@@ -35,7 +36,7 @@ export function CreativePanel() {
       <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-5 pt-3 flex flex-col gap-4">
         {ui.panelTab === 'main' && <HomeTab />}
         {ui.panelTab === 'profile' && <ProfileTab />}
-        {ui.panelTab === 'messages' && <Chat channel="team" className="flex-1 min-h-[320px]" />}
+        {ui.panelTab === 'messages' && <Inbox />}
         {ui.panelTab === 'alerts' && <AlertsList />}
         {ui.panelTab === 'settings' && <SettingsPanel />}
       </div>

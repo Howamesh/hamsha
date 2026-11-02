@@ -379,5 +379,43 @@ select t.run('[trust] (setup) a contract to sign', :'A', 'insert into contracts 
 select t.run('[trust] …Hawamish cannot sign it with a fake PNG', :'A', 'select sign_contract_first(' || quote_literal(:'CV10') || ', ''data:image/png;base64,aGVsbG8gd29ybGQ='', ''إبراهيم'', ''المدير'')', 'error');
 select t.run('[trust] …a real PNG still signs', :'A', 'select sign_contract_first(' || quote_literal(:'CV10') || ', ' || quote_literal(:'SIG') || ', ''إبراهيم'', ''المدير'')', 'rows:1');
 
+-- ===== 0016 inbox (council 2 Nov): private chats, creative↔client grants, server-side read markers =====
+\set DMAC1 'dm:00000000-0000-0000-0000-00000000000a:00000000-0000-0000-0000-0000000000c1'
+\set DMC1C2 'dm:00000000-0000-0000-0000-0000000000c1:00000000-0000-0000-0000-0000000000c2'
+\set CH1 'client:20000000-0000-0000-0000-000000000001'
+select t.run('[inbox] the admin writes privately to creative 1', :'A', 'insert into messages (org_id, channel, sender_id, body) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'DMAC1') || ', ' || quote_literal(:'A') || ', ''خاص للمبدع ١'')', 'rows:1');
+select t.run('[inbox] …creative 1 reads it', :'C1', 'select 1 from messages where channel = ' || quote_literal(:'DMAC1'), 'rows:1');
+select t.run('[inbox] …creative 2 never sees it', :'C2', 'select 1 from messages where channel = ' || quote_literal(:'DMAC1'), 'none');
+select t.run('[inbox] …a client never sees it', :'K1', 'select 1 from messages where channel = ' || quote_literal(:'DMAC1'), 'none');
+select t.run('[inbox] creatives write to each other', :'C2', 'insert into messages (org_id, channel, sender_id, body) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'DMC1C2') || ', ' || quote_literal(:'C2') || ', ''يا زميل'')', 'rows:1');
+select t.run('[inbox] …and the admin cannot read their private chat', :'A', 'select 1 from messages where channel = ' || quote_literal(:'DMC1C2'), 'none');
+select t.run('[inbox] a client cannot open a private chat with the admin', :'K1', 'insert into messages (org_id, channel, sender_id, body) values (' || quote_literal(:'ORG') || ', ''dm:00000000-0000-0000-0000-00000000000a:00000000-0000-0000-0000-0000000000e1'', ' || quote_literal(:'K1') || ', ''x'')', 'error');
+select t.run('[inbox] reversed order is refused', :'C1', 'insert into messages (org_id, channel, sender_id, body) values (' || quote_literal(:'ORG') || ', ''dm:00000000-0000-0000-0000-0000000000c1:00000000-0000-0000-0000-00000000000a'', ' || quote_literal(:'C1') || ', ''x'')', 'error');
+select t.run('[inbox] a chat with yourself is refused', :'C1', 'insert into messages (org_id, channel, sender_id, body) values (' || quote_literal(:'ORG') || ', ''dm:00000000-0000-0000-0000-0000000000c1:00000000-0000-0000-0000-0000000000c1'', ' || quote_literal(:'C1') || ', ''x'')', 'error');
+select t.run('[inbox] someone else''s pair is refused', :'C1', 'insert into messages (org_id, channel, sender_id, body) values (' || quote_literal(:'ORG') || ', ''dm:00000000-0000-0000-0000-00000000000a:00000000-0000-0000-0000-0000000000c2'', ' || quote_literal(:'C1') || ', ''x'')', 'error');
+select t.run('[inbox] the admin cannot delete a private message', :'A', 'delete from messages where channel = ' || quote_literal(:'DMC1C2'), 'none');
+select t.run('[inbox] creative 1 cannot read client 1''s chat without permission', :'C1', 'select 1 from messages where channel = ' || quote_literal(:'CH1'), 'none');
+select t.run('[inbox] a creative cannot grant itself', :'C1', 'insert into client_chat_members (org_id, client_id, user_id) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ' || quote_literal(:'C1') || ')', 'error');
+select t.run('[inbox] a client cannot be granted (creatives only)', :'A', 'insert into client_chat_members (org_id, client_id, user_id) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ' || quote_literal(:'K2') || ')', 'error');
+select t.run('[inbox] the admin lets creative 1 into client 1''s chat', :'A', 'insert into client_chat_members (org_id, client_id, user_id) values (' || quote_literal(:'ORG') || ', ''20000000-0000-0000-0000-000000000001'', ' || quote_literal(:'C1') || ')', 'rows:1');
+select t.run('[inbox] …the grant records who granted it (server side)', :'A', 'select 1 from client_chat_members where user_id = ' || quote_literal(:'C1') || ' and granted_by = ' || quote_literal(:'A'), 'rows:1');
+select t.run('[inbox] …now creative 1 reads the history', :'C1', 'select 1 from messages where channel = ' || quote_literal(:'CH1'), 'rows>0');
+select t.run('[inbox] …and writes to the client', :'C1', 'insert into messages (org_id, channel, sender_id, body) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'CH1') || ', ' || quote_literal(:'C1') || ', ''أهلاً من المبدع'')', 'rows:1');
+select t.run('[inbox] …the client sees the creative''s name via chat_people only', :'K1', 'select 1 from chat_people(' || quote_literal(:'CH1') || ') where name = ''مبدع ١''', 'rows:1');
+select t.run('[inbox] …creative 2 still has no access', :'C2', 'select 1 from messages where channel = ' || quote_literal(:'CH1'), 'none');
+select t.run('[inbox] …creative 2 sees nobody''s grants', :'C2', 'select 1 from client_chat_members', 'none');
+select t.run('[inbox] the admin removes the permission', :'A', 'delete from client_chat_members where user_id = ' || quote_literal(:'C1'), 'rows:1');
+select t.run('[inbox] …creative 1 can no longer read', :'C1', 'select 1 from messages where channel = ' || quote_literal(:'CH1'), 'none');
+select t.run('[inbox] …nor write', :'C1', 'insert into messages (org_id, channel, sender_id, body) values (' || quote_literal(:'ORG') || ', ' || quote_literal(:'CH1') || ', ' || quote_literal(:'C1') || ', ''x'')', 'error');
+select t.run('[inbox] creative 1''s inbox: the private chat counts 1 unread', :'C1', 'select 1 from inbox_summary() where channel = ' || quote_literal(:'DMAC1') || ' and unread = 1', 'rows:1');
+select t.run('[inbox] …and no client chat after the removal', :'C1', 'select 1 from inbox_summary() where channel like ''client:%''', 'none');
+select t.run('[inbox] reading marks the chat read (server time of that message)', :'C1', 'select mark_channel_read((select id from messages where channel = ' || quote_literal(:'DMAC1') || ' order by created_at desc limit 1)); select 1 from inbox_summary() where channel = ' || quote_literal(:'DMAC1') || ' and unread = 0', 'rows:1');
+select t.run('[inbox] …an older message never moves the marker back', :'C1', 'select mark_channel_read((select id from messages where channel = ''team'' order by created_at limit 1)); select 1 from chat_reads where user_id = ' || quote_literal(:'C1') || ' and channel = ' || quote_literal(:'DMAC1') || ' and read_at = (select max(created_at) from messages where channel = ' || quote_literal(:'DMAC1') || ')', 'rows:1');
+select t.run('[inbox] nobody marks a chat they cannot open', :'C2', 'select mark_channel_read((select id from messages where channel = ' || quote_literal(:'DMAC1') || ' limit 1))', 'error');
+select t.run('[inbox] read markers are private', :'C2', 'select 1 from chat_reads where user_id = ' || quote_literal(:'C1'), 'none');
+select t.run('[inbox] the admin''s inbox lists client chats + private chats it is in', :'A', 'select 1 from inbox_summary() where channel in (' || quote_literal(:'CH1') || ', ' || quote_literal(:'DMAC1') || ', ''team'')', 'rows:3');
+select t.run('[inbox] a client''s inbox is only its own chat', :'K1', 'select 1 from inbox_summary() where channel <> ' || quote_literal(:'CH1'), 'none');
+select t.run_su('[inbox] deleting a member keeps the chat history (sender becomes empty, not deleted)', 'select 1 from pg_constraint where conname = ''messages_sender_id_fkey'' and confdeltype = ''n''', 'rows:1');
+
 select * from t.report();
 select count(*) filter (where not pass) as failures, count(*) as total from t.results;

@@ -5,20 +5,37 @@ import { fmtTime, useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
 import { Avatar } from './ui'
 import type { ChannelId } from '@/types'
+import { chatDraft, senderOf, setChatDraft } from '@/lib/inbox'
 
 export function Chat({ channel, className }: { channel: ChannelId; className?: string }) {
   const { t, lang } = useStr()
   const s = useData()
   const me = useUser()
   const send = useSession((x) => x.sendMessage)
-  const [draft, setDraft] = useState('')
+  // unsent text per person + chat: never jumps into another chat, never shown to the next person on this browser
+  const [draft, setDraftState] = useState(() => (me ? chatDraft(me.id, channel) : ''))
+  const setDraft = (v: string | ((d: string) => string)) => setDraftState((d) => { const n = typeof v === 'function' ? v(d) : v; if (me) setChatDraft(me.id, channel, n); return n })
   const [sending, setSending] = useState(false)
   const list = s.messages.filter((m) => m.channel === channel).sort((a, b) => a.at.localeCompare(b.at))
   const endRef = useRef<HTMLDivElement>(null)
 
+  const markRead = useSession((x) => x.markRead)
+  const fetchChannel = useSession((x) => x.fetchChannel)
+  // this chat's own newest page from the server (the start-up load is the newest messages of ALL chats)
+  useEffect(() => { void fetchChannel(channel).catch(() => undefined) }, [channel, fetchChannel])
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [list.length])
+  // «read» = the newest message from someone else was on screen while the page was visible (server keeps the time)
+  const newestOther = [...list].reverse().find((m) => m.senderId !== me?.id)?.id
+  useEffect(() => {
+    if (!newestOther) return
+    const mark = () => { if (document.visibilityState === 'visible') void markRead(newestOther) }
+    mark()
+    document.addEventListener('visibilitychange', mark)
+    return () => document.removeEventListener('visibilitychange', mark)
+  }, [newestOther, markRead])
+  const [older, setOlder] = useState(false)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -38,9 +55,14 @@ export function Chat({ channel, className }: { channel: ChannelId; className?: s
 
   return (
     <div className={cn('flex flex-col min-h-0 rounded-md border border-border bg-card', className)}>
-      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3 flex flex-col gap-2.5">
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3 flex flex-col gap-2.5" data-testid="chat-list">
+        {list.length >= 50 && (
+          <button type="button" disabled={older} onClick={() => { setOlder(true); void fetchChannel(channel, list[0].at).finally(() => setOlder(false)) }} className="self-center text-[11.5px] font-semibold text-fg-secondary hover:text-fg cursor-pointer rounded-full border border-border px-3 py-1">
+            {t('olderMessages')}
+          </button>
+        )}
         {list.map((m) => {
-          const u = s.users.find((x) => x.id === m.senderId)
+          const u = senderOf(s, m.senderId)
           const mine = m.senderId === me?.id
           return (
             <div key={m.id} className={cn('flex items-end gap-2 max-w-[92%]', mine && 'self-end flex-row-reverse')}>

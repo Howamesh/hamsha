@@ -10,6 +10,7 @@ import { coreMissing } from '@/lib/contracts'
 import { validateClientPatch, validateNewTask, validatePart, validateTaskPatch } from '@/lib/validate'
 
 import { MOCK_DATA_KEY as KEY, MOCK_SESSION_KEY as SESSION_KEY } from './mockKeys'
+import { canAccessChannel } from '@/lib/inbox'
 
 const PALETTE = ['#D9B600', '#9B7BF2', '#4CB782', '#F06FA7', '#4E9BFA', '#F2994A', '#3B8EA5', '#7FA23B']
 
@@ -57,7 +58,7 @@ function seed(): Snapshot {
   const profiles: Record<string, Profile> = {}
   for (const u of users) profiles[u.id] = { userId: u.id, city: 'riyadh', whStart: 9, whEnd: 17, notes: '', theme: 'light', lang: 'ar', weekStart: 'monday' }
 
-  return { users, clients, projects, tasks, parts, messages, posts, postVersions, clientAccounts, contracts, contractVersions, contractEvents, legal: null, presence: {}, profiles }
+  return { users, clients, projects, tasks, parts, messages, posts, postVersions, clientAccounts, contracts, contractVersions, contractEvents, legal: null, presence: {}, profiles, chatMembers: [], chatReads: [] }
 }
 
 function read(): Snapshot {
@@ -72,7 +73,7 @@ function read(): Snapshot {
           const old = v as PostVersion & { imagePath?: string }
           return old.imagePaths ? v : { ...v, imagePaths: old.imagePath ? [old.imagePath] : [] }
         })
-        return { posts: [], clientAccounts: [], contracts: [], contractVersions: [], contractEvents: [], legal: null, ...parsed, postVersions: versions } as Snapshot
+        return { posts: [], clientAccounts: [], contracts: [], contractVersions: [], contractEvents: [], legal: null, chatMembers: [], chatReads: [], ...parsed, postVersions: versions } as Snapshot
       }
     }
   } catch {
@@ -276,10 +277,33 @@ export function createMockRepo(): Repo {
     },
 
     async sendMessage(channel: ChannelId, senderId, body) {
+      const me = snap.users.find((u) => u.id === localStorage.getItem(SESSION_KEY))
+      if (!me || me.id !== senderId || !canAccessChannel(snap, me, channel)) throw new Error('forbidden')   // mirrors 0016
       const m: Message = { id: nid('m'), channel, senderId, body, at: new Date().toISOString() }
       snap.messages = [...snap.messages, m]
       commit()
       return m
+    },
+    async fetchChannel() {
+      return []   // the mock keeps every message in memory already
+    },
+    async markRead(messageId) {
+      const me = snap.users.find((u) => u.id === localStorage.getItem(SESSION_KEY))
+      const m = snap.messages.find((x) => x.id === messageId)
+      if (!me || !m || !canAccessChannel(snap, me, m.channel)) throw new Error('forbidden')
+      const reads = snap.chatReads ?? []
+      const cur = reads.find((r) => r.userId === me.id && r.channel === m.channel)
+      if (cur && cur.at >= m.at) return   // never back
+      snap.chatReads = [...reads.filter((r) => r !== cur), { userId: me.id, channel: m.channel, at: m.at }]
+      commit()
+    },
+    async setChatMember(clientId, userId, on) {
+      who('admin')
+      const u = snap.users.find((x) => x.id === userId)
+      if (!u || u.role !== 'creative' || !snap.clients.some((c) => c.id === clientId)) throw new Error('only a creative of this organization')
+      const rest = (snap.chatMembers ?? []).filter((m) => !(m.clientId === clientId && m.userId === userId))
+      snap.chatMembers = on ? [...rest, { clientId, userId }] : rest
+      commit()
     },
     async setPresence(userId, p: Presence) {
       snap.presence = { ...snap.presence, [userId]: p }

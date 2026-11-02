@@ -8,6 +8,7 @@ export function Toast() {
   const toast = useUi((s) => s.toast)
   const kind = useUi((s) => s.toastKind)
   const setToast = useUi((s) => s.setToast)
+  const action = useUi((s) => s.toastAction)
   useEffect(() => {
     if (!toast) return
     const id = setTimeout(() => setToast(null), 6000)
@@ -23,7 +24,11 @@ export function Toast() {
         )}
       >
         {kind === 'error' ? <AlertTriangle size={16} className="shrink-0" /> : <Info size={16} className="shrink-0" />}
-        <span>{toast}</span>
+        {action ? (
+          <button type="button" onClick={() => { action(); setToast(null) }} className="cursor-pointer underline-offset-2 hover:underline text-start" data-testid="toast-action">{toast}</button>
+        ) : (
+          <span>{toast}</span>
+        )}
         <button type="button" onClick={() => setToast(null)} className="ms-1 cursor-pointer opacity-70 hover:opacity-100" aria-label="×">
           <X size={14} />
         </button>

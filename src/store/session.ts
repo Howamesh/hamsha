@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { canAccessChannel, clearChatDrafts } from '@/lib/inbox'
 import { clearAllDrafts } from '@/lib/contractDraft'
 import { useUi } from './ui'
 import { errorMessage } from '@/lib/errors'
@@ -32,6 +33,9 @@ interface SessionState {
   upsertPart: (part: Omit<TaskPart, 'id'> & { id?: string }) => Promise<void>
   deletePart: (id: string) => Promise<void>
   sendMessage: (channel: ChannelId, body: string) => Promise<void>
+  fetchChannel: (channel: ChannelId, before?: string) => Promise<void>
+  markRead: (messageId: string) => Promise<void>
+  setChatMember: (clientId: string, userId: string, on: boolean) => Promise<void>
   setPresence: (p: Presence) => Promise<void>
   updateProfile: (patch: Partial<Profile>) => Promise<void>
   updateUser: (id: string, patch: Partial<User>) => Promise<void>
@@ -67,7 +71,7 @@ function adminOnly(get: () => SessionState): User {
 let booting = false
 let unsubscribe: (() => void) | null = null
 
-const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], posts: [], postVersions: [], clientAccounts: [], contracts: [], contractVersions: [], contractEvents: [], legal: null, presence: {}, profiles: {} }
+const EMPTY: Snapshot = { users: [], clients: [], projects: [], tasks: [], parts: [], messages: [], posts: [], postVersions: [], clientAccounts: [], contracts: [], contractVersions: [], contractEvents: [], legal: null, presence: {}, profiles: {}, chatMembers: [] }
 
 /** Surface repository errors to the user — event handlers and async calls never reach the ErrorBoundary. */
 function report(e: unknown): never {
@@ -108,7 +112,7 @@ export const useSession = create<SessionState>((set, get) => ({
     await repo.signOut()
     set({ user: null, data: null })
     useUi.getState().resetForUser()
-    clearAllDrafts()
+    clearAllDrafts(); clearChatDrafts()
   },
   async requestPasswordReset(email) {
     await repo.requestPasswordReset(email.trim())
@@ -196,11 +200,20 @@ export const useSession = create<SessionState>((set, get) => ({
   async sendMessage(channel, body) {
     const u = get().user
     if (!u || !body.trim()) return
-    // Mirrors can_access_channel() in supabase/migrations/0002_policies.sql: task chat is internal (never a client).
-    const allowed =
-      channel === 'team' ? u.role !== 'client' : channel.startsWith('client:') ? u.role === 'admin' || (u.role === 'client' && channel === `client:${u.clientId}`) : u.role !== 'client'
-    if (!allowed) throw new Error('forbidden')
+    // Mirrors can_access_channel() (0016): team · private «dm:» · a client's chat (admin, the client, a granted creative)
+    if (!canAccessChannel(get().data ?? EMPTY, u, channel)) throw new Error('forbidden')
     await guard(repo.sendMessage(channel, u.id, body.trim()))
+  },
+  async fetchChannel(channel, before) {
+    await guard(repo.fetchChannel(channel, before))
+  },
+  async markRead(messageId) {
+    // quiet: a failed «read» mark must never pop an error over the chat (the next one retries)
+    await repo.markRead(messageId).catch(() => undefined)
+  },
+  async setChatMember(clientId, userId, on) {
+    adminOnly(get)
+    await guard(repo.setChatMember(clientId, userId, on))
   },
   async setPresence(p) {
     const u = get().user
