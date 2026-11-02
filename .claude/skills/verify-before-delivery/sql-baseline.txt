@@ -5,10 +5,10 @@
 # be29f13300c05cd5bab788e28c478de9c52387fd  supabase/tests/run-ci.sh
 # 9cc4dea2c523159b3999365275536fd937accebf  supabase/tests/run-local.sh
 # 76860ee1877a8ba425fa8f6de4fe6adb5f59d578  tests/smoke-client-summary.mjs
-# e845975f8f37d2fb8a54c6f51d8cdfa26ea8e2b8  tests/smoke-contracts.mjs
+# 61a12837385e22239617ea18dd2f21dd33fbd290  tests/smoke-contracts.mjs
 # 6b92a0e9d14b3e09f151773154053d8103327eb2  tests/smoke-drag.mjs
 # 29c8210f77960737b21d999c65d611a78cfb2a23  tests/smoke-hours.mjs
-# fb70595951d3a354e190b073c29b3f99a2fba4e4  tests/smoke-invite.mjs
+# 1f67b6026231886c6fc63b85c18bf095830d3670  tests/smoke-invite.mjs
 # cf90d523eb030d1469db782f2519a4e8fad8679a  tests/smoke-live-fixes.mjs
 # 8a62000db9cd9cb8f0458a07d5a2221f6f9b90af  tests/smoke-regressions.mjs
 # 31a3194b2b75cd7f937bbbb80b88496e962ace8f  tests/smoke-review3.mjs

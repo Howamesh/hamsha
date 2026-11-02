@@ -30,6 +30,9 @@ await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.tr
 await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`, 30000);
 const teamBefore = await ev(`document.querySelectorAll('main ~ aside, aside').length`);
 
+// 2 Nov (his pick ٥): «ادعُ عضواً» left «العملاء» for its own admin-only «الفريق» section in the rail
+CHECKS['«العملاء» no longer holds the invite button'] = !(await ev(`[...document.querySelectorAll('aside button')].some(b=>b.textContent.trim()==='ادعُ عضواً')`));
+await ev(`document.querySelector('[data-testid=rail-team]').click()`); await sleep(400);
 // 1) button opens the dialog
 CHECKS['invite button visible to admin'] = (await click('ادعُ عضواً')) === 'ok';
 await waitFor(`!!document.querySelector('[role=dialog][aria-label="دعوة عضو جديد"]')`);
@@ -49,12 +52,14 @@ CHECKS['success toast names the e-mail'] = true;
 CHECKS['dialog closed after send'] = !(await ev(`!!document.querySelector('[role=dialog][aria-label="دعوة عضو جديد"]')`));
 await sleep(300);
 // the invited creative is now a team member: create a client and look at its «project owner» avatars
+await ev(`document.querySelector('[data-testid=rail-main]').click()`); await sleep(400);   // back to «العملاء» to create a client
 await setInput(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل'))`, 'عميل الدعوة');
 await ev(`[...document.querySelectorAll('input')].find(x=>x.placeholder.includes('عميل')).form.requestSubmit()`); await sleep(500);
 await click('عميل الدعوة'); await sleep(500);
 CHECKS['invited creative appears among team members'] = await ev(`[...document.querySelectorAll('aside button[title]')].some(b=>b.title==='مبدع الفحص')`);
 await ev(`document.querySelector('header button[aria-label="رجوع"]')?.click()`); await sleep(600);
 // 3b) pending list shows the invitee with a resend button; resend → toast
+await ev(`document.querySelector('[data-testid=rail-team]').click()`); await sleep(400);
 await waitFor(`!!document.querySelector('[data-testid=pending-invites]')`);
 CHECKS['pending list shows the invitee'] = await ev(`document.querySelector('[data-testid=pending-invites]').innerText.includes('new.creative@example.com')`);
 await ev(`[...document.querySelectorAll('[data-testid=pending-invites] button')].find(b=>b.textContent.includes('أعد الإرسال')).click()`);

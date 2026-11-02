@@ -316,6 +316,7 @@ CHECKS['client signs (drawn)'] = await signFlow('زياد بن محمد الجا
 CHECKS['signed toast'] = await toastHas('تم التوقيع'); await closeToast();
 CHECKS['status signed'] = (await status()) === 'signed';
 CHECKS['both signatures on the paper'] = (await ev(`document.querySelectorAll('[data-testid=contract-paper] [data-testid=paper-signature]').length`)) === 2;
+CHECKS['signed paper says «عقد #2612», never «مسودة #»'] = await ev(`(()=>{const p=document.querySelector('[data-testid=contract-paper]').innerText;return p.includes('عقد #2612') && !p.includes('مسودة #')})()`);
 CHECKS['signatures summary + fingerprint'] = await ev(`(()=>{const t=document.querySelector('[data-testid=signatures-summary]')?.innerText||'';return t.includes('زياد بن محمد الجاسر') && t.includes('البصمة')})()`);
 CHECKS['no second decision possible'] = !(await ev(`!!document.querySelector('[data-testid=sign-contract]')`));
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Bell, Calendar, ChevronLeft, ChevronRight, Home, LogOut, MessageCircle, PieChart, Settings, Share2, User, FileSignature } from 'lucide-react'
+import { Users, Bell, Calendar, ChevronLeft, ChevronRight, Home, LogOut, MessageCircle, PieChart, Settings, Share2, User, FileSignature } from 'lucide-react'
 import { addDays, addMonths, addWeeks } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { fromIso, toIso, todayIso, weekDays } from '@/lib/dates'
@@ -96,7 +96,7 @@ function App() {
   // one tab = one section, each with its own name (1 Nov: three unlabeled icons all opened the same panel)
   const railTabs: Array<{ id: PanelTab; icon: React.ReactNode; badge?: number; label: string }> = isCreative
     ? [{ id: 'main', icon: <Home size={18} />, label: t('tabHome') }, { id: 'profile', icon: <User size={18} />, label: t('tabProfile') }, { id: 'messages', icon: <MessageCircle size={18} />, label: t('tabMessages') }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount, label: t('tabAlerts') }, { id: 'settings', icon: <Settings size={18} />, label: t('tabSettings') }]
-    : [{ id: 'main', icon: <PieChart size={18} />, label: isAdmin ? (client ? t('tabSetup') : t('tabClients')) : t('tabProgress') }, { id: 'messages', icon: <MessageCircle size={18} />, label: t('tabMessages') }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount, label: t('tabAlerts') }, { id: 'settings', icon: <Settings size={18} />, label: t('tabSettings') }]
+    : [{ id: 'main', icon: <PieChart size={18} />, label: isAdmin ? (client ? t('tabSetup') : t('tabClients')) : t('tabProgress') }, ...(isAdmin ? [{ id: 'team' as PanelTab, icon: <Users size={18} />, label: t('tabTeam') }] : []), { id: 'messages', icon: <MessageCircle size={18} />, label: t('tabMessages') }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount, label: t('tabAlerts') }, { id: 'settings', icon: <Settings size={18} />, label: t('tabSettings') }]
 
   const spaces: Array<{ id: Workspace; icon: React.ReactNode; badge?: number; label: string }> = [
     { id: 'calendar', icon: <Calendar size={18} />, label: t('calendar') },
@@ -251,7 +251,7 @@ function App() {
             <FileSignature size={18} /> {t('contracts')}
             {!!contractsBadge && <span className="absolute top-1.5 end-[22%] min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-accent-fg text-[9.5px] font-bold grid place-items-center">{contractsBadge}</span>}
           </button>
-          {railTabs.map((r) => (
+          {railTabs.filter((r) => r.id !== 'team').map((r) => (
             <button key={r.id} type="button" onClick={() => ui.setPanelTab(r.id)} className={cn('relative flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', ui.panelOpen && ui.panelTab === r.id ? 'text-fg' : 'text-fg-secondary')} data-testid={`nav-${r.id}`}>
               {r.icon}
               <span className="truncate max-w-full px-0.5">{r.label}</span>

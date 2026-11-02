@@ -88,6 +88,7 @@ export const STR = {
   legalIban: { en: 'IBAN', ar: 'الآيبان' },
   tabClients: { en: 'Clients', ar: 'العملاء' },
   tabSetup: { en: 'Setup', ar: 'الإعداد' },
+  tabTeam: { en: 'Team', ar: 'الفريق' },
   tabMessages: { en: 'Messages', ar: 'الرسائل' },
   tabAlerts: { en: 'Alerts', ar: 'التنبيهات' },
   tabSettings: { en: 'Settings', ar: 'الإعدادات' },

@@ -167,7 +167,9 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
   // a frozen version shows ONLY the stamp it was frozen with — never today's Settings stamp (council 1 Nov)
   const stamp = version ? c.stamp : c.stamp || stampProp
   const emp = c.kind === 'employment'
-  const draftLabel = c.kind === 'offer' ? `عرض #${number}` : emp ? `عقد ${number}/${(c.date || '').slice(0, 4) || '…'}` : `مسودة #${number}`
+  // «مسودة #» (the manager's Figma) until both sides signed; a signed contract never prints «مسودة» (2 Nov, his «تمام»)
+  const signedBoth = !!version?.signature && version?.decision === 'signed'
+  const draftLabel = c.kind === 'offer' ? `عرض #${number}` : emp ? `عقد ${number}/${(c.date || '').slice(0, 4) || '…'}` : signedBoth ? `عقد #${number}` : `مسودة #${number}`
   const cur = currencyShort(c.pricing.currency)
   // a page is fixed A4 and clips what does not fit: measure after every render, flag the page (screen only, never printed)
   const root = useRef<HTMLDivElement>(null)

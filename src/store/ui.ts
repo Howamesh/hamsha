@@ -5,7 +5,7 @@ import type { WeekStart } from '@/lib/dates'
 import { todayIso, type IsoDate } from '@/lib/dates'
 
 export type View = 'month' | 'week' | 'day'
-export type PanelTab = 'main' | 'messages' | 'alerts' | 'settings' | 'profile'
+export type PanelTab = 'main' | 'messages' | 'alerts' | 'settings' | 'profile' | 'team'
 /** The big area shows the calendar or the social board (the right-side menu switches it instantly). */
 export type Workspace = 'calendar' | 'social' | 'contracts'
 export type ContractsFilter = 'action' | 'all' | 'archive'

@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Bell, ChevronDown, MessageCircle, PieChart, Settings, SlidersHorizontal, Trash2, UserPlus, X } from 'lucide-react'
+import { Bell, ChevronDown, MessageCircle, PieChart, Settings, SlidersHorizontal, Trash2, UserPlus, Users, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { clientProgress, isDone, taskProgress, urgency, workload } from '@/lib/derive'
-import { fmtDate, useStr } from '@/lib/useStr'
+import { fmtDate, useNarrow, useStr } from '@/lib/useStr'
 import { clock12FromHHMM } from '@/lib/dates'
 import { useData, useSession } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
@@ -22,8 +22,10 @@ export function AdminPanel() {
   const calId = ui.calId
   const client = calId ? s.clients.find((c) => c.id === calId) : null
   const alertCount = useBellCount()
+  const narrow = useNarrow()
   const tabs: Array<{ id: PanelTab; label: string; icon: React.ReactNode; badge?: number }> = [
     { id: 'main', label: client ? t('tabSetup') : t('tabClients'), icon: client ? <SlidersHorizontal size={16} /> : <PieChart size={16} /> },
+    { id: 'team', label: t('tabTeam'), icon: <Users size={16} /> },
     { id: 'messages', label: t('tabMessages'), icon: <MessageCircle size={16} /> },
     { id: 'alerts', label: t('tabAlerts'), icon: <Bell size={16} />, badge: alertCount },
     { id: 'settings', label: t('tabSettings'), icon: <Settings size={16} /> },
@@ -42,7 +44,18 @@ export function AdminPanel() {
         {ui.panelTab === 'main' && (client ? <ClientSetup clientId={client.id} /> : <Master />)}
         {ui.panelTab === 'messages' && <Chat channel={client ? `client:${client.id}` : 'team'} className="flex-1 min-h-[320px]" />}
         {ui.panelTab === 'alerts' && <AlertsList />}
-        {ui.panelTab === 'settings' && <SettingsPanel />}
+        {ui.panelTab === 'team' && <Team />}
+        {ui.panelTab === 'settings' && (
+          <>
+            {/* phone: «الفريق» has no bottom tab (the bar is full) — it lives one tap away here */}
+            {narrow && (
+              <Button onClick={() => ui.setPanelTab('team')} className="justify-start" data-testid="open-team">
+                <Users size={15} /> {t('tabTeam')} · {t('inviteMember')}
+              </Button>
+            )}
+            <SettingsPanel />
+          </>
+        )}
       </div>
     </>
   )
@@ -65,10 +78,7 @@ function Kpi({ n, label, tone }: { n: string | number; label: string; tone: 'gre
 
 function Master() {
   const { t, lang } = useStr()
-  const [openUser, setOpenUser] = useState<string | null>(null)
   const [openClient, setOpenClient] = useState<string | null>(null)
-  const [inviting, setInviting] = useState(false)
-  const [inviteGen, setInviteGen] = useState(0)
   const s = useData()
   const ui = useUi()
   const createClient = useSession((x) => x.createClient)
@@ -76,8 +86,6 @@ function Master() {
   const open = s.tasks.filter((x) => !isDone(s, x))
   const delivered = s.tasks.length ? Math.round(((s.tasks.length - open.length) / s.tasks.length) * 100) : 0
   const overdue = s.tasks.filter((x) => urgency(s, x) === 'late').length
-  const wl = workload(s)
-  const max = Math.max(1, ...wl.map((w) => w.open))
 
   return (
     <>
@@ -189,6 +197,22 @@ function Master() {
         </Button>
       </form>
 
+    </>
+  )
+}
+
+/** «الفريق» (2 Nov, his pick ٥ — admin only): the team's load + «ادعُ عضواً» + pending invites, out of «العملاء». */
+function Team() {
+  const { t, lang } = useStr()
+  const s = useData()
+  const ui = useUi()
+  const [openUser, setOpenUser] = useState<string | null>(null)
+  const [inviting, setInviting] = useState(false)
+  const [inviteGen, setInviteGen] = useState(0)
+  const wl = workload(s)
+  const max = Math.max(1, ...wl.map((w) => w.open))
+  return (
+    <>
       <div className="flex items-center justify-between gap-2">
         <SectionTitle>{t('teamWorkload')}</SectionTitle>
         <Button size="sm" onClick={() => setInviting(true)} className="-my-1">

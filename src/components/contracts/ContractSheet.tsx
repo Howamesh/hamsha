@@ -118,7 +118,7 @@ export function ContractSheet() {
         <div className="min-w-0 flex-1">
           <div className="text-[16px] font-semibold truncate" dir="auto">{contract.title}</div>
           <div className="text-[11px] text-fg-secondary truncate">
-            {client?.name ?? creative?.name} · <span dir="ltr">{contract.kind === 'offer' ? `عرض #${contract.number}` : contract.kind === 'employment' ? `عقد عمل #${contract.number}` : `مسودة #${contract.number}`}</span>
+            {client?.name ?? creative?.name} · <span dir="ltr">{contract.kind === 'offer' ? `عرض #${contract.number}` : contract.kind === 'employment' ? `عقد عمل #${contract.number}` : `عقد #${contract.number}`}</span>
             {total > 0 && view ? ` · ${fmtAmount(total)} ${currencyShort(view.content.pricing.currency)}` : ''}
           </div>
         </div>
