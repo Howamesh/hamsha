@@ -27,6 +27,8 @@ const CHECKS = {};
 const login = async (who) => { await click(who); await waitFor(`!!document.querySelector('[data-testid=side-rail]')`, 30000); await sleep(400); };
 const logout = async () => { await click('تسجيل الخروج'); await sleep(800); };
 const openMessages = async () => { await ev(`document.querySelector('[data-testid=rail-messages]').click()`); await sleep(400); };
+// quiet private chats are folded under «+ محادثة جديدة» (full test 2 Nov) — unfold to reach them
+const unfold = async () => { if (await ev(`(document.querySelector('[data-testid=inbox-more]')?.innerText||'').includes('محادثة جديدة')`)) { await ev(`document.querySelector('[data-testid=inbox-more]').click()`); await sleep(300); } };
 const row = (needle) => `[...document.querySelectorAll('[data-testid=inbox-row]')].find(r=>r.innerText.includes(${JSON.stringify(needle)}))`;
 const sendText = async (txt) => { await setInput(`document.querySelector('[data-testid=chat-open] input')`, txt); await ev(`document.querySelector('[data-testid=chat-open] form').requestSubmit()`); await sleep(500); };
 
@@ -35,13 +37,15 @@ await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.tr
 
 // 1) a creative writes privately to the admin
 await login('ادخل كمبدع'); await openMessages();
+CHECKS['quiet private chats are folded (no wall of empty rows)'] = !(await ev(`!!${row('Youssef Aly')}`)) && await ev(`(document.querySelector('[data-testid=inbox-more]')?.innerText||'').includes('محادثة جديدة')`);
+await unfold();
 CHECKS['creative inbox: team group + the admin + other creatives'] = await ev(`!!${row('فريق هوامش')} && !!${row('Ibrahim AlQifari')} && !!${row('Youssef Aly')}`);
 CHECKS['creative sees no client chat without permission'] = !(await ev(`[...document.querySelectorAll('[data-testid=inbox-row]')].some(r=>r.dataset.channel.startsWith('client:'))`));
 await ev(`${row('Ibrahim AlQifari')}.click()`); await waitFor(`!!document.querySelector('[data-testid=chat-open]')`);
 await sendText('خلصت تصميم بوست سنا');
 CHECKS['the message shows in the private chat'] = (await ev(`document.querySelector('[data-testid=chat-list]').innerText`)).includes('خلصت تصميم بوست سنا');
 await setInput(`document.querySelector('[data-testid=chat-open] input')`, 'مسودة لم تُرسل');
-await ev(`document.querySelector('[data-testid=chat-back]').click()`); await sleep(300);
+await ev(`document.querySelector('[data-testid=chat-back]').click()`); await sleep(300); await unfold();
 await ev(`${row('Youssef Aly')}.click()`); await sleep(300);
 CHECKS['a draft never jumps into another chat'] = (await ev(`document.querySelector('[data-testid=chat-open] input').value`)) === '';
 await ev(`document.querySelector('[data-testid=chat-back]').click()`); await sleep(300);

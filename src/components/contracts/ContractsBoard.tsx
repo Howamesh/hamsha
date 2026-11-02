@@ -40,9 +40,10 @@ export function ContractsBoard() {
   ].filter(Boolean) as string[]
   const action = contractsNeedingAction(contracts, me.role)
   // one place per contract (2 Nov, his pick ٥): «قيد الإعداد» → «السارية» → «المنتهية» — never in two tabs
+  const paperDate = Object.fromEntries(contracts.map((c) => [c.id, s.contractVersions.find((x) => x.contractId === c.id && x.number === c.currentVersion)?.content.date ?? '']))
   const placed = contracts.map((c) => {
     const v = s.contractVersions.find((x) => x.contractId === c.id && x.number === c.currentVersion)
-    return { c, place: contractPlace(c, v?.content, contracts) }
+    return { c, place: contractPlace(c, v?.content, contracts, undefined, paperDate) }
   }).sort((a, b) => b.c.updatedAt.localeCompare(a.c.updatedAt))
   const count = (st: ContractStage) => placed.filter((x) => x.place.stage === st).length
   const inTab = placed.filter((x) => x.place.stage === filter)
@@ -80,7 +81,7 @@ export function ContractsBoard() {
           never a block: Yousef's rule «نبّهني ووديني له») */}
       {admin && legalMissing.length > 0 && (
         <button type="button" onClick={() => ui.setPanelTab('settings')} className="mx-4 mt-3 rounded-md border border-warning-dark/40 bg-warning-tint/50 px-3 py-2.5 text-start text-[12.5px] text-warning-dark font-semibold cursor-pointer hover:bg-warning-tint" data-testid="legal-missing">
-          {t('legalMissingBanner', { list: legalMissing.join('، ') })}
+          {t('legalMissingBanner', { list: legalMissing.join(lang === 'ar' ? '، ' : ', ') })}
         </button>
       )}
       {/* the red number in words — what is waiting on YOU (2 Nov, his «ما أعرف ايش سببها») */}

@@ -30,7 +30,7 @@ interface ClientTaskRow { id: string; client_id: string; project_id: string; tit
 interface PartRow { id: string; task_id: string; label: string; assignee_id: string | null; hours: number; day: string; hand_off: string | null; done: boolean; position: number }
 interface ClientPartRow { id: string; task_id: string; label: string; done: boolean; position: number }
 interface MessageRow { id: string; channel: string; sender_id: string | null; body: string; created_at: string }
-interface InboxRpcRow { channel: string; last_body: string; last_sender: string | null; last_at: string; unread: number }
+interface InboxRpcRow { channel: string; last_body: string | null; last_sender: string | null; last_at: string | null; unread: number; title?: string | null; color?: string | null }
 interface PeopleRow { id: string; name: string; color: string }
 interface PostRow { id: string; client_id: string; task_id: string | null; account_id: string | null; title: string; platform: Post['platform']; format: Post['format']; status: Post['status']; current_version: number; sent_at: string | null; published_url: string | null; published_at: string | null; created_by?: string | null; sent_by?: string | null; published_by?: string | null; created_at: string; updated_at: string }
 interface ContractRow { id: string; number: number; kind: Contract['kind']; party?: Contract['party']; client_id: string | null; creative_id?: string | null; title: string; accent: string; status: Contract['status']; current_version: number; sent_at: string | null; decided_at: string | null; created_by?: string | null; created_at: string; updated_at: string }
@@ -166,6 +166,15 @@ export function createSupabaseRepo(): Repo {
     return me
   }
 
+  /** A reload brings the newest messages of ALL chats; older pages fetched for one chat stay — but only for chats the
+   *  server still lists for this person (a chat taken away disappears with its history). */
+  function keepOlder(fresh: Message[], allowed: string[] | null): Message[] {
+    if (!snap || !allowed) return fresh
+    const ok = new Set(allowed); const have = new Set(fresh.map((m) => m.id))
+    const extra = snap.messages.filter((m) => !have.has(m.id) && ok.has(m.channel))
+    return extra.length ? [...extra, ...fresh].sort((a, b) => a.at.localeCompare(b.at)) : fresh
+  }
+
   async function load(): Promise<Snapshot> {
     if (!me) await currentUser()
     if (!me) return EMPTY // no session: nothing to ask the database (anon has no grants anyway)
@@ -212,7 +221,7 @@ export function createSupabaseRepo(): Repo {
       projects: (projects.data ?? []).map(toProject),
       tasks: (tasks.data ?? []).map(toTask),
       parts: (parts.data ?? []).map(toPart),
-      messages: (messages.data ?? []).map(toMessage).reverse(),
+      messages: keepOlder((messages.data ?? []).map(toMessage).reverse(), has0016 ? ((inbox.data ?? []) as InboxRpcRow[]).map((r) => r.channel) : null),
       posts: (posts.data ?? []).map(toPost),
       postVersions: (versions.data ?? []).map(toVersion),
       clientAccounts: (accounts.data ?? []).map(toAccount),
@@ -223,7 +232,7 @@ export function createSupabaseRepo(): Repo {
       presence,
       profiles,
       chatMembers: (members.data ?? []).map((m) => ({ clientId: m.client_id, userId: m.user_id })),
-      inbox: !has0016 ? undefined : ((inbox.data ?? []) as InboxRpcRow[]).map((r) => ({ channel: r.channel as ChannelId, lastBody: r.last_body, lastSender: r.last_sender, lastAt: r.last_at, unread: r.unread })),
+      inbox: !has0016 ? undefined : ((inbox.data ?? []) as InboxRpcRow[]).map((r) => ({ channel: r.channel as ChannelId, lastBody: r.last_body ?? '', lastSender: r.last_sender, lastAt: r.last_at ?? '', unread: r.unread, title: r.title, color: r.color })),
       people: Object.fromEntries(((people.data ?? []) as PeopleRow[]).map((p) => [p.id, { name: p.name, color: p.color }])),
     }
   }
@@ -431,11 +440,13 @@ export function createSupabaseRepo(): Repo {
       return commit(m, (s) => ({ ...s, messages: upsert(s.messages, m) }))
     },
     async fetchChannel(channel, before) {
+      const g = gen   // full test 2 Nov: a late answer must never land in the NEXT person's memory
       let q = sb.from('messages').select('*').eq('channel', channel).order('created_at', { ascending: false }).limit(200)
       if (before) q = q.lt('created_at', before)
       const { data, error } = await q.returns<MessageRow[]>()
       fail(error, 'fetchChannel')
       const got = (data ?? []).map(toMessage).reverse()
+      if (g !== gen) return []
       if (snap && got.length) publish({ ...snap, messages: [...snap.messages.filter((m) => !got.some((g) => g.id === m.id)), ...got].sort((a, b) => a.at.localeCompare(b.at)) })
       return got
     },

@@ -91,6 +91,9 @@ export interface InboxRow {
   lastSender: string | null
   lastAt: string
   unread: number
+  /** the server's name/colour for this chat (a granted client the creative may not read, a deleted member) */
+  title?: string | null
+  color?: string | null
 }
 /** The admin let this creative into this client's chat (0016 client_chat_members). */
 export interface ChatMember {

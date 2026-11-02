@@ -7,7 +7,7 @@ import { Avatar } from './ui'
 import type { ChannelId } from '@/types'
 import { chatDraft, senderOf, setChatDraft } from '@/lib/inbox'
 
-export function Chat({ channel, className }: { channel: ChannelId; className?: string }) {
+export function Chat({ channel, className, readOnly }: { channel: ChannelId; className?: string; /** a deleted member's private chat: history only */ readOnly?: boolean }) {
   const { t, lang } = useStr()
   const s = useData()
   const me = useUser()
@@ -23,17 +23,23 @@ export function Chat({ channel, className }: { channel: ChannelId; className?: s
   const fetchChannel = useSession((x) => x.fetchChannel)
   // this chat's own newest page from the server (the start-up load is the newest messages of ALL chats)
   useEffect(() => { void fetchChannel(channel).catch(() => undefined) }, [channel, fetchChannel])
+  // follow the conversation only when a NEW message arrives at the bottom (loading older ones keeps your place)
+  const newestId = list.at(-1)?.id
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' })
-  }, [list.length])
-  // «read» = the newest message from someone else was on screen while the page was visible (server keeps the time)
+  }, [newestId])
+  // «read» = the newest message from someone else was really ON SCREEN (the chat's end visible, page visible) —
+  // full test 2 Nov: a chat lower on the page used to count as read without being seen
   const newestOther = [...list].reverse().find((m) => m.senderId !== me?.id)?.id
   useEffect(() => {
-    if (!newestOther) return
-    const mark = () => { if (document.visibilityState === 'visible') void markRead(newestOther) }
-    mark()
+    const el = endRef.current
+    if (!newestOther || !el) return
+    let seen = false
+    const mark = () => { if (seen && document.visibilityState === 'visible') void markRead(newestOther) }
+    const io = new IntersectionObserver((es) => { seen = es.some((x) => x.isIntersecting); mark() })
+    io.observe(el)
     document.addEventListener('visibilitychange', mark)
-    return () => document.removeEventListener('visibilitychange', mark)
+    return () => { io.disconnect(); document.removeEventListener('visibilitychange', mark) }
   }, [newestOther, markRead])
   const [older, setOlder] = useState(false)
 
@@ -84,6 +90,9 @@ export function Chat({ channel, className }: { channel: ChannelId; className?: s
         })}
         <div ref={endRef} />
       </div>
+      {readOnly ? (
+        <div className="p-3 border-t border-border text-[12px] text-fg-muted text-center" data-testid="chat-readonly">{t('chatReadOnly')}</div>
+      ) : (
       <form onSubmit={submit} className="flex items-center gap-2 p-2 border-t border-border">
         <input
           value={draft}
@@ -101,6 +110,7 @@ export function Chat({ channel, className }: { channel: ChannelId; className?: s
           <ArrowUp size={16} />
         </button>
       </form>
+      )}
     </div>
   )
 }

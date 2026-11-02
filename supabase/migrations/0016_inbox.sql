@@ -10,6 +10,10 @@
 --      computed by the server, so the list and the numbers never depend on what this device happened to load.
 --   5. chat_people(channel): names + colours of a chat's senders (a client may not read the team's profiles).
 --   6. Deleting: only your own message, or the admin in a NON-private chat. Deleting a member keeps the history.
+--   7. (full test 2 Nov, Codex + Gemini) explicit grants; a client id in any letter case; a private chat whose other
+--      member was deleted stays READABLE for the one left (sending is closed); inbox_summary also returns each chat's
+--      title + colour and lists a client chat the creative was let into even before its first message (a creative may
+--      not read that client's row in «clients»).
 -- Safe to re-run. Runs after 0015.
 -- =====================================================================================================
 
@@ -24,6 +28,7 @@ create table if not exists client_chat_members (
   unique (client_id, user_id)
 );
 alter table client_chat_members enable row level security;
+grant select, insert, update, delete on client_chat_members to authenticated;   -- RLS decides who (Codex: no reliance on default grants)
 
 create or replace function client_chat_members_guard() returns trigger
 language plpgsql security definer set search_path = public as $$
@@ -53,8 +58,8 @@ begin
   if ch = 'team' then return r in ('admin', 'creative'); end if;
   if ch ~ '^client:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
     return r = 'admin'
-        or (r = 'client' and current_client()::text = substring(ch from 8))
-        or (r = 'creative' and exists (select 1 from client_chat_members m where m.client_id = substring(ch from 8)::uuid and m.user_id = auth.uid() and m.org_id = current_org()));
+        or (r = 'client' and current_client()::text = lower(substring(ch from 8)))
+        or (r = 'creative' and exists (select 1 from client_chat_members m where m.client_id = lower(substring(ch from 8))::uuid and m.user_id = auth.uid() and m.org_id = current_org()));
   end if;
   if ch ~ '^task:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
     return r in ('admin', 'creative') and can_read_task(substring(ch from 6)::uuid);
@@ -63,12 +68,27 @@ begin
   if ch ~ '^dm:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     a := substring(ch from 4 for 36)::uuid; b := substring(ch from 41 for 36)::uuid;
     if a::text >= b::text or r not in ('admin', 'creative') or auth.uid() not in (a, b) then return false; end if;
-    return (select count(*) from profiles p where p.id in (a, b) and p.org_id = current_org() and p.role in ('admin', 'creative')) = 2;
+    -- the other one is team of this organization — or was deleted (the one left keeps reading the history; dm_open() closes sending)
+    return not exists (select 1 from profiles p where p.id = (case when a = auth.uid() then b else a end)
+                       and not (p.org_id = current_org() and p.role in ('admin', 'creative')))
+       and exists (select 1 from messages m where m.channel = ch and m.org_id = current_org()
+                   union all select 1 from profiles p where p.id = (case when a = auth.uid() then b else a end));
   end if;
   return false;
 end $$;
 revoke execute on function can_access_channel(text) from public, anon;
 grant  execute on function can_access_channel(text) to authenticated;
+
+-- a private chat accepts NEW messages only while both members exist (a deleted member's chat is read-only)
+create or replace function dm_open(ch text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select ch not like 'dm:%' or (select count(*) from profiles p where p.id in (substring(ch from 4 for 36)::uuid, substring(ch from 41 for 36)::uuid)) = 2
+$$;
+revoke execute on function dm_open(text) from public, anon;
+grant  execute on function dm_open(text) to authenticated;
+drop policy if exists messages_insert on messages;
+create policy messages_insert on messages for insert
+  with check (org_id = current_org() and sender_id = auth.uid() and can_access_channel(channel) and dm_open(channel));
 
 -- ---------- 6. deleting + history that outlives a deleted member ----------
 drop policy if exists messages_delete on messages;
@@ -89,6 +109,7 @@ create table if not exists chat_reads (
   primary key (user_id, channel)
 );
 alter table chat_reads enable row level security;
+grant select on chat_reads to authenticated;   -- written only by mark_channel_read()
 drop policy if exists chat_reads_own on chat_reads;
 create policy chat_reads_own on chat_reads for select using (user_id = auth.uid());
 
@@ -106,21 +127,31 @@ revoke execute on function mark_channel_read(uuid) from public, anon;
 grant  execute on function mark_channel_read(uuid) to authenticated;
 
 -- ---------- 4. the inbox, computed by the server ----------
+-- (full test 2 Nov: the first version checked access for EVERY message — 350 ms on 20,000 messages; this one lists
+--  the chats by skipping through an index and checks access once per CHAT — 15 ms on the same data)
+create index if not exists messages_org_channel on messages (org_id, channel);
+drop function if exists inbox_summary();   -- the row shape grew (title, colour)
 create or replace function inbox_summary()
-returns table (channel text, last_body text, last_sender uuid, last_at timestamptz, unread int)
+returns table (channel text, last_body text, last_sender uuid, last_at timestamptz, unread int, title text, color text)
 language sql stable security definer set search_path = public as $$
-  with mine as (
-    select distinct m.channel from messages m where m.org_id = current_org() and can_access_channel(m.channel) and m.channel not like 'task:%'
-  ), last as (
-    select distinct on (m.channel) m.channel, m.body, m.sender_id, m.created_at
-    from messages m join mine using (channel) where m.org_id = current_org()
-    order by m.channel, m.created_at desc, m.id desc
+  with recursive chans(ch) as (
+    (select m.channel from messages m where m.org_id = current_org() order by m.channel limit 1)
+    union all
+    select (select m.channel from messages m where m.org_id = current_org() and m.channel > c.ch order by m.channel limit 1) from chans c where c.ch is not null
+  ), mine as (
+    select ch from chans where ch is not null and ch not like 'task:%' and can_access_channel(ch)
+    union   -- a client chat the creative was let into, before anyone wrote in it
+    select 'client:' || g.client_id::text from client_chat_members g where g.user_id = auth.uid() and g.org_id = current_org()
   )
-  select l.channel, left(l.body, 140), l.sender_id, l.created_at,
-         (select count(*)::int from messages x where x.org_id = current_org() and x.channel = l.channel
+  select c.ch, left(l.body, 140), l.sender_id, l.created_at,
+         (select count(*)::int from messages x where x.org_id = current_org() and x.channel = c.ch
             and x.sender_id is distinct from auth.uid()
-            and x.created_at > coalesce((select r.read_at from chat_reads r where r.user_id = auth.uid() and r.channel = l.channel), '-infinity'))
-  from last l
+            and x.created_at > coalesce((select r.read_at from chat_reads r where r.user_id = auth.uid() and r.channel = c.ch), '-infinity')),
+         case when c.ch like 'client:%' then (select k.name from clients k where k.id::text = substring(c.ch from 8))
+              when c.ch like 'dm:%' then (select p.name from profiles p where p.id::text = case when substring(c.ch from 4 for 36) = auth.uid()::text then substring(c.ch from 41 for 36) else substring(c.ch from 4 for 36) end) end,
+         case when c.ch like 'client:%' then (select k.color from clients k where k.id::text = substring(c.ch from 8)) end
+  from mine c
+  left join lateral (select m.body, m.sender_id, m.created_at from messages m where m.org_id = current_org() and m.channel = c.ch order by m.created_at desc, m.id desc limit 1) l on true
 $$;
 revoke execute on function inbox_summary() from public, anon;
 grant  execute on function inbox_summary() to authenticated;

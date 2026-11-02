@@ -1,14 +1,14 @@
 # 3f2bb17397167b914831904d1e2523a3158dda32  supabase/tests/00_local_shim.sql
 # 6c258b8ca646eec00684fc3581d151a95cde21c4  supabase/tests/10_seed.sql
 # 93243ace9eb331abcc63c105d0406c48d8ce19b4  supabase/tests/20_harness.sql
-# 593fe0949e80d4611dc6cd7c9fd8bfb5f10d5c09  supabase/tests/rls.sql
+# e3d6c09d20f5cfc3c1dec71e92e16dbb9d76070c  supabase/tests/rls.sql
 # be29f13300c05cd5bab788e28c478de9c52387fd  supabase/tests/run-ci.sh
 # 9cc4dea2c523159b3999365275536fd937accebf  supabase/tests/run-local.sh
 # 76860ee1877a8ba425fa8f6de4fe6adb5f59d578  tests/smoke-client-summary.mjs
-# 3b4c5b450cafc9d05d59bc5ceffb7d558209b45f  tests/smoke-contracts.mjs
+# f2063f1ef4a125ac478fe9b1e4c12c7d9c825051  tests/smoke-contracts.mjs
 # 6b92a0e9d14b3e09f151773154053d8103327eb2  tests/smoke-drag.mjs
 # 29c8210f77960737b21d999c65d611a78cfb2a23  tests/smoke-hours.mjs
-# 6f06b30ba2edf6e6fdfc372303ea25954b761c90  tests/smoke-inbox.mjs
+# 99c1c7b7ce58113dc808090cd29fcedff8b56aae  tests/smoke-inbox.mjs
 # 1f67b6026231886c6fc63b85c18bf095830d3670  tests/smoke-invite.mjs
 # cf90d523eb030d1469db782f2519a4e8fad8679a  tests/smoke-live-fixes.mjs
 # 8a62000db9cd9cb8f0458a07d5a2221f6f9b90af  tests/smoke-regressions.mjs
@@ -357,3 +357,13 @@ anon reads nothing from profiles
 [inbox] the admin's inbox lists client chats + private chats it is in
 [inbox] a client's inbox is only its own chat
 [inbox] deleting a member keeps the chat history (sender becomes empty, not deleted)
+[full] a PNG header followed by garbage is not a signature
+[full] the admin lets creative 2 into client 1 (no task with that client)
+[full] …the chat is in creative 2's inbox with the client's name (a row creative 2 may not read in clients)
+[full] …creative 2 still cannot read client 1's row itself
+[full] …a client chat channel in capital letters still works for the client
+[full] a private chat row carries the other person's name
+[full] (setup) a third creative who chats with creative 1, then is deleted
+[full] …creative 1 still reads that history
+[full] …but cannot send into it (read-only)
+[full] a private chat with a random id that never existed is refused

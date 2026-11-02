@@ -466,17 +466,23 @@ CHECKS['admin: every contract in exactly ONE tab; the ended one only in «الم
   await tab('المنتهية'); const ended = await ev(`[...document.querySelectorAll('[data-testid=contract-card]')].map(c=>c.dataset.status)`); await tab('قيد الإعداد');
   return ids.length === 4 && ids.filter((x) => x === 'completed').length === 1 && ended.length === 1 && ended[0] === 'completed' })();
 // his rule (2 Nov): term = contract DATE + months; ran out + 14 days without a renewal → «المنتهية»; renewed → «تجدّد»
-CHECKS['term + 14-day renewal rule'] = await ev(`(async()=>{const m=await import('/src/lib/contracts.ts');
+CHECKS['term + 14-day renewal rule (a renewal = same kind, dated around the end; terms in words)'] = await ev(`(async()=>{const m=await import('/src/lib/contracts.ts');
   const content={kind:'full',date:'2025-01-10',pricing:{mode:'monthly',months:12},tracks:[]};
-  const c={id:'a',number:2601,status:'signed',clientId:'k'};
+  const c={id:'a',number:2601,status:'signed',clientId:'k',kind:'full'};
   const at=(d,all=[c])=>m.contractPlace(c,content,all,d);
   const r1=at('2026-01-10'), r2=at('2026-01-15'), r3=at('2026-01-25'), r4=at('2026-01-24');
-  const ren=at('2026-01-12',[c,{id:'b',number:2650,status:'signed',clientId:'k'}]);
+  const nb={id:'b',number:2650,status:'signed',clientId:'k',kind:'full'};
+  const ren=m.contractPlace(c,content,[c,nb],'2026-01-12',{b:'2026-01-05'});
+  const otherProject=m.contractPlace(c,content,[c,{...nb,kind:'offer'}],'2026-01-30',{b:'2026-01-05'});
+  const longBefore=m.contractPlace(c,content,[c,nb],'2026-01-30',{b:'2025-03-01'});
+  const T=(x)=>JSON.stringify(m.parseTerm(x));
+  const terms = T('سنة')==='{"months":12}' && T('سنتين')==='{"months":24}' && T('30 يوم')==='{"days":30}' && T('6 أشهر')==='{"months":6}' && T('١٢ شهر')==='{"months":12}' && T('غير محدد')==='null' && T('حسب المشروع')==='null';
+  window.__terms = terms;
   const none=m.contractPlace(c,{...content,pricing:{mode:'project',months:0}},[c],'2030-01-01');
   const emp=m.contractTermMonths({kind:'employment',term:'6 أشهر',pricing:{}});
   return m.contractEndDate(content)==='2026-01-10' && r1.stage==='active' && r1.graceLeft===undefined && r2.stage==='active' && r2.graceLeft===9
     && r4.stage==='active' && r4.graceLeft===0 && r3.stage==='ended' && r3.reason==='expired' && ren.stage==='ended' && ren.reason==='renewed'
-    && none.stage==='active' && emp===6})()`);
+    && none.stage==='active' && emp===6 && terms && otherProject.reason==='expired' && longBefore.reason==='expired'})()`);
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=social-board]')`);
 await click('الشبكة'); await sleep(300);
 CHECKS['social grid tab'] = (await text('[data-testid=social-board]')).includes('ما فيه شيء معتمد أو منشور بعد');

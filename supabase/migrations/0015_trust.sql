@@ -22,7 +22,8 @@ declare b bytea;
 begin
   if t is null or t not like 'data:image/png;base64,%' or length(t) > 400000 then return false; end if;
   b := decode(substr(t, 23), 'base64');
-  return length(b) > 8 and substr(b, 1, 8) = '\x89504e470d0a1a0a'::bytea;
+  -- starts like a PNG AND ends with the IEND chunk (full test 2 Nov: header + garbage passed before)
+  return length(b) > 20 and substr(b, 1, 8) = '\x89504e470d0a1a0a'::bytea and substr(b, length(b) - 7, 4) = 'IEND'::bytea;
 exception when others then
   return false;   -- not base64 at all
 end $$;

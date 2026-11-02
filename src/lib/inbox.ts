@@ -48,21 +48,32 @@ export interface Conversation {
   title: string
   color: string
   row?: InboxRow
+  /** a private chat whose other member was deleted: history only, no sending (0016 dm_open) */
+  readOnly?: boolean
 }
 
 /** What «الرسائل» lists for this person: newest first, then the quiet ones by name. A client has one chat (no list). */
-export function conversations(s: Snapshot, me: User, teamName: string): Conversation[] {
+export function conversations(s: Snapshot, me: User, teamName: string, deletedName = '—'): Conversation[] {
   const rows = new Map(inboxRows(s, me).map((r) => [r.channel as string, r]))
   const list: Conversation[] = []
   if (team(me)) {
     list.push({ channel: 'team', kind: 'team', title: teamName, color: '#09090B', row: rows.get('team') })
     for (const u of s.users) if (u.id !== me.id && team(u)) { const ch = dmChannel(me.id, u.id); list.push({ channel: ch, kind: 'dm', title: u.name, color: u.color, row: rows.get(ch) }) }
     for (const c of s.clients) { const ch: ChannelId = `client:${c.id}`; if (canAccessChannel(s, me, ch)) list.push({ channel: ch, kind: 'client', title: c.name, color: c.color, row: rows.get(ch) }) }
+    // chats the server lists that this device has no row for: a client the creative was let into without a task
+    // (no access to «clients»), or a private chat with a member who was deleted (read-only history)
+    for (const r of rows.values()) {
+      if (list.some((c) => c.channel === r.channel)) continue
+      if (r.channel.startsWith('client:')) list.push({ channel: r.channel, kind: 'client', title: r.title || '—', color: r.color || '#09090B', row: r })
+      else if (r.channel.startsWith('dm:') && dmOther(r.channel, me.id)) list.push({ channel: r.channel, kind: 'dm', title: r.title || deletedName, color: '#9CA3AF', row: r, readOnly: !r.title || !s.users.some((u) => u.id === dmOther(r.channel, me.id)) })
+    }
   } else if (me.clientId) {
     const c = s.clients.find((x) => x.id === me.clientId)
     list.push({ channel: `client:${me.clientId}`, kind: 'client', title: c?.name ?? '', color: c?.color ?? '#09090B', row: rows.get(`client:${me.clientId}`) })
   }
-  return list.sort((a, b) => (b.row?.lastAt ?? '').localeCompare(a.row?.lastAt ?? '') || a.title.localeCompare(b.title, 'ar'))
+  // chats with messages first (newest on top), then the team group, the clients, then people by name
+  const rank = (c: Conversation) => (c.row?.lastAt ? 0 : c.kind === 'team' ? 1 : c.kind === 'client' ? 2 : 3)
+  return list.sort((a, b) => rank(a) - rank(b) || (b.row?.lastAt ?? '').localeCompare(a.row?.lastAt ?? '') || a.title.localeCompare(b.title, 'ar'))
 }
 
 export const unreadTotal = (s: Snapshot, me: User) => inboxRows(s, me).filter((r) => canAccessChannel(s, me, r.channel)).reduce((n, r) => n + r.unread, 0)

@@ -7,7 +7,7 @@
  */
 import type { Client, Contract, ContractBank, ContractContent, ContractKind, ContractPartyInfo, ContractSection, ContractSigner, ContractVersion, OrgLegal, User } from '@/types'
 import type { Snapshot } from '@/data/repo'
-import { addMonths } from 'date-fns'
+import { addDays, addMonths } from 'date-fns'
 import { fromIso, toIso, todayIso, type IsoDate } from './dates'
 
 export const COPYRIGHT_YEAR = 1448
@@ -513,31 +513,55 @@ export type ContractEndReason = 'completed' | 'rejected' | 'expired' | 'renewed'
 /** his rule: a contract that ran out and was not renewed within two weeks moves to «المنتهية» by itself */
 export const RENEW_GRACE_DAYS = 14
 
-/** The contract's term in months (from the paper), or null when it has none (project / offer / «غير محدد»). */
-export function contractTermMonths(c: ContractContent): number | null {
-  if (c.kind === 'offer') return null
-  if (c.kind === 'short') { const m = Math.max(0, ...c.tracks.map((t) => t.months || 0)); return m > 0 ? m : null }
-  if (c.kind === 'employment') { const m = Number(deepDigits(c.term ?? '').match(/\d+/)?.[0] ?? 0); return m > 0 ? m : null }
-  return c.pricing.mode === 'monthly' && c.pricing.months > 0 ? c.pricing.months : null
+/** An employment term written by hand («12 شهر», «6 أشهر», «سنة», «سنتين», «30 يوم», «2 years») → months or days.
+ *  full test 2 Nov (Codex + Gemini): «سنة» had no end and «30 يوم» became 30 MONTHS. Unknown words = no end. */
+export function parseTerm(raw: string): { months?: number; days?: number } | null {
+  const t = deepDigits(raw || '').trim().toLowerCase()
+  if (!t) return null
+  const n = Number(t.match(/\d+(?:\.\d+)?/)?.[0] ?? NaN)
+  const dual = /(سنتين|سنتان|عامين|عامان)/.test(t) ? 2 : /(شهرين|شهران)/.test(t) ? 2 : /(يومين|يومان)/.test(t) ? 2 : NaN
+  const count = !Number.isNaN(n) ? n : !Number.isNaN(dual) ? dual : 1
+  if (/(سن[ةتو]|سنين|عام|أعوام|اعوام|year)/.test(t)) return { months: Math.round(count * 12) }
+  if (/(شهر|أشهر|اشهر|month)/.test(t)) return { months: Math.round(count) }
+  if (/(أسبوع|اسبوع|أسابيع|اسابيع|week)/.test(t)) return { days: Math.round(count * 7) }
+  if (/(يوم|أيام|ايام|day)/.test(t)) return { days: Math.round(count) }
+  return !Number.isNaN(n) && n > 0 && /^\d+$/.test(t) ? { months: n } : null   // a bare number = months (the editor's default unit)
 }
 const deepDigits = (t: string) => t.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
 
-/** The term ends on the CONTRACT DATE + its months (his pick 2 Nov: the date written on the paper, not the signing day). */
-export function contractEndDate(c: ContractContent): IsoDate | null {
-  const m = contractTermMonths(c)
-  if (!m || !/^\d{4}-\d{2}-\d{2}$/.test(c.date || '')) return null
-  return toIso(addMonths(fromIso(c.date), m))
+/** The contract's term (from the paper), or null when it has none (project / offer / «غير محدد» / «حسب المشروع»). */
+export function contractTerm(c: ContractContent): { months?: number; days?: number } | null {
+  if (c.kind === 'offer') return null
+  if (c.kind === 'short') { const m = Math.max(0, ...c.tracks.map((t) => t.months || 0)); return m > 0 ? { months: m } : null }
+  if (c.kind === 'employment') return parseTerm(c.term ?? '')
+  return c.pricing.mode === 'monthly' && c.pricing.months > 0 ? { months: c.pricing.months } : null
+}
+/** kept for callers that only need months */
+export function contractTermMonths(c: ContractContent): number | null {
+  const t = contractTerm(c)
+  return t?.months ?? (t?.days ? Math.round(t.days / 30) : null)
 }
 
-export function contractPlace(c: Contract, content: ContractContent | undefined, all: Contract[], today: IsoDate = todayIso()): { stage: ContractStage; reason?: ContractEndReason; end?: IsoDate; graceLeft?: number } {
+/** The term ends on the CONTRACT DATE + its term (his pick 2 Nov: the date written on the paper, not the signing day). */
+export function contractEndDate(c: ContractContent): IsoDate | null {
+  const t = contractTerm(c)
+  if (!t || !/^\d{4}-\d{2}-\d{2}$/.test(c.date || '')) return null
+  return toIso(t.months ? addMonths(fromIso(c.date), t.months) : addDays(fromIso(c.date), t.days ?? 0))
+}
+
+export function contractPlace(c: Contract, content: ContractContent | undefined, all: Contract[], today: IsoDate = todayIso(), /** contract id → its paper date (for the renewal window) */ renewalDates?: Record<string, IsoDate>): { stage: ContractStage; reason?: ContractEndReason; end?: IsoDate; graceLeft?: number } {
   if (c.status === 'completed') return { stage: 'ended', reason: 'completed' }
   if (c.status === 'rejected') return { stage: 'ended', reason: 'rejected' }
   if (c.status !== 'signed') return { stage: 'setup' }
   const end = content ? contractEndDate(content) : null
   if (!end || today <= end) return { stage: 'active', end: end ?? undefined }
   // ran out: a later signed contract with the same client / creative = renewed
-  const renewed = all.some((o) => o.id !== c.id && o.number > c.number && (o.status === 'signed' || o.status === 'completed')
-    && ((c.clientId && o.clientId === c.clientId) || (c.creativeId && o.creativeId === c.creativeId)))
+  // full test 2 Nov: «any later contract with the same client» counted a NEW project as a renewal. A renewal = same party,
+  // same kind of contract, signed, and dated around the old one's end (from 60 days before it to the 14-day window after).
+  const lo = toIso(addDays(fromIso(end), -60)), hi = toIso(addDays(fromIso(end), RENEW_GRACE_DAYS))
+  const renewed = all.some((o) => o.id !== c.id && o.number > c.number && (o.status === 'signed' || o.status === 'completed') && o.kind === c.kind
+    && ((c.clientId && o.clientId === c.clientId) || (c.creativeId && o.creativeId === c.creativeId))
+    && !!renewalDates?.[o.id] && renewalDates[o.id] >= lo && renewalDates[o.id] <= hi)
   if (renewed) return { stage: 'ended', reason: 'renewed', end }
   const days = Math.floor((fromIso(today).getTime() - fromIso(end).getTime()) / 86_400_000)
   if (days > RENEW_GRACE_DAYS) return { stage: 'ended', reason: 'expired', end }

@@ -1,8 +1,9 @@
+import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fmtDate, fmtTime, useStr } from '@/lib/useStr'
 import { conversations, senderOf } from '@/lib/inbox'
-import { todayIso } from '@/lib/dates'
+import { toIso, todayIso } from '@/lib/dates'
 import { useData, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
 import { Avatar, Logo } from './ui'
@@ -19,8 +20,9 @@ export function Inbox() {
   const s = useData()
   const me = useUser()!
   const ui = useUi()
-  const list = conversations(s, me, t('inboxTeam'))
+  const list = conversations(s, me, t('inboxTeam'), t('deletedMember'))
   const open = ui.chatChannel ? list.find((c) => c.channel === ui.chatChannel) : undefined
+  const [more, setMore] = useState(false)
   if (open) {
     return (
       <div className="flex-1 min-h-0 flex flex-col gap-2" data-testid="chat-open" data-channel={open.channel}>
@@ -31,16 +33,21 @@ export function Inbox() {
           {open.kind === 'team' ? <Logo size={26} /> : <Avatar name={open.title} color={open.color} size={26} />}
           <div className="text-[15px] font-semibold truncate"><bdi>{open.title}</bdi></div>
         </div>
-        <Chat key={open.channel} channel={open.channel as ChannelId} className="flex-1 min-h-[320px]" />
+        <Chat key={open.channel} channel={open.channel as ChannelId} readOnly={open.readOnly} className="flex-1 min-h-[260px]" />
       </div>
     )
   }
+  // full test 2 Nov: a creative saw 11 empty rows — quiet private chats fold under «محادثة جديدة» until opened
+  const shown = list.filter((c) => c.row || c.kind !== 'dm')
+  const quiet = list.filter((c) => !c.row && c.kind === 'dm')
   return (
     <div className="flex flex-col gap-1" data-testid="inbox">
-      {list.map((c) => {
+      {[...shown, ...(more ? quiet : [])].map((c) => {
         const r = c.row
         const who = r?.lastSender === me.id ? t('inboxYou') : c.kind !== 'dm' ? senderOf(s, r?.lastSender ?? null)?.name : undefined
-        const today = r && r.lastAt.slice(0, 10) === todayIso()
+        // the message's LOCAL day (lastAt is UTC — full test 2 Nov: today's late-evening message showed yesterday's date)
+        const day = r?.lastAt ? toIso(new Date(r.lastAt)) : ''
+        const today = !!r?.lastAt && day === todayIso()
         return (
           <button key={c.channel} type="button" onClick={() => ui.openChat(c.channel)} data-testid="inbox-row" data-channel={c.channel} data-unread={r?.unread ?? 0}
             className={cn('flex items-center gap-2.5 rounded-md px-2 py-2 text-start cursor-pointer hover:bg-muted-bg', !!r?.unread && 'bg-accent/5')}>
@@ -49,16 +56,21 @@ export function Inbox() {
               {/* <bdi>: an English name keeps the row's (Arabic) alignment instead of jumping to the other side */}
               <span className={cn('text-[13.5px] truncate', r?.unread ? 'font-bold' : 'font-semibold')}><bdi>{c.title}</bdi></span>
               <span className={cn('text-[12px] truncate', r?.unread ? 'text-fg font-semibold' : 'text-fg-secondary')}>
-                {r ? <>{who && <><bdi>{who}</bdi>: </>}<bdi>{r.lastBody}</bdi></> : t('inboxEmpty')}
+                {r?.lastAt ? <>{who && <><bdi>{who}</bdi>: </>}<bdi>{r.lastBody}</bdi></> : t('inboxEmpty')}
               </span>
             </span>
             <span className="shrink-0 flex flex-col items-center gap-1">
-              {r && <span className="text-[10.5px] text-fg-muted tabular-nums">{today ? fmtTime(r.lastAt, lang) : fmtDate(r.lastAt.slice(0, 10), lang, { day: 'numeric', month: 'short' })}</span>}
+              {r?.lastAt && <span className="text-[10.5px] text-fg-muted tabular-nums">{today ? fmtTime(r.lastAt, lang) : fmtDate(day, lang, { day: 'numeric', month: 'short' })}</span>}
               {!!r?.unread && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-accent-fg text-[10.5px] font-bold grid place-items-center" data-testid="inbox-unread">{r.unread}</span>}
             </span>
           </button>
         )
       })}
+      {quiet.length > 0 && (
+        <button type="button" onClick={() => setMore((m) => !m)} className="self-start mt-1 text-[12.5px] font-semibold text-fg-secondary hover:text-fg cursor-pointer rounded-full border border-border px-3 py-1" data-testid="inbox-more">
+          {more ? t('inboxLess') : t('inboxMore', { n: quiet.length })}
+        </button>
+      )}
     </div>
   )
 }

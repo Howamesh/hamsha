@@ -20,6 +20,7 @@ export function SignaturePad({ value, onChange, height = 160 }: { value: string 
   const inked = useRef(false)
   const [dirty, setDirty] = useState(false)
   const [uploaded, setUploaded] = useState<string | null>(null)
+  const [uploadErr, setUploadErr] = useState(false)
 
   useEffect(() => {
     const c = ref.current
@@ -86,9 +87,16 @@ export function SignaturePad({ value, onChange, height = 160 }: { value: string 
       const h = Math.round((img.height / img.width) * w)
       c.width = w
       c.height = Math.min(h, 300)
-      c.getContext('2d')!.drawImage(img, 0, 0, w, c.height)
-      const out = c.toDataURL('image/png')
+      const cx = c.getContext('2d')!
+      cx.drawImage(img, 0, 0, w, c.height)
       URL.revokeObjectURL(url)
+      // full test 2 Nov (Codex): a blank / fully transparent picture is not a signature — count visible dark ink
+      const px = cx.getImageData(0, 0, c.width, c.height).data
+      let ink = 0
+      for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 40 && px[i] + px[i + 1] + px[i + 2] < 600) ink++
+      if (ink < 40) { setUploadErr(true); return }
+      setUploadErr(false)
+      const out = c.toDataURL('image/png')
       setUploaded(out)
       setDirty(true)
       onChange(out)
@@ -117,6 +125,7 @@ export function SignaturePad({ value, onChange, height = 160 }: { value: string 
         </label>
         <span className="text-[11px] text-fg-muted ms-auto">{value ? '✓' : ''}</span>
       </div>
+      {uploadErr && <div className="text-[11.5px] text-danger-dark" data-testid="signature-empty">{t('signatureEmpty')}</div>}
     </div>
   )
 }

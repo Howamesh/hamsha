@@ -20,7 +20,7 @@ export function CreativePanel() {
   const tabs: Array<{ id: PanelTab; label: string; icon: React.ReactNode; badge?: number }> = [
     { id: 'main', label: t('tabHome'), icon: <Home size={16} /> },
     { id: 'profile', label: t('tabProfile'), icon: <User size={16} /> },
-    { id: 'messages', label: t('tabInbox'), icon: <MessageCircle size={16} /> },
+    { id: 'messages', label: t('tabMessages'), icon: <MessageCircle size={16} /> },
     { id: 'alerts', label: t('tabAlerts'), icon: <Bell size={16} />, badge: alertCount },
     { id: 'settings', label: t('tabSettings'), icon: <Settings size={16} /> },
   ]

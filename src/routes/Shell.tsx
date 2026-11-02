@@ -54,7 +54,8 @@ function App() {
     const prev = seenUnread.current
     seenUnread.current = Object.fromEntries(rows.map((r) => [r.channel, r.unread]))
     if (!prev) return   // first load: no toast for what was already waiting
-    const viewing = ui.panelOpen && ui.panelTab === 'messages' ? ui.chatChannel : null
+    // a client has ONE chat shown directly (no list) — it is «being viewed» whenever its messages section is open
+    const viewing = ui.panelOpen && ui.panelTab === 'messages' ? (me.role === 'client' && me.clientId ? `client:${me.clientId}` : ui.chatChannel) : null
     const fresh = rows.filter((r) => r.unread > (prev[r.channel] ?? 0) && r.channel !== viewing && r.lastSender && r.lastSender !== me.id)
       .sort((a, b) => b.lastAt.localeCompare(a.lastAt))[0]
     if (!fresh) return
@@ -104,6 +105,7 @@ function App() {
   const [leaving, setLeaving] = useState(false)
   const goHome = () => {
     if (ui.contractEditing && ui.contractId && loadDraft(ui.contractId)) return setLeaving(true)
+    setRailPick('space')   // home is a page: the square goes back to it (full test 2 Nov)
     ui.goHome(!narrow)
   }
   // which rail group was tapped last: the square follows it; a closed panel hands it back to the page
@@ -288,7 +290,7 @@ function App() {
             <div className="text-[13px] text-fg-secondary">{t('leaveEditBody')}</div>
             <div className="flex gap-2 justify-end">
               <Button size="sm" onClick={() => setLeaving(false)} data-testid="leave-stay">{t('leaveEditStay')}</Button>
-              <Button size="sm" variant="primary" onClick={() => { setLeaving(false); ui.goHome(!narrow) }} data-testid="leave-go">{t('leaveEditGo')}</Button>
+              <Button size="sm" variant="primary" onClick={() => { setLeaving(false); setRailPick('space'); ui.goHome(!narrow) }} data-testid="leave-go">{t('leaveEditGo')}</Button>
             </div>
           </div>
         </div>
