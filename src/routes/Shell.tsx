@@ -89,6 +89,9 @@ function App() {
     if (ui.contractEditing && ui.contractId && loadDraft(ui.contractId)) return setLeaving(true)
     ui.goHome(!narrow)
   }
+  // which rail group was tapped last: the square follows it; a closed panel hands it back to the page
+  const [railPick, setRailPick] = useState<'space' | 'panel'>('space')
+  const panelPicked = railPick === 'panel' && ui.panelOpen
   const [newTask, setNewTask] = useState<NewTaskSeed | null>(null)
   const onCreate = isAdmin && s.clients.length > 0 ? (seed: NewTaskSeed) => setNewTask(seed) : undefined
 
@@ -150,7 +153,7 @@ function App() {
         {!narrow && (
           <nav className="w-[var(--rail-w)] shrink-0 rounded-md border border-border bg-card flex flex-col items-stretch gap-1 p-1.5 overflow-y-auto no-scrollbar" data-testid="side-rail" aria-label={t('sections')}>
             {spaces.map((r) => (
-              <RailButton key={r.id} icon={r.icon} label={r.label} badge={r.badge} active={ui.workspace === r.id} onClick={() => { ui.setWorkspace(r.id); if (r.id === 'contracts') ui.setContractsFilter(r.badge ? 'action' : 'all') }} testId={`rail-${r.id}`} badgeTestId={`${r.id}-badge`} />
+              <RailButton key={r.id} icon={r.icon} label={r.label} badge={r.badge} active={ui.workspace === r.id && !panelPicked} onClick={() => { setRailPick('space'); ui.setWorkspace(r.id); if (r.id === 'contracts') ui.setContractsFilter(r.badge ? 'action' : 'all') }} testId={`rail-${r.id}`} badgeTestId={`${r.id}-badge`} />
             ))}
             <div className="h-px bg-border mx-1.5 my-1 shrink-0" />
             {railTabs.map((r) => (
@@ -159,9 +162,9 @@ function App() {
                 icon={r.icon}
                 label={r.label}
                 badge={r.badge}
-                active={ui.panelOpen && ui.panelTab === r.id}
+                active={panelPicked && ui.panelTab === r.id}
                 // the open section tapped again folds the panel away
-                onClick={() => (ui.panelOpen && ui.panelTab === r.id ? ui.togglePanel(false) : ui.setPanelTab(r.id))}
+                onClick={() => { if (panelPicked && ui.panelTab === r.id) { ui.togglePanel(false); setRailPick('space') } else { ui.setPanelTab(r.id); setRailPick('panel') } }}   // folds only when it already holds the square
                 testId={`rail-${r.id}`}
                 toggle
               />
@@ -294,8 +297,8 @@ function RailButton({ icon, label, badge, active, onClick, testId, badgeTestId, 
       data-testid={testId}
       className={cn(
         'relative shrink-0 flex flex-col items-center justify-center gap-1 rounded-md py-2 px-0.5 cursor-pointer transition-colors',
-        // 2 Nov (his pick ٢): only the PAGE you are on is a pressed square; an open panel section shows nothing
-        active && !toggle ? 'bg-muted-bg text-fg' : 'text-fg-secondary hover:bg-muted-bg/60 hover:text-fg',
+        // 2 Nov (his rule «خلي المربع فقط على اللي اضغط عليه»): ONE pressed square — on the last thing tapped
+        active ? 'bg-muted-bg text-fg' : 'text-fg-secondary hover:bg-muted-bg/60 hover:text-fg',
       )}
     >
       {icon}

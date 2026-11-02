@@ -287,6 +287,15 @@ await clickSel('[data-testid=home-logo]'); await sleep(300);
 CHECKS['logo → home (calendar, contracts closed)'] = await ev(`!!document.querySelector('[data-testid=cal-toolbar]') && !document.querySelector('[data-testid=contracts-board]')`);
 await clickSel('[data-testid=rail-contracts]'); await waitFor(`!!document.querySelector('[data-testid=contract-card]')`);
 CHECKS['rail number opens «يحتاج تصرّف»'] = await ev(`[...document.querySelectorAll('[data-testid=contracts-board] button')].some(b=>b.textContent.trim()==='يحتاج تصرّف' && b.className.includes('bg-card'))`);
+// 2 Nov (his rule «خلي المربع فقط على اللي اضغط عليه»): exactly ONE pressed square — the last thing tapped
+const pressed = () => ev(`[...document.querySelectorAll('[data-testid=side-rail] button')].filter(b=>b.className.includes('bg-muted-bg text-fg')).map(b=>b.dataset.testid).join(',')`);
+await clickSel('[data-testid=rail-messages]'); await sleep(300);
+CHECKS['rail: a panel section tapped → only it is pressed'] = (await pressed()) === 'rail-messages';
+await clickSel('[data-testid=rail-contracts]'); await sleep(300);
+CHECKS['rail: the page tapped again → only the page is pressed'] = (await pressed()) === 'rail-contracts';
+await clickSel('[data-testid=rail-messages]'); await sleep(200); await clickSel('[data-testid=rail-messages]'); await sleep(300);
+CHECKS['rail: closing the panel hands the square back to the page'] = (await pressed()) === 'rail-contracts';
+await clickSel('[data-testid=rail-main]'); await sleep(300);   // leave the panel open on «العملاء» for the next steps
 await ev(`document.querySelector('[data-testid=contract-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=contract-sheet]')`);
 CHECKS['admin reads the client note in the banner'] = (await text('[data-testid=contract-decision-note]')).includes('قللوا المدة إلى 6 أشهر');
 await clickSel('[data-testid=edit-contract]'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`);
