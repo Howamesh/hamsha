@@ -65,6 +65,7 @@ export const STR = {
   panelClient: { en: 'Project dashboard', ar: 'لوحة المشروع' },
   hidePanel: { en: 'Hide panel', ar: 'إخفاء اللوحة' },
   showPanel: { en: 'Show panel', ar: 'إظهار اللوحة' },
+  sections: { en: 'Sections', ar: 'الأقسام' },
   tabClients: { en: 'Clients', ar: 'العملاء' },
   tabSetup: { en: 'Setup', ar: 'الإعداد' },
   tabMessages: { en: 'Messages', ar: 'الرسائل' },

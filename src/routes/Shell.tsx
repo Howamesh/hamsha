@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Bell, Calendar, ChevronLeft, ChevronRight, Home, LogOut, MessageCircle, PanelRightOpen, PieChart, Settings, Share2, User, FileSignature } from 'lucide-react'
+import { Bell, Calendar, ChevronLeft, ChevronRight, Home, LogOut, MessageCircle, PieChart, Settings, Share2, User, FileSignature } from 'lucide-react'
 import { addDays, addMonths, addWeeks } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { fromIso, toIso, todayIso, weekDays } from '@/lib/dates'
@@ -8,7 +8,7 @@ import { hijriRange } from '@/lib/hijri'
 import { visibleTasks } from '@/lib/derive'
 import { useNarrow, useStr } from '@/lib/useStr'
 import { useData, useSession, useUser } from '@/store/session'
-import { useUi, type PanelTab } from '@/store/ui'
+import { useUi, type PanelTab, type Workspace } from '@/store/ui'
 import { IS_DEMO } from '@/data'
 import { Avatar, Button, Badge, Logo, Segmented } from '@/components/ui'
 import { MonthView } from '@/components/calendar/MonthView'
@@ -91,6 +91,12 @@ function App() {
     ? [{ id: 'main', icon: <Home size={18} />, label: t('tabHome') }, { id: 'profile', icon: <User size={18} />, label: t('tabProfile') }, { id: 'messages', icon: <MessageCircle size={18} />, label: t('tabMessages') }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount, label: t('tabAlerts') }, { id: 'settings', icon: <Settings size={18} />, label: t('tabSettings') }]
     : [{ id: 'main', icon: <PieChart size={18} />, label: isAdmin ? (client ? t('tabSetup') : t('tabClients')) : t('tabProgress') }, { id: 'messages', icon: <MessageCircle size={18} />, label: t('tabMessages') }, { id: 'alerts', icon: <Bell size={18} />, badge: alertCount, label: t('tabAlerts') }, { id: 'settings', icon: <Settings size={18} />, label: t('tabSettings') }]
 
+  const spaces: Array<{ id: Workspace; icon: React.ReactNode; badge?: number; label: string }> = [
+    { id: 'calendar', icon: <Calendar size={18} />, label: t('calendar') },
+    { id: 'social', icon: <Share2 size={18} />, badge: socialBadge, label: t('social') },
+    { id: 'contracts', icon: <FileSignature size={18} />, badge: contractsBadge, label: t('contracts') },
+  ]
+
   return (
     <div className="h-dvh flex flex-col gap-[var(--gap)] p-[var(--gap)] bg-bg overflow-hidden">
       {/* Top bar */}
@@ -114,48 +120,6 @@ function App() {
           <Badge className="hidden sm:inline">{badge}</Badge>
         </div>
         <div className="flex-1" />
-        <div className="relative">
-          <Segmented
-            size="sm"
-            value={ui.workspace}
-            options={[
-              { value: 'calendar', label: t('calendar') },
-              { value: 'social', label: t('social') },
-              { value: 'contracts', label: t('contracts') },
-            ]}
-            onChange={ui.setWorkspace}
-          />
-          {!!socialBadge && !social && <span className="absolute -top-1.5 end-[30%] min-w-[16px] h-4 px-1 rounded-full bg-accent text-accent-fg text-[10px] font-bold grid place-items-center pointer-events-none" data-testid="social-badge">{socialBadge}</span>}
-          {!!contractsBadge && !contracts && <span className="absolute -top-1.5 -end-1.5 min-w-[16px] h-4 px-1 rounded-full bg-accent text-accent-fg text-[10px] font-bold grid place-items-center pointer-events-none" data-testid="contracts-badge">{contractsBadge}</span>}
-        </div>
-        {!social && !contracts && (
-        <div className="flex items-center gap-1.5">
-          <Button size="icon" className="h-8 w-8" onClick={() => shift(-1)} aria-label={t('prev')}>
-            {lang === 'ar' ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-          </Button>
-          <div className="min-w-[120px] text-center">
-            <div className="text-[14.5px] font-semibold leading-tight">{gLabel}</div>
-            <div className="text-[10px] font-semibold text-fg-secondary leading-tight">{hLabel}</div>
-          </div>
-          <Button size="icon" className="h-8 w-8" onClick={() => shift(1)} aria-label={t('next')}>
-            {lang === 'ar' ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
-          </Button>
-          <Button size="sm" onClick={() => ui.setFocus(todayIso())}>
-            {t('today')}
-          </Button>
-        </div>
-        )}
-        {!social && (
-        <Segmented
-          value={ui.view}
-          options={[
-            { value: 'month', label: t('month') },
-            { value: 'week', label: t('week') },
-            { value: 'day', label: t('day') },
-          ]}
-          onChange={ui.setView}
-        />
-        )}
         {isCreative && (
           <Segmented
             size="sm"
@@ -167,11 +131,6 @@ function App() {
             onChange={(v) => void sess.setPresence(v)}
           />
         )}
-        {!narrow && (
-          <Button size="sm" onClick={() => ui.togglePanel()} className="hidden lg:inline-flex">
-            <PanelRightOpen size={14} /> {ui.panelOpen ? t('hidePanel') : t('showPanel')}
-          </Button>
-        )}
         <Button size="sm" onClick={() => void sess.signOut()} className="hover:text-accent hover:border-accent">
           <LogOut size={14} /> <span className="hidden sm:inline">{t('logout')}</span>
         </Button>
@@ -182,25 +141,41 @@ function App() {
 
       {/* Body */}
       <div className="flex flex-1 min-h-0 gap-[var(--gap)]">
-        {/* Panel / rail */}
-        {!narrow && ui.panelOpen && (
-          <aside className="w-[var(--panel-w)] shrink-0 rounded-md border border-border bg-card flex flex-col min-h-0 anim-fade">
-            <Panel />
-          </aside>
-        )}
-        {!narrow && !ui.panelOpen && (
-          <aside className="w-[var(--rail-w)] shrink-0 rounded-md border border-border bg-card flex flex-col items-center gap-1.5 py-2">
-            {railTabs.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => ui.setPanelTab(r.id)}
-                className="relative w-[38px] h-[38px] grid place-items-center rounded-md text-fg-secondary hover:bg-muted-bg hover:text-fg cursor-pointer"
-              >
-                {r.icon}
-                {!!r.badge && <span className="absolute top-1 end-1 min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-accent-fg text-[9.5px] font-bold grid place-items-center">{r.badge}</span>}
-              </button>
+        {/* Right rail (2 Nov, the manager's idea): every section in one fixed column — the top bar keeps only logo / EN / logout */}
+        {!narrow && (
+          <nav className="w-[var(--rail-w)] shrink-0 rounded-md border border-border bg-card flex flex-col items-stretch gap-1 p-1.5 overflow-y-auto no-scrollbar" data-testid="side-rail" aria-label={t('sections')}>
+            {spaces.map((r) => (
+              <RailButton key={r.id} icon={r.icon} label={r.label} badge={r.badge} active={ui.workspace === r.id} onClick={() => ui.setWorkspace(r.id)} testId={`rail-${r.id}`} badgeTestId={`${r.id}-badge`} />
             ))}
+            <div className="h-px bg-border mx-1.5 my-1 shrink-0" />
+            {railTabs.map((r) => (
+              <RailButton
+                key={r.id}
+                icon={r.icon}
+                label={r.label}
+                badge={r.badge}
+                active={ui.panelOpen && ui.panelTab === r.id}
+                // the open section tapped again folds the panel away
+                onClick={() => (ui.panelOpen && ui.panelTab === r.id ? ui.togglePanel(false) : ui.setPanelTab(r.id))}
+                testId={`rail-${r.id}`}
+              />
+            ))}
+          </nav>
+        )}
+        {!narrow && ui.panelOpen && (
+          <aside className="relative w-[var(--panel-w)] shrink-0 rounded-md border border-border bg-card flex flex-col min-h-0 anim-fade">
+            <Panel />
+            {/* «إخفاء اللوحة» lives on the panel's own edge */}
+            <button
+              type="button"
+              onClick={() => ui.togglePanel(false)}
+              title={t('hidePanel')}
+              aria-label={t('hidePanel')}
+              data-testid="panel-edge"
+              className="absolute top-1/2 -translate-y-1/2 -end-[13px] z-10 w-[16px] h-[52px] rounded-full border border-border bg-card text-fg-secondary hover:text-fg hover:border-fg-faint grid place-items-center cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+            >
+              {lang === 'ar' ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+            </button>
           </aside>
         )}
 
@@ -216,6 +191,31 @@ function App() {
             <ContractsBoard />
           ) : (
             <>
+              <div className="flex items-center gap-1.5 flex-wrap shrink-0" data-testid="cal-toolbar">
+                <Button size="icon" className="h-8 w-8" onClick={() => shift(-1)} aria-label={t('prev')}>
+                  {lang === 'ar' ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+                </Button>
+                <div className="min-w-[120px] text-center">
+                  <div className="text-[14.5px] font-semibold leading-tight">{gLabel}</div>
+                  <div className="text-[10px] font-semibold text-fg-secondary leading-tight">{hLabel}</div>
+                </div>
+                <Button size="icon" className="h-8 w-8" onClick={() => shift(1)} aria-label={t('next')}>
+                  {lang === 'ar' ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
+                </Button>
+                <Button size="sm" onClick={() => ui.setFocus(todayIso())}>
+                  {t('today')}
+                </Button>
+                <div className="flex-1" />
+                <Segmented
+                  value={ui.view}
+                  options={[
+                    { value: 'month', label: t('month') },
+                    { value: 'week', label: t('week') },
+                    { value: 'day', label: t('day') },
+                  ]}
+                  onChange={ui.setView}
+                />
+              </div>
               {ui.view === 'month' && <MonthView tasks={tasks} onCreate={onCreate} emptyMsg={emptyMsg} hint={isAdmin && client ? t('dragHint') : isCreative ? t('hintCreative') : undefined} />}
               {ui.view === 'week' && <WeekView tasks={tasks} onCreate={onCreate} />}
               {ui.view === 'day' && <DayView tasks={tasks} onCreate={onCreate} />}
@@ -262,5 +262,25 @@ function App() {
       <Checkin />
       <Toast />
     </div>
+  )
+}
+
+/** One rail item: thin icon + a small name under it (fits small laptops), badge on the corner. */
+function RailButton({ icon, label, badge, active, onClick, testId, badgeTestId }: { icon: React.ReactNode; label: string; badge?: number; active: boolean; onClick: () => void; testId: string; badgeTestId?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      data-testid={testId}
+      className={cn(
+        'relative shrink-0 flex flex-col items-center justify-center gap-1 rounded-md py-2 px-0.5 cursor-pointer transition-colors',
+        active ? 'bg-muted-bg text-fg' : 'text-fg-secondary hover:bg-muted-bg/60 hover:text-fg',
+      )}
+    >
+      {icon}
+      <span className="text-[10px] font-semibold leading-tight text-center max-w-full truncate">{label}</span>
+      {!!badge && <span data-testid={badgeTestId} className="absolute top-1 end-1.5 min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-accent-fg text-[9.5px] font-bold grid place-items-center">{badge}</span>}
+    </button>
   )
 }

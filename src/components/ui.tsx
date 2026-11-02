@@ -65,7 +65,7 @@ export function Segmented<T extends string>({
           type="button"
           onClick={() => onChange(o.value)}
           className={cn(
-            'flex-1 inline-flex items-center justify-center gap-1.5 rounded-md font-semibold cursor-pointer transition-colors',
+            'flex-1 inline-flex items-center justify-center gap-1.5 rounded-md font-semibold cursor-pointer transition-colors whitespace-nowrap',
             size === 'sm' ? 'px-2.5 py-1.5 text-[11.5px]' : 'px-3.5 py-1.5 text-[12.5px]',
             value === o.value ? 'bg-card text-fg shadow-[0_1px_2px_rgba(0,0,0,0.06)]' : 'text-fg-secondary hover:text-fg',
           )}

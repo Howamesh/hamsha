@@ -1,7 +1,7 @@
 import { Bell, MessageCircle, PieChart, Settings, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { clientProgress, isDone } from '@/lib/derive'
-import { fmtDate, useNarrow, useStr } from '@/lib/useStr'
+import { fmtDate, useStr } from '@/lib/useStr'
 import { useData, useUser } from '@/store/session'
 import { useUi, type PanelTab } from '@/store/ui'
 import { Bar, Button, SectionTitle } from '../ui'
@@ -15,7 +15,6 @@ export function ClientPanel() {
   const s = useData()
   const me = useUser()!
   const ui = useUi()
-  const narrow = useNarrow()
   const bell = useBellCount()
   const c = s.clients.find((x) => x.id === me.clientId)
   if (!c)
@@ -43,7 +42,7 @@ export function ClientPanel() {
   return (
     <>
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
-        <div className="text-[17px] font-semibold tracking-[-0.01em]">{narrow ? tabs.find((x) => x.id === tab)?.label : t('panelClient')}</div>
+        <div className="text-[17px] font-semibold tracking-[-0.01em]">{tabs.find((x) => x.id === tab)?.label}</div>
         <Button size="icon" variant="ghost" onClick={() => ui.togglePanel(false)} aria-label={t('hidePanel')}>
           <X size={16} />
         </Button>
