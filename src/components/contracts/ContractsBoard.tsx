@@ -31,6 +31,12 @@ export function ContractsBoard() {
   const [filter, setFilter] = useState<Filter>('all')
   const [creating, setCreating] = useState(false)
   const admin = me.role === 'admin'
+  const legalMissing = [
+    !s.legal?.party.name?.trim() && t('legalName'),
+    !s.legal?.party.cr?.trim() && t('legalCr'),
+    !s.legal?.signer.name?.trim() && t('legalSigner'),
+    !s.legal?.banks.some((b) => b.iban?.trim()) && t('legalIban'),
+  ].filter(Boolean) as string[]
   const action = contractsNeedingAction(contracts, me.role)
   const list = contracts
     // «الحالية» = everything not yet in the archive (completed / rejected), so the two tabs never repeat (2 Nov)
@@ -59,6 +65,13 @@ export function ContractsBoard() {
           </Button>
         )}
       </div>
+      {/* council 2 Nov: production started with an EMPTY legal identity — say it before the first real contract (a warning,
+          never a block: Yousef's rule «نبّهني ووديني له») */}
+      {admin && legalMissing.length > 0 && (
+        <button type="button" onClick={() => ui.setPanelTab('settings')} className="mx-4 mt-3 rounded-md border border-warning-dark/40 bg-warning-tint/50 px-3 py-2.5 text-start text-[12.5px] text-warning-dark font-semibold cursor-pointer hover:bg-warning-tint" data-testid="legal-missing">
+          {t('legalMissingBanner', { list: legalMissing.join('، ') })}
+        </button>
+      )}
       <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4">
         {contracts.length === 0 ? (
           <Empty text={admin ? t('contractsEmptyTeam') : t('contractsEmptyClient')} />
