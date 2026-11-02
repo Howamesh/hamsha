@@ -43,6 +43,7 @@ const fillMissing = async () => {
   }
   return false;
 };
+const tab = async (name) => { const r = await ev(`(()=>{const b=[...document.querySelectorAll('[data-testid=contracts-board] button')].find(b=>b.offsetParent!==null&&b.textContent.trim().startsWith(${JSON.stringify(name)}));if(!b)return 'NOTFOUND';b.click();return 'ok'})()`); await sleep(300); return r; };
 const text = async (sel) => ev(`document.querySelector(${JSON.stringify(sel)})?.innerText || ''`);
 const status = async () => ev(`document.querySelector('[data-testid=contract-sheet] [data-status]')?.dataset.status || 'NONE'`);
 const toastHas = async (t) => waitFor(`!!document.querySelector('[role=alert]') && document.querySelector('[role=alert]').innerText.includes(${JSON.stringify(t)})`).then(()=>true).catch(()=>false);
@@ -282,11 +283,11 @@ CHECKS['admin card «يبي تعديل»'] = await ev(`document.querySelector('[
 CHECKS['admin red number = the change request only (1)'] = (await text('[data-testid=contracts-badge]')).trim() === '1';
 CHECKS['…the board says it in words'] = (await text('[data-testid=contracts-waiting]')).includes('عقد واحد ينتظر ردّك');
 CHECKS['…the card says the step (client asked for changes)'] = await ev(`(()=>{const x=document.querySelector('[data-testid=contract-card] [data-testid=contract-step]');return !!x && x.dataset.step==='changes' && x.innerText.includes('طلب تعديلاً')})()`);
-// the Hamsha logo = home: back to the calendar from anywhere; the rail's red number opens «يحتاج تصرّف»
+// the Hamsha logo = home: back to the calendar from anywhere; the rail's number opens «قيد الإعداد»
 await clickSel('[data-testid=home-logo]'); await sleep(300);
 CHECKS['logo → home (calendar, contracts closed)'] = await ev(`!!document.querySelector('[data-testid=cal-toolbar]') && !document.querySelector('[data-testid=contracts-board]')`);
 await clickSel('[data-testid=rail-contracts]'); await waitFor(`!!document.querySelector('[data-testid=contract-card]')`);
-CHECKS['rail number opens «يحتاج تصرّف»'] = await ev(`[...document.querySelectorAll('[data-testid=contracts-board] button')].some(b=>b.textContent.trim()==='يحتاج تصرّف' && b.className.includes('bg-card'))`);
+CHECKS['rail number opens «قيد الإعداد»'] = await ev(`[...document.querySelectorAll('[data-testid=contracts-board] button')].some(b=>b.textContent.trim().startsWith('قيد الإعداد') && b.className.includes('bg-card'))`);
 // 2 Nov (his rule «خلي المربع فقط على اللي اضغط عليه»): exactly ONE pressed square — the last thing tapped
 const pressed = () => ev(`[...document.querySelectorAll('[data-testid=side-rail] button')].filter(b=>b.className.includes('bg-muted-bg text-fg')).map(b=>b.dataset.testid).join(',')`);
 await clickSel('[data-testid=rail-messages]'); await sleep(300);
@@ -334,7 +335,11 @@ await click('تسجيل الخروج'); await sleep(700);
 
 // ---------- admin completes; creative contract; block; grid ----------
 await click('ادخل كمدير'); await waitFor(`[...document.querySelectorAll('input')].some(x=>x.placeholder.includes('عميل'))`, 30000);
-await click('العقود'); await waitFor(`!!document.querySelector('[data-testid=contract-card]')`);
+await click('العقود'); await waitFor(`!!document.querySelector('[data-testid=contracts-board]')`);
+// 2 Nov (his pick ٥): a contract both sides signed is «ساري» in «السارية» — not a task, no red number
+CHECKS['signed contract lives in «السارية» as «ساري»'] = (await tab('السارية')) === 'ok' && await ev(`(()=>{const c=[...document.querySelectorAll('[data-testid=contract-card]')];return c.length===1 && !!c[0].querySelector('[data-status=active]') && !!c[0].querySelector('[data-testid=contract-term-line]')})()`);
+CHECKS['…and is not in «قيد الإعداد»'] = await (async () => { await tab('قيد الإعداد'); return !(await ev(`[...document.querySelectorAll('[data-testid=contract-card]')].some(c=>c.dataset.status==='signed')`)) })();
+await tab('السارية');
 await ev(`document.querySelector('[data-testid=contract-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=complete-contract]')`);
 CHECKS['signed contract has no edit / delete'] = !(await ev(`!!document.querySelector('[data-testid=edit-contract]')`)) && !(await ev(`[...document.querySelectorAll('[data-testid=contract-admin-actions] button')].some(b=>b.textContent.includes('احذف'))`));
 await clickSel('[data-testid=complete-contract]'); await sleep(400);
@@ -456,7 +461,22 @@ CHECKS['sheet: empty fields are named and say you can still sign'] = await ev(`!
 // 1 Nov: «احظر العميل حتى التوقيع» removed at Yousef's request
 CHECKS['no «block the client» option anymore'] = !(await ev(`!!document.querySelector('[data-testid=contract-block]')`));
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
-CHECKS['admin: «الحالية» 3 cards, the completed one only in «الأرشيف» (no repeat)'] = (await ev(`document.querySelectorAll('[data-testid=contract-card]').length`)) === 3 && await (async () => { await click('الأرشيف'); await sleep(300); const n = await ev(`document.querySelectorAll('[data-testid=contract-card]').length`); await click('الحالية'); await sleep(200); return n === 1 })();
+CHECKS['admin: every contract in exactly ONE tab; the ended one only in «المنتهية»'] = await (async () => {
+  const ids = []; for (const n of ['قيد الإعداد', 'السارية', 'المنتهية']) { await tab(n); ids.push(...(await ev(`[...document.querySelectorAll('[data-testid=contract-card]')].map(c=>c.dataset.status)`))); }
+  await tab('المنتهية'); const ended = await ev(`[...document.querySelectorAll('[data-testid=contract-card]')].map(c=>c.dataset.status)`); await tab('قيد الإعداد');
+  return ids.length === 4 && ids.filter((x) => x === 'completed').length === 1 && ended.length === 1 && ended[0] === 'completed' })();
+// his rule (2 Nov): term = contract DATE + months; ran out + 14 days without a renewal → «المنتهية»; renewed → «تجدّد»
+CHECKS['term + 14-day renewal rule'] = await ev(`(async()=>{const m=await import('/src/lib/contracts.ts');
+  const content={kind:'full',date:'2025-01-10',pricing:{mode:'monthly',months:12},tracks:[]};
+  const c={id:'a',number:2601,status:'signed',clientId:'k'};
+  const at=(d,all=[c])=>m.contractPlace(c,content,all,d);
+  const r1=at('2026-01-10'), r2=at('2026-01-15'), r3=at('2026-01-25'), r4=at('2026-01-24');
+  const ren=at('2026-01-12',[c,{id:'b',number:2650,status:'signed',clientId:'k'}]);
+  const none=m.contractPlace(c,{...content,pricing:{mode:'project',months:0}},[c],'2030-01-01');
+  const emp=m.contractTermMonths({kind:'employment',term:'6 أشهر',pricing:{}});
+  return m.contractEndDate(content)==='2026-01-10' && r1.stage==='active' && r1.graceLeft===undefined && r2.stage==='active' && r2.graceLeft===9
+    && r4.stage==='active' && r4.graceLeft===0 && r3.stage==='ended' && r3.reason==='expired' && ren.stage==='ended' && ren.reason==='renewed'
+    && none.stage==='active' && emp===6})()`);
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=social-board]')`);
 await click('الشبكة'); await sleep(300);
 CHECKS['social grid tab'] = (await text('[data-testid=social-board]')).includes('ما فيه شيء معتمد أو منشور بعد');
@@ -475,7 +495,7 @@ await click('تسجيل الخروج'); await sleep(700);
 await click('ادخل كعميل'); await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='العقود')`, 20000); await sleep(400);
 CHECKS['client is never blocked'] = !(await ev(`!!document.querySelector('[data-testid=contract-blocked]')`));
 await click('العقود'); await waitFor(`!!document.querySelector('[data-testid=contracts-board]')`);
-await click('الأرشيف'); await sleep(300); // the client's contract is completed → «الأرشيف» (2 Nov: «الحالية» never repeats it)
+await tab('المنتهية'); // the client's contract ended → «المنتهية» (2 Nov: one place per contract)
 CHECKS['client never sees the unsent draft'] = (await ev(`document.querySelectorAll('[data-testid=contract-card]').length`)) === 1;
 // 1 Nov (his phone): every bottom tab opens ITS own section, labelled, with no second tab bar inside the panel
 await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:2,mobile:true}); await sleep(700);
@@ -494,7 +514,7 @@ await ev(`document.querySelector('[data-testid=nav-main]').click()`); await slee
 await send('Emulation.setDeviceMetricsOverride',{width:1500,height:950,deviceScaleFactor:1,mobile:false}); await sleep(600);
 // reload: persisted
 await send('Page.reload'); await sleep(1500); await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='العقود')`, 20000);
-await click('العقود'); await sleep(300); await click('الأرشيف'); await waitFor(`!!document.querySelector('[data-testid=contract-card]')`);
+await click('العقود'); await sleep(300); await tab('المنتهية'); await waitFor(`!!document.querySelector('[data-testid=contract-card]')`);
 CHECKS['persisted after reload'] = await ev(`document.querySelector('[data-testid=contract-card]').dataset.status === 'completed'`);
 
 CHECKS['no console errors'] = errors.length === 0;

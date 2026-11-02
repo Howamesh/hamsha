@@ -8,7 +8,7 @@ export type View = 'month' | 'week' | 'day'
 export type PanelTab = 'main' | 'messages' | 'alerts' | 'settings' | 'profile' | 'team'
 /** The big area shows the calendar or the social board (the right-side menu switches it instantly). */
 export type Workspace = 'calendar' | 'social' | 'contracts'
-export type ContractsFilter = 'action' | 'all' | 'archive'
+export type ContractsFilter = 'setup' | 'active' | 'ended'
 
 interface UiState {
   lang: Lang
@@ -83,7 +83,7 @@ export const useUi = create<UiState>()(
       postId: null,
       contractId: null,
       contractEditing: false,
-      contractsFilter: 'all',
+      contractsFilter: 'setup',
 
       setLang: (lang) => set({ lang }),
       setTheme: (theme) => set({ theme }),

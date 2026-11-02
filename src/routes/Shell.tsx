@@ -153,7 +153,7 @@ function App() {
         {!narrow && (
           <nav className="w-[var(--rail-w)] shrink-0 rounded-md border border-border bg-card flex flex-col items-stretch gap-1 p-1.5 overflow-y-auto no-scrollbar" data-testid="side-rail" aria-label={t('sections')}>
             {spaces.map((r) => (
-              <RailButton key={r.id} icon={r.icon} label={r.label} badge={r.badge} active={ui.workspace === r.id && !panelPicked} onClick={() => { setRailPick('space'); ui.setWorkspace(r.id); if (r.id === 'contracts') ui.setContractsFilter(r.badge ? 'action' : 'all') }} testId={`rail-${r.id}`} badgeTestId={`${r.id}-badge`} />
+              <RailButton key={r.id} icon={r.icon} label={r.label} badge={r.badge} active={ui.workspace === r.id && !panelPicked} onClick={() => { setRailPick('space'); ui.setWorkspace(r.id); if (r.id === 'contracts') ui.setContractsFilter('setup') }} testId={`rail-${r.id}`} badgeTestId={`${r.id}-badge`} />
             ))}
             <div className="h-px bg-border mx-1.5 my-1 shrink-0" />
             {railTabs.map((r) => (
@@ -250,7 +250,7 @@ function App() {
             <Share2 size={18} /> {t('social')}
             {!!socialBadge && <span className="absolute top-1.5 end-[22%] min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-accent-fg text-[9.5px] font-bold grid place-items-center">{socialBadge}</span>}
           </button>
-          <button type="button" onClick={() => { ui.togglePanel(false); ui.setWorkspace('contracts'); ui.setContractsFilter(contractsBadge ? 'action' : 'all') }} className={cn('relative flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', !ui.panelOpen && contracts ? 'text-fg' : 'text-fg-secondary')}>
+          <button type="button" onClick={() => { ui.togglePanel(false); ui.setWorkspace('contracts'); ui.setContractsFilter('setup') }} className={cn('relative flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', !ui.panelOpen && contracts ? 'text-fg' : 'text-fg-secondary')}>
             <FileSignature size={18} /> {t('contracts')}
             {!!contractsBadge && <span className="absolute top-1.5 end-[22%] min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-accent-fg text-[9.5px] font-bold grid place-items-center">{contractsBadge}</span>}
           </button>

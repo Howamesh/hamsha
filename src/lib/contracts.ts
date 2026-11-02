@@ -7,7 +7,8 @@
  */
 import type { Client, Contract, ContractBank, ContractContent, ContractKind, ContractPartyInfo, ContractSection, ContractSigner, ContractVersion, OrgLegal, User } from '@/types'
 import type { Snapshot } from '@/data/repo'
-import { todayIso, type IsoDate } from './dates'
+import { addMonths } from 'date-fns'
+import { fromIso, toIso, todayIso, type IsoDate } from './dates'
 
 export const COPYRIGHT_YEAR = 1448
 export const EMPTY_PARTY: ContractPartyInfo = { name: '', cr: '', country: 'المملكة العربية السعودية', city: '', repTitle: '', repName: '', phone: '', email: '', nationalId: '' }
@@ -480,7 +481,6 @@ export function contractStep(c: Contract, role: User['role']): { key: ContractSt
   if (role === 'admin') {
     if (c.status === 'changes') return { key: 'changes', tone: 'red' }
     if (c.status === 'draft' && c.currentVersion > 0) return { key: 'ready', tone: 'grey' }
-    if (c.status === 'signed') return { key: 'signed', tone: 'green' }
     if (c.status === 'sent' || c.status === 'opened') return { key: 'waiting', tone: 'muted' }
     return null
   }
@@ -505,4 +505,41 @@ export function clientBlocked(s: Snapshot, user: User): boolean {
   // 1 Nov: Yousef removed «احظر العميل حتى التوقيع» — a flag left on from before must never block anyone
   void c
   return false
+}
+
+// ---------- where a contract lives: «قيد الإعداد» → «السارية» → «المنتهية» (2 Nov, his pick ٥) ----------
+export type ContractStage = 'setup' | 'active' | 'ended'
+export type ContractEndReason = 'completed' | 'rejected' | 'expired' | 'renewed'
+/** his rule: a contract that ran out and was not renewed within two weeks moves to «المنتهية» by itself */
+export const RENEW_GRACE_DAYS = 14
+
+/** The contract's term in months (from the paper), or null when it has none (project / offer / «غير محدد»). */
+export function contractTermMonths(c: ContractContent): number | null {
+  if (c.kind === 'offer') return null
+  if (c.kind === 'short') { const m = Math.max(0, ...c.tracks.map((t) => t.months || 0)); return m > 0 ? m : null }
+  if (c.kind === 'employment') { const m = Number(deepDigits(c.term ?? '').match(/\d+/)?.[0] ?? 0); return m > 0 ? m : null }
+  return c.pricing.mode === 'monthly' && c.pricing.months > 0 ? c.pricing.months : null
+}
+const deepDigits = (t: string) => t.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+
+/** The term ends on the CONTRACT DATE + its months (his pick 2 Nov: the date written on the paper, not the signing day). */
+export function contractEndDate(c: ContractContent): IsoDate | null {
+  const m = contractTermMonths(c)
+  if (!m || !/^\d{4}-\d{2}-\d{2}$/.test(c.date || '')) return null
+  return toIso(addMonths(fromIso(c.date), m))
+}
+
+export function contractPlace(c: Contract, content: ContractContent | undefined, all: Contract[], today: IsoDate = todayIso()): { stage: ContractStage; reason?: ContractEndReason; end?: IsoDate; graceLeft?: number } {
+  if (c.status === 'completed') return { stage: 'ended', reason: 'completed' }
+  if (c.status === 'rejected') return { stage: 'ended', reason: 'rejected' }
+  if (c.status !== 'signed') return { stage: 'setup' }
+  const end = content ? contractEndDate(content) : null
+  if (!end || today <= end) return { stage: 'active', end: end ?? undefined }
+  // ran out: a later signed contract with the same client / creative = renewed
+  const renewed = all.some((o) => o.id !== c.id && o.number > c.number && (o.status === 'signed' || o.status === 'completed')
+    && ((c.clientId && o.clientId === c.clientId) || (c.creativeId && o.creativeId === c.creativeId)))
+  if (renewed) return { stage: 'ended', reason: 'renewed', end }
+  const days = Math.floor((fromIso(today).getTime() - fromIso(end).getTime()) / 86_400_000)
+  if (days > RENEW_GRACE_DAYS) return { stage: 'ended', reason: 'expired', end }
+  return { stage: 'active', end, graceLeft: RENEW_GRACE_DAYS - days }
 }
