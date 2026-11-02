@@ -68,6 +68,11 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
   // ⭐٥ (1 Nov): the paper at full size; tapping a part opens its editor in a panel beside it
   const [paperBig, setPaperBig] = useState(false)
   const [pick, setPick] = useState<string | null>(null)
+  // 2 Nov (Yousef: «وين أرجع للصفحة الكاملة اللي على اليمين أكتب فيها؟»): beside the big paper, ALL the fields by default;
+  // «هذا الجزء» shows only the tapped part. A tap on the paper scrolls the full form to that part and lights it up.
+  const [panelMode, setPanelMode] = useState<'all' | 'part'>('all')
+  const [panelOpen, setPanelOpen] = useState(true)
+  const panelScroll = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState(1)
   const [overflow, setOverflow] = useState<PaperOverflow[]>([])
   // 1 Nov notes: the big paper opens WHERE he was (or on the part he tapped), and closing it brings the form to the
@@ -83,6 +88,7 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
     openAt.current = { pick: el?.dataset.pick ?? null, ratio: sc && sc.scrollHeight ? sc.scrollTop / sc.scrollHeight : 0 }
     bigSession.current = { edited: false, lastPick: el?.dataset.pick ?? null }
     setPick(el?.dataset.pick ?? null)
+    setPanelOpen(true)
     setPaperBig(true)
   }
   const closePaper = () => {
@@ -115,6 +121,17 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
   }, [initialField])
   /** The missing-values bar: close the big paper / show the form tab, scroll to the field, focus it, flash it. */
   const goToField = (field: string) => {
+    // the big paper with the full form beside it: go to the field right there, no need to leave
+    if (paperBig && fullPanel) {
+      const box = panelScroll.current
+      const el = box?.querySelector<HTMLElement>(`[data-testid="${field}"]`)
+      if (box && el) {
+        box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientHeight / 3
+        el.focus({ preventScroll: true })
+        flash(el.closest<HTMLElement>('label') ?? el)
+        return
+      }
+    }
     if (paperBig) {
       setPaperBig(false)
       setPick(null)
@@ -126,11 +143,13 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
       if (!box || !el) return
       box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientHeight / 3
       el.focus({ preventScroll: true })
-      const wrap = el.closest<HTMLElement>('label') ?? el
-      wrap.classList.remove('form-flash')
-      void wrap.offsetWidth
-      wrap.classList.add('form-flash')
+      flash(el.closest<HTMLElement>('label') ?? el)
     }))
+  }
+  const flash = (el: HTMLElement) => {
+    el.classList.remove('form-flash')
+    void el.offsetWidth
+    el.classList.add('form-flash')
   }
   useEffect(() => {
     if (pick) bigSession.current.lastPick = pick
@@ -573,6 +592,20 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
     if (id === 'tracks') return <>{blkVars}{blkTracks}</>
     return ({ salary: blkSalary, scope: blkScope, packages: blkPackages, parties: blkParties, bank: blkBank, signers: blkSigners, basics: blkBasics } as Record<string, React.ReactNode>)[id] ?? null
   }
+  const fullPanel = panelOpen && panelMode === 'all'
+  // the paper tapped while the full form is beside it → bring that part of the form into view and light it up
+  useEffect(() => {
+    if (!paperBig || !fullPanel || !pick) return
+    const id = requestAnimationFrame(() => {
+      const box = panelScroll.current
+      const anchor = box?.querySelector<HTMLElement>(`[data-anchor="${pick}"]`)
+      if (!box || !anchor) return
+      box.scrollTop += anchor.getBoundingClientRect().top - box.getBoundingClientRect().top - 12
+      flash(anchor)
+    })
+    return () => cancelAnimationFrame(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pick, paperBig, fullPanel])
   const form = (
     <div className="flex flex-col gap-5 min-w-0">
       {blkBasics}{blkParties}{blkSalary}{blkVars}{blkPricing}{blkTracks}{blkPackages}{blkScope}{blkSections}{blkBank}{blkSigners}{blkNote}
@@ -642,7 +675,8 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
       <div className={cn('flex-1 min-h-0 grid relative', narrow ? 'grid-cols-1' : 'grid-cols-[minmax(380px,520px)_1fr]')}>
         <div ref={formScroll} className={cn('min-h-0 overflow-y-auto no-scrollbar p-4 border-e border-border', narrow && tab !== 'form' && 'hidden')}>
           <div className="text-[11.5px] text-fg-secondary mb-3">{t('saveVersionHint')}</div>
-          {form}
+          {/* (while the big paper shows the full form beside it, the form lives THERE only — never two copies) */}
+          {paperBig && fullPanel ? null : form}
         </div>
         <div ref={smallScroll} className={cn('min-h-0 paper-preview relative cursor-zoom-in', narrow && tab !== 'paper' && 'invisible absolute inset-0 -z-10 pointer-events-none')} aria-hidden={narrow && tab !== 'paper' ? true : undefined} onClick={(e) => openPaper(e.target)} title={t('openPaperBig')}>
           <Button size="sm" className="sticky top-3 z-[2] ms-3 mt-3 shadow" onClick={(e) => { e.stopPropagation(); openPaper() }} data-testid="open-paper-big">
@@ -672,14 +706,24 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
             <Button variant="primary" onClick={closePaper} data-testid="paper-big-close"><Minimize2 size={16} /> {t('collapseSection')}</Button>
           </div>
           <div className="flex-1 min-h-0 flex">
-            {pick && (
-              <aside className="w-[440px] max-w-[46vw] shrink-0 border-e border-border bg-card flex flex-col min-h-0" data-testid="paper-panel">
-                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
-                  <div className="flex-1 text-[14px] font-semibold">{pickLabel(pick)}</div>
-                  <Button size="icon" variant="ghost" onClick={() => setPick(null)} aria-label={t('cancel')}><X size={16} /></Button>
+            {panelOpen ? (
+              <aside className="w-[460px] max-w-[48vw] shrink-0 border-e border-border bg-card flex flex-col min-h-0" data-testid="paper-panel" data-mode={panelMode}>
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+                  <div className="flex rounded-md bg-muted-bg p-0.5 text-[12.5px]" role="tablist">
+                    <button type="button" role="tab" aria-selected={panelMode === 'all'} onClick={() => setPanelMode('all')} className={cn('px-3 py-1.5 rounded cursor-pointer', panelMode === 'all' ? 'bg-card shadow-sm font-semibold' : 'text-fg-secondary')} data-testid="panel-mode-all">{t('panelAllFields')}</button>
+                    <button type="button" role="tab" aria-selected={panelMode === 'part'} disabled={!pick} onClick={() => setPanelMode('part')} className={cn('px-3 py-1.5 rounded cursor-pointer disabled:opacity-40 disabled:cursor-default', panelMode === 'part' ? 'bg-card shadow-sm font-semibold' : 'text-fg-secondary')} data-testid="panel-mode-part">{t('panelThisPart')}</button>
+                  </div>
+                  <div className="flex-1 min-w-0 text-[12px] text-fg-secondary truncate text-end">{pick && panelMode === 'part' ? pickLabel(pick) : ''}</div>
+                  <Button size="icon" variant="ghost" onClick={() => setPanelOpen(false)} aria-label={t('hidePanel')} title={t('hidePanel')} data-testid="panel-hide"><X size={16} /></Button>
                 </div>
-                <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-5">{panelFor(pick)}</div>
+                <div ref={panelScroll} className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-5" data-testid="paper-panel-body">
+                  {panelMode === 'all' ? form : pick ? panelFor(pick) : <div className="text-[12.5px] text-fg-secondary">{t('paperBigHint')}</div>}
+                </div>
               </aside>
+            ) : (
+              <button type="button" onClick={() => setPanelOpen(true)} className="shrink-0 w-10 border-e border-border bg-card grid place-items-center cursor-pointer hover:bg-muted-bg" aria-label={t('panelShow')} title={t('panelShow')} data-testid="panel-show">
+                <span className="text-[12px] font-semibold [writing-mode:vertical-rl]">{t('panelShow')}</span>
+              </button>
             )}
             <div ref={bigScroll} className="flex-1 min-w-0 overflow-auto py-6" onClick={() => setPick(null)} data-testid="paper-big-scroll">
               <ContractPaper content={c} number={contract.number} version={current && !dirtyContent ? current : undefined} stamp={legal.stamp || undefined} scale={zoom} onPick={setPick} active={pick} onOverflow={setOverflow} />

@@ -171,7 +171,17 @@ CHECKS['«تمام» only hides the banner — edits stay'] = await ev(`!documen
 await clickSel('[data-testid=open-paper-big]'); await waitFor(`!!document.querySelector('[data-testid=paper-big]')`);
 await clickSel('[data-testid=paper-zoom-in]');
 CHECKS['big paper opens + zoom 110%'] = (await text('[data-testid=paper-zoom]')).trim() === '110%';
-await clickSel('[data-testid=paper-big] [data-pick="sec:05"]'); await waitFor(`!!document.querySelector('[data-testid=paper-panel] [data-testid=panel-body]')`);
+// 2 Nov (Yousef: «وين أرجع للصفحة الكاملة اللي أكتب فيها؟»): ALL the fields beside the big paper by default
+CHECKS['big paper: the full form is beside it by default (one copy only)'] = await ev(`document.querySelector('[data-testid=paper-panel]')?.dataset.mode === 'all' && !!document.querySelector('[data-testid=paper-panel] [data-testid=contract-title-input]') && !!document.querySelector('[data-testid=paper-panel] [data-testid=counterparty-name]') && document.querySelectorAll('[data-testid=contract-title-input]').length === 1`);
+await clickSel('[data-testid=paper-big] [data-pick="sec:05"]'); await sleep(400);
+CHECKS['big paper: tapping a clause scrolls the full form to it and lights it up'] = await ev(`(()=>{const a=document.querySelector('[data-testid=paper-panel] [data-anchor="sec:05"]');const b=document.querySelector('[data-testid=paper-panel-body]').getBoundingClientRect();if(!a)return false;const r=a.getBoundingClientRect();return a.classList.contains('form-flash') && r.top>=b.top-2 && r.top<b.bottom})()`);
+if (process.env.SHOT_DIR) { const img = await send('Page.captureScreenshot', { format: 'png' }); (await import('node:fs')).writeFileSync(`${process.env.SHOT_DIR}/big-paper-full.png`, Buffer.from(img.result.data, 'base64')); }
+await setT('pricing-months', '12'); await sleep(200);
+CHECKS['big paper: typing in the full form updates the big paper'] = (await text('[data-testid=paper-big] [data-testid=contract-paper]')).includes('12');
+await clickSel('[data-testid=panel-hide]'); await sleep(200);
+CHECKS['big paper: the form can be hidden and brought back'] = await ev(`!document.querySelector('[data-testid=paper-panel]') && !!document.querySelector('[data-testid=panel-show]')`) && await (async () => { await clickSel('[data-testid=panel-show]'); await sleep(200); return ev(`!!document.querySelector('[data-testid=paper-panel]')`) })();
+// «هذا الجزء بس»: only the tapped part (the earlier behaviour, still there)
+await clickSel('[data-testid=panel-mode-part]'); await waitFor(`!!document.querySelector('[data-testid=paper-panel] [data-testid=panel-body]')`);
 CHECKS['tap a clause → its text beside the paper (locked until unlocked)'] = await ev(`document.querySelector('[data-testid=panel-body]').readOnly === true && !!document.querySelector('[data-testid=paper-big] .paper-pick-active')`);
 await clickSel('[data-testid=panel-unlock]');
 // 1 Nov: an unlocked clause in the panel can be locked again and opened full screen
