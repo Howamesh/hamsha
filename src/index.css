@@ -35,6 +35,9 @@
   --gap: 10px;
   --panel-w: 350px;
   --rail-w: 68px;
+  /* sheets start where the work area starts: after the side rail (+ the panel when open) — one source for all three sheets */
+  --sheet-start: calc(var(--rail-w) + var(--gap) * 2);
+  --sheet-start-open: calc(var(--rail-w) + var(--panel-w) + var(--gap) * 3);
 
   --font-sans: 'Geist', 'Rubik', ui-sans-serif, system-ui, sans-serif;
   --font-ar: 'Rubik', 'Geist', ui-sans-serif, system-ui, sans-serif;

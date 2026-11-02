@@ -108,7 +108,7 @@ export function ContractSheet() {
   return (
     <div
       className={cn('fixed z-[70] bg-card border border-border rounded-md shadow-[0_24px_60px_rgba(0,0,0,0.18)] flex flex-col anim-sheet overflow-hidden', narrow ? 'inset-x-0 bottom-0 top-[6%] rounded-b-none' : 'bottom-[10px] inset-x-[10px] top-[72px]')}
-      style={!narrow && ui.panelOpen ? { [(lang === 'ar' ? 'right' : 'left')]: 'calc(var(--panel-w) + 20px)' } : undefined}
+      style={!narrow ? { [(lang === 'ar' ? 'right' : 'left')]: ui.panelOpen ? 'var(--sheet-start-open)' : 'var(--sheet-start)' } : undefined}
       role="dialog"
       aria-label={contract.title}
       data-testid="contract-sheet"

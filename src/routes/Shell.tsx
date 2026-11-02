@@ -158,6 +158,7 @@ function App() {
                 // the open section tapped again folds the panel away
                 onClick={() => (ui.panelOpen && ui.panelTab === r.id ? ui.togglePanel(false) : ui.setPanelTab(r.id))}
                 testId={`rail-${r.id}`}
+                toggle
               />
             ))}
           </nav>
@@ -266,12 +267,13 @@ function App() {
 }
 
 /** One rail item: thin icon + a small name under it (fits small laptops), badge on the corner. */
-function RailButton({ icon, label, badge, active, onClick, testId, badgeTestId }: { icon: React.ReactNode; label: string; badge?: number; active: boolean; onClick: () => void; testId: string; badgeTestId?: string }) {
+function RailButton({ icon, label, badge, active, onClick, testId, badgeTestId, toggle }: { icon: React.ReactNode; label: string; badge?: number; active: boolean; onClick: () => void; testId: string; badgeTestId?: string; /** panel sections open/close (aria-pressed); workspaces are pages (aria-current) */ toggle?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-current={active ? 'page' : undefined}
+      aria-current={!toggle && active ? 'page' : undefined}
+      aria-pressed={toggle ? active : undefined}
       data-testid={testId}
       className={cn(
         'relative shrink-0 flex flex-col items-center justify-center gap-1 rounded-md py-2 px-0.5 cursor-pointer transition-colors',

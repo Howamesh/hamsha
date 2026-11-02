@@ -12,6 +12,7 @@ export function Chat({ channel, className }: { channel: ChannelId; className?: s
   const me = useUser()
   const send = useSession((x) => x.sendMessage)
   const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
   const list = s.messages.filter((m) => m.channel === channel).sort((a, b) => a.at.localeCompare(b.at))
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -21,10 +22,18 @@ export function Chat({ channel, className }: { channel: ChannelId; className?: s
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (!draft.trim()) return
+    if (!draft.trim() || sending) return
     const body = draft
-    setDraft('')
-    await send(channel, body)
+    setSending(true)
+    try {
+      await send(channel, body)
+      // a failed send keeps the text (2 Nov council); text typed while sending is never wiped
+      setDraft((d) => (d === body ? '' : d))
+    } catch {
+      /* toast shown by the store */
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -58,13 +67,14 @@ export function Chat({ channel, className }: { channel: ChannelId; className?: s
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={t('messagePh')}
+          maxLength={4000}
           className="flex-1 rounded-md border border-border bg-bg px-3 py-2 text-[13px]"
         />
         <button
           type="submit"
           aria-label={t('send')}
           className="h-[34px] w-[34px] grid place-items-center rounded-md bg-fg text-bg cursor-pointer disabled:opacity-40"
-          disabled={!draft.trim()}
+          disabled={!draft.trim() || sending}
         >
           <ArrowUp size={16} />
         </button>

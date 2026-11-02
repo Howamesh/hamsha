@@ -15,6 +15,9 @@ export function SignaturePad({ value, onChange, height = 160 }: { value: string 
   const { t } = useStr()
   const ref = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
+  /** points drawn in the current stroke — a tap (0–2 points) is not a signature */
+  const points = useRef(0)
+  const inked = useRef(false)
   const [dirty, setDirty] = useState(false)
   const [uploaded, setUploaded] = useState<string | null>(null)
 
@@ -39,6 +42,7 @@ export function SignaturePad({ value, onChange, height = 160 }: { value: string 
   const down = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (uploaded) return
     drawing.current = true
+    points.current = 0
     ref.current!.setPointerCapture(e.pointerId)
     const ctx = ref.current!.getContext('2d')!
     const [x, y] = pos(e)
@@ -51,11 +55,15 @@ export function SignaturePad({ value, onChange, height = 160 }: { value: string 
     const [x, y] = pos(e)
     ctx.lineTo(x, y)
     ctx.stroke()
+    points.current += 1
+    if (points.current >= 3) inked.current = true
     if (!dirty) setDirty(true)
   }
   const up = () => {
     if (!drawing.current) return
     drawing.current = false
+    // council 2 Nov: a tap used to emit an empty transparent PNG and the contract read «signed» with a blank box
+    if (!inked.current) return
     const url = ref.current!.toDataURL('image/png')
     onChange(url)
   }
@@ -63,6 +71,7 @@ export function SignaturePad({ value, onChange, height = 160 }: { value: string 
     const c = ref.current
     if (c) c.getContext('2d')?.clearRect(0, 0, c.width, c.height)
     setDirty(false)
+    inked.current = false
     setUploaded(null)   // the canvas comes back and is re-initialised by the effect below
     onChange(null)
   }

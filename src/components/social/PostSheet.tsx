@@ -68,13 +68,15 @@ export function PostSheet() {
   const clientCanDecide = me.role === 'client' && post.status === 'sent' && isCurrent && !view?.decision
   const close = () => ui.openPost(null)
 
-  const act = async (fn: () => Promise<void>, toast?: string) => {
+  /** true = saved; false = failed (the store already showed the error) — callers clear inputs only on true */
+  const act = async (fn: () => Promise<void>, toast?: string): Promise<boolean> => {
     setBusy(true)
     try {
       await fn()
       if (toast) ui.setToast(toast, 'info')
+      return true
     } catch {
-      /* toast shown by the store */
+      return false
     } finally {
       setBusy(false)
     }
@@ -87,7 +89,7 @@ export function PostSheet() {
         'fixed z-[70] bg-card border border-border rounded-md shadow-[0_24px_60px_rgba(0,0,0,0.18)] flex flex-col anim-sheet overflow-hidden',
         narrow ? 'inset-x-0 bottom-0 top-[6%] rounded-b-none' : 'bottom-[10px] inset-x-[10px] top-[72px]',
       )}
-      style={!narrow && ui.panelOpen ? { [(lang === 'ar' ? 'right' : 'left')]: 'calc(var(--panel-w) + 20px)' } : undefined}
+      style={!narrow ? { [(lang === 'ar' ? 'right' : 'left')]: ui.panelOpen ? 'var(--sheet-start-open)' : 'var(--sheet-start)' } : undefined}
       role="dialog"
       aria-label={post.title}
       data-testid="post-sheet"
@@ -179,7 +181,8 @@ export function PostSheet() {
                     onSubmit={(e: FormEvent) => {
                       e.preventDefault()
                       if (!note.trim()) return
-                      void act(() => sess.decidePost(view!.id, 'changes', note.trim()), t('yourDecisionSaved')).then(() => {
+                      void act(() => sess.decidePost(view!.id, 'changes', note.trim()), t('yourDecisionSaved')).then((ok) => {
+                        if (!ok) return   // 2 Nov council: a failed request keeps the client's note
                         setChanging(false)
                         setNote('')
                       })
@@ -246,7 +249,7 @@ export function PostSheet() {
                   </a>
                 )}
                 {admin && (
-                  <Button variant="ghost" size="sm" className="ms-auto text-accent hover:text-accent" disabled={busy} onClick={() => confirm(t('confirmDeletePost')) && act(() => sess.deletePost(post.id)).then(close)}>
+                  <Button variant="ghost" size="sm" className="ms-auto text-accent hover:text-accent" disabled={busy} onClick={() => confirm(t('confirmDeletePost')) && act(() => sess.deletePost(post.id)).then((ok) => ok && close())}>
                     <Trash2 size={14} /> {t('deletePost')}
                   </Button>
                 )}

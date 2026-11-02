@@ -368,5 +368,16 @@ select t.run_su('[pend] (setup) the member chooses a password', 'update auth.use
 select t.run('[pend] …and leaves the pending list (only the client user remains)', :'A', 'select 1 from pending_members() where email = ''newclient@test''', 'rows:1');
 select t.run('[pend] …the confirmed creative is gone', :'A', 'select 1 from pending_members() where email = ''new.creative@test''', 'none');
 
+-- ===== 0015 trust (council 2 Nov): server time on messages + real PNG signatures =====
+select t.run('[trust] a message dated in the future gets the server time', :'C1', 'insert into messages (org_id, channel, sender_id, body, created_at) values (' || quote_literal(:'ORG') || ', ''team'', ' || quote_literal(:'C1') || ', ''future'', ''2099-01-01''); select 1 from messages where body = ''future'' and created_at < now() + interval ''1 minute''', 'rows:1');
+select t.run('[trust] a fake PNG (prefix + text) is not a signature', :'A', 'select 1 where not is_png_data_url(''data:image/png;base64,aGVsbG8gd29ybGQ='')', 'rows:1');
+select t.run('[trust] …nor broken base64', :'A', 'select 1 where not is_png_data_url(''data:image/png;base64,@@@'')', 'rows:1');
+select t.run('[trust] a real PNG is', :'A', 'select 1 where is_png_data_url(' || quote_literal(:'SIG') || ')', 'rows:1');
+\set CT10 90000000-0000-0000-0000-000000000010
+\set CV10 91000000-0000-0000-0000-000000000010
+select t.run('[trust] (setup) a contract to sign', :'A', 'insert into contracts (id, org_id, party, client_id, kind, title) values (' || quote_literal(:'CT10') || ', ' || quote_literal(:'ORG') || ', ''client'', ''20000000-0000-0000-0000-000000000001'', ''full'', ''توقيع مزيف''); insert into contract_versions (id, org_id, contract_id, content) values (' || quote_literal(:'CV10') || ', ' || quote_literal(:'ORG') || ', ' || quote_literal(:'CT10') || ', ''{"kind":"full","title":"توقيع مزيف","date":"2026-11-02","counterparty":{"name":"عميل أ"},"hawamish":{"name":"هوامش"},"signers":{"hawamish":{"name":"إبراهيم"}}}''::jsonb)', 'rows:1');
+select t.run('[trust] …Hawamish cannot sign it with a fake PNG', :'A', 'select sign_contract_first(' || quote_literal(:'CV10') || ', ''data:image/png;base64,aGVsbG8gd29ybGQ='', ''إبراهيم'', ''المدير'')', 'error');
+select t.run('[trust] …a real PNG still signs', :'A', 'select sign_contract_first(' || quote_literal(:'CV10') || ', ' || quote_literal(:'SIG') || ', ''إبراهيم'', ''المدير'')', 'rows:1');
+
 select * from t.report();
 select count(*) filter (where not pass) as failures, count(*) as total from t.results;
