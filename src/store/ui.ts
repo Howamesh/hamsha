@@ -8,6 +8,7 @@ export type View = 'month' | 'week' | 'day'
 export type PanelTab = 'main' | 'messages' | 'alerts' | 'settings' | 'profile'
 /** The big area shows the calendar or the social board (the right-side menu switches it instantly). */
 export type Workspace = 'calendar' | 'social' | 'contracts'
+export type ContractsFilter = 'action' | 'all' | 'archive'
 
 interface UiState {
   lang: Lang
@@ -32,6 +33,11 @@ interface UiState {
   /** Contracts: the contract opened in the sheet / editor (null = none) */
   contractId: string | null
   contractEditing: boolean
+  /** «العقود» tab (not persisted): the rail's number opens «يحتاج تصرّف» */
+  contractsFilter: ContractsFilter
+  setContractsFilter: (f: ContractsFilter) => void
+  /** The Hamsha logo (2 Nov, his idea): back to this person's home — calendar, today, nothing open */
+  goHome: (openPanel: boolean) => void
 
   setLang: (l: Lang) => void
   setTheme: (t: 'light' | 'dark') => void
@@ -77,6 +83,7 @@ export const useUi = create<UiState>()(
       postId: null,
       contractId: null,
       contractEditing: false,
+      contractsFilter: 'all',
 
       setLang: (lang) => set({ lang }),
       setTheme: (theme) => set({ theme }),
@@ -91,6 +98,8 @@ export const useUi = create<UiState>()(
       openPost: (postId) => set({ postId }),
       openContract: (contractId, editing = false) => set({ contractId, contractEditing: !!contractId && editing }),
       setCheckin: (checkinOpen) => set({ checkinOpen }),
+      setContractsFilter: (contractsFilter) => set({ contractsFilter }),
+      goHome: (openPanel) => set({ calId: null, workspace: 'calendar', taskId: null, postId: null, contractId: null, contractEditing: false, panelTab: 'main', panelOpen: openPanel, focus: todayIso() }),
       resetForUser: () => set({ calId: null, taskId: null, postId: null, contractId: null, contractEditing: false, workspace: 'calendar', panelTab: 'main', checkinOpen: false }),
       toast: null,
       toastKind: 'error',

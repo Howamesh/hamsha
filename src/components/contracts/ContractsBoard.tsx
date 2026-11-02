@@ -5,12 +5,11 @@ import { fmtDate, useStr } from '@/lib/useStr'
 import { useData, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
 import type { Contract } from '@/types'
-import { contractStatusTone, contractTotal, contractsNeedingAction, currencyShort, fmtAmount, visibleContracts } from '@/lib/contracts'
+import { contractStatusTone, contractStep, contractTotal, contractsNeedingAction, currencyShort, fmtAmount, visibleContracts } from '@/lib/contracts'
 import { Button, Segmented } from '../ui'
 import { BrandTile } from '../BrandTile'
 import { NewContractDialog } from './NewContractDialog'
 
-type Filter = 'action' | 'all' | 'archive'
 
 export function ContractStatusChip({ st, className }: { st: Contract['status']; className?: string }) {
   const { t } = useStr()
@@ -28,7 +27,9 @@ export function ContractsBoard() {
   const me = useUser()!
   const ui = useUi()
   const contracts = useMemo(() => visibleContracts(s, me), [s, me])
-  const [filter, setFilter] = useState<Filter>('all')
+  // in the store so the rail's red number can open «يحتاج تصرّف» (2 Nov)
+  const filter = ui.contractsFilter
+  const setFilter = ui.setContractsFilter
   const [creating, setCreating] = useState(false)
   const admin = me.role === 'admin'
   const legalMissing = [
@@ -40,14 +41,18 @@ export function ContractsBoard() {
   const action = contractsNeedingAction(contracts, me.role)
   const list = contracts
     // «الحالية» = everything not yet in the archive (completed / rejected), so the two tabs never repeat (2 Nov)
-    .filter((c) => (filter === 'all' ? c.status !== 'completed' && c.status !== 'rejected' : filter === 'archive' ? c.status === 'completed' || c.status === 'rejected' : admin ? c.status === 'changes' || c.status === 'signed' || (c.status === 'draft' && c.currentVersion > 0) : c.status === 'sent' || c.status === 'opened'))
+    .filter((c) => (filter === 'all' ? c.status !== 'completed' && c.status !== 'rejected' : filter === 'archive' ? c.status === 'completed' || c.status === 'rejected' : !!contractStep(c, me.role) && contractStep(c, me.role)!.key !== 'waiting'))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 
   return (
     <div className="flex-1 min-h-0 rounded-md border border-border bg-card flex flex-col" data-testid="contracts-board">
       <div className="flex items-center gap-2 flex-wrap px-4 py-3 border-b border-border">
         <div className="text-[15px] font-semibold">{t('contractsTitle')}</div>
-        {action > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-accent text-accent-fg text-[11px] font-bold grid place-items-center">{action}</span>}
+        {action > 0 && (
+          <button type="button" onClick={() => setFilter('action')} title={t('contractsWaiting', { n: action })} className="min-w-[20px] h-5 px-1.5 rounded-full bg-accent text-accent-fg text-[11px] font-bold grid place-items-center cursor-pointer">
+            {action}
+          </button>
+        )}
         <div className="flex-1" />
         <Segmented
           size="sm"
@@ -72,6 +77,12 @@ export function ContractsBoard() {
           {t('legalMissingBanner', { list: legalMissing.join('، ') })}
         </button>
       )}
+      {/* the red number in words — what is waiting on YOU (2 Nov, his «ما أعرف ايش سببها») */}
+      {action > 0 && (
+        <button type="button" onClick={() => setFilter('action')} className="mx-4 mt-3 rounded-md border border-danger-dark/25 bg-danger-tint/60 px-3 py-2 text-start text-[12.5px] text-danger-dark font-semibold cursor-pointer" data-testid="contracts-waiting">
+          {action === 1 ? t('contractsWaitingOne') : action === 2 ? t('contractsWaitingTwo') : t('contractsWaiting', { n: action })}
+        </button>
+      )}
       <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4">
         {contracts.length === 0 ? (
           <Empty text={admin ? t('contractsEmptyTeam') : t('contractsEmptyClient')} />
@@ -90,6 +101,9 @@ export function ContractsBoard() {
   )
 }
 
+const STEP_TONE = { red: 'text-danger-dark', grey: 'text-fg-secondary', green: 'text-success-dark', muted: 'text-fg-muted' } as const
+const STEP_KEY = { changes: 'stepChanges', ready: 'stepReady', signed: 'stepSigned', waiting: 'stepWaiting', yourTurn: 'stepYourTurn' } as const
+
 function Empty({ text }: { text: string }) {
   return <div className="h-full grid place-items-center text-[13px] text-fg-secondary text-center px-6">{text}</div>
 }
@@ -101,6 +115,9 @@ function ContractCard({ c, onOpen, lang }: { c: Contract; onOpen: () => void; la
   const creative = c.creativeId ? s.users.find((u) => u.id === c.creativeId) : undefined
   const v = s.contractVersions.find((x) => x.contractId === c.id && x.number === c.currentVersion)
   const total = v ? contractTotal(v.content) : 0
+  const me = useUser()!
+  const step = contractStep(c, me.role)
+  const party = client?.name ?? creative?.name ?? t('otherSide')
   const label = c.kind === 'offer' ? `عرض #${c.number}` : c.kind === 'employment' ? `عقد عمل #${c.number}` : `مسودة #${c.number}`
   return (
     <button type="button" onClick={onOpen} className="rounded-md border border-border bg-bg text-start cursor-pointer hover:border-fg-faint overflow-hidden flex anim-fade" data-testid="contract-card" data-status={c.status}>
@@ -127,6 +144,11 @@ function ContractCard({ c, onOpen, lang }: { c: Contract; onOpen: () => void; la
           </span>
         </div>
         {c.status === 'draft' && c.currentVersion === 0 && <span className="text-[10.5px] text-fg-muted">{t('noVersionYet')}</span>}
+        {step && (
+          <span className={cn('text-[11.5px] font-semibold leading-snug', STEP_TONE[step.tone])} data-testid="contract-step" data-step={step.key} dir="auto">
+            {t(STEP_KEY[step.key], { who: party })}
+          </span>
+        )}
       </div>
     </button>
   )

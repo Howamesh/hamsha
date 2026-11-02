@@ -6,6 +6,7 @@ import { alerts, visibleTasks } from '@/lib/derive'
 import { fmtDate, fmtTime, useStr } from '@/lib/useStr'
 import { useData, useUser } from '@/store/session'
 import { useUi } from '@/store/ui'
+import { staleDrafts, visibleContracts } from '@/lib/contracts'
 
 export function useAlerts() {
   const s = useData()
@@ -13,6 +14,13 @@ export function useAlerts() {
   const calId = useUi((u) => u.calId)
   if (!user) return []
   return alerts(s, visibleTasks(s, user, calId))
+}
+
+/** Ready drafts left 3+ days (2 Nov, his pick ٥): a reminder instead of a red number on «العقود» */
+export function useStaleDrafts() {
+  const s = useData()
+  const user = useUser()
+  return user ? staleDrafts(visibleContracts(s, user), user.role) : []
 }
 
 export function useActivity() {
@@ -23,7 +31,7 @@ export function useActivity() {
 /** The bell's number: late/due tasks + activity nobody has looked at yet (1 Nov). */
 export function useBellCount() {
   const user = useUser()
-  const alertsN = useAlerts().length
+  const alertsN = useAlerts().length + useStaleDrafts().length
   const feed = useActivity()
   const seen = useUi((u) => (user ? u.activitySeen[user.id] : undefined))
   return alertsN + (user ? unreadActivity(feed, user, seen) : 0)
@@ -81,12 +89,32 @@ function ActivityList() {
   )
 }
 
+function StaleDrafts() {
+  const { t } = useStr()
+  const list = useStaleDrafts()
+  const setWorkspace = useUi((u) => u.setWorkspace)
+  const openContract = useUi((u) => u.openContract)
+  return (
+    <>
+      {list.map(({ c, days }) => (
+        <button key={c.id} type="button" data-testid="stale-draft"
+          onClick={() => { setWorkspace('contracts'); openContract(c.id) }}
+          className="flex items-start gap-2.5 rounded-md border p-3 text-start cursor-pointer bg-warning-tint border-warning-dark/20 text-warning-dark">
+          <FileSignature size={16} className="shrink-0 mt-0.5" />
+          <span className="text-[12.5px] font-semibold leading-snug" dir="auto">{t('staleDraft', { n: c.number, title: c.title, d: days })}</span>
+        </button>
+      ))}
+    </>
+  )
+}
+
 export function AlertsList() {
   const { t, lang } = useStr()
   const list = useAlerts()
+  const stale = useStaleDrafts()
   const openTask = useUi((u) => u.openTask)
   const setFocus = useUi((u) => u.setFocus)
-  if (!list.length) {
+  if (!list.length && !stale.length) {
     return (
       <div className="flex flex-col gap-2">
         <div className="rounded-md border border-dashed border-fg-faint p-4 text-[13px] text-fg-secondary text-center">{t('allClearAlerts')}</div>
@@ -115,6 +143,7 @@ export function AlertsList() {
           </span>
         </button>
       ))}
+      <StaleDrafts />
       <ActivityList />
     </div>
   )

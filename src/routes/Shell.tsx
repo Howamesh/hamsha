@@ -29,6 +29,7 @@ import { PostSheet } from '@/components/social/PostSheet'
 import { ContractsBoard } from '@/components/contracts/ContractsBoard'
 import { ContractSheet } from '@/components/contracts/ContractSheet'
 import { clientBlocked, contractsNeedingAction, visibleContracts } from '@/lib/contracts'
+import { loadDraft } from '@/lib/contractDraft'
 
 export default function Shell() {
   const me = useUser()
@@ -82,6 +83,12 @@ function App() {
   const badge = isAdmin ? (client ? t('badgeAdmin') : t('badgeMaster')) : isCreative ? t('badgeCreative') : t('badgeClient')
   const emptyMsg = isAdmin ? t('emptyMaster') : isCreative ? t('emptyCreative') : t('emptyClient')
 
+  // home = this person's calendar for today, nothing open; unsaved contract edits ask first (they stay as a local draft)
+  const [leaving, setLeaving] = useState(false)
+  const goHome = () => {
+    if (ui.contractEditing && ui.contractId && loadDraft(ui.contractId)) return setLeaving(true)
+    ui.goHome(!narrow)
+  }
   const [newTask, setNewTask] = useState<NewTaskSeed | null>(null)
   const onCreate = isAdmin && s.clients.length > 0 ? (seed: NewTaskSeed) => setNewTask(seed) : undefined
 
@@ -109,13 +116,11 @@ function App() {
           </Button>
         )}
         <div className="flex items-center gap-2.5 min-w-0">
-          {client ? (
-            <BrandTile client={client} size={28} />
-          ) : isAdmin ? (
+          {/* 2 Nov (his idea, council 20261102-202126-b0be): the Hamsha logo is always here and always means «الرئيسية» */}
+          <button type="button" onClick={goHome} aria-label={t('home')} title={t('home')} data-testid="home-logo" className="rounded-lg cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg">
             <Logo size={28} />
-          ) : (
-            <Avatar name={me.name} color={me.color} size={28} />
-          )}
+          </button>
+          {client ? <BrandTile client={client} size={28} /> : !isAdmin && <Avatar name={me.name} color={me.color} size={28} />}
           <span className="text-[17px] font-semibold tracking-[-0.01em] truncate">{headName}</span>
           <Badge className="hidden sm:inline">{badge}</Badge>
         </div>
@@ -145,7 +150,7 @@ function App() {
         {!narrow && (
           <nav className="w-[var(--rail-w)] shrink-0 rounded-md border border-border bg-card flex flex-col items-stretch gap-1 p-1.5 overflow-y-auto no-scrollbar" data-testid="side-rail" aria-label={t('sections')}>
             {spaces.map((r) => (
-              <RailButton key={r.id} icon={r.icon} label={r.label} badge={r.badge} active={ui.workspace === r.id} onClick={() => ui.setWorkspace(r.id)} testId={`rail-${r.id}`} badgeTestId={`${r.id}-badge`} />
+              <RailButton key={r.id} icon={r.icon} label={r.label} badge={r.badge} active={ui.workspace === r.id} onClick={() => { ui.setWorkspace(r.id); if (r.id === 'contracts') ui.setContractsFilter(r.badge ? 'action' : 'all') }} testId={`rail-${r.id}`} badgeTestId={`${r.id}-badge`} />
             ))}
             <div className="h-px bg-border mx-1.5 my-1 shrink-0" />
             {railTabs.map((r) => (
@@ -242,7 +247,7 @@ function App() {
             <Share2 size={18} /> {t('social')}
             {!!socialBadge && <span className="absolute top-1.5 end-[22%] min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-accent-fg text-[9.5px] font-bold grid place-items-center">{socialBadge}</span>}
           </button>
-          <button type="button" onClick={() => { ui.togglePanel(false); ui.setWorkspace('contracts') }} className={cn('relative flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', !ui.panelOpen && contracts ? 'text-fg' : 'text-fg-secondary')}>
+          <button type="button" onClick={() => { ui.togglePanel(false); ui.setWorkspace('contracts'); ui.setContractsFilter(contractsBadge ? 'action' : 'all') }} className={cn('relative flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold cursor-pointer', !ui.panelOpen && contracts ? 'text-fg' : 'text-fg-secondary')}>
             <FileSignature size={18} /> {t('contracts')}
             {!!contractsBadge && <span className="absolute top-1.5 end-[22%] min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-accent-fg text-[9.5px] font-bold grid place-items-center">{contractsBadge}</span>}
           </button>
@@ -256,6 +261,18 @@ function App() {
         </nav>
       )}
 
+      {leaving && (
+        <div className="fixed inset-0 z-[95] bg-black/40 grid place-items-center p-4 anim-fade" onClick={() => setLeaving(false)}>
+          <div role="dialog" aria-label={t('leaveEditTitle')} data-testid="leave-dialog" onClick={(e) => e.stopPropagation()} className="w-[min(420px,100%)] rounded-lg bg-card border border-border p-5 flex flex-col gap-3 anim-sheet">
+            <div className="text-[15.5px] font-semibold">{t('leaveEditTitle')}</div>
+            <div className="text-[13px] text-fg-secondary">{t('leaveEditBody')}</div>
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" onClick={() => setLeaving(false)} data-testid="leave-stay">{t('leaveEditStay')}</Button>
+              <Button size="sm" variant="primary" onClick={() => { setLeaving(false); ui.goHome(!narrow) }} data-testid="leave-go">{t('leaveEditGo')}</Button>
+            </div>
+          </div>
+        </div>
+      )}
       {newTask && <NewTaskDialog seed={newTask} clientId={client?.id ?? null} onClose={() => setNewTask(null)} />}
       <TaskSheet />
       <PostSheet />

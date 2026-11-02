@@ -278,11 +278,25 @@ CHECKS['…tapping it opens that contract'] = await ev(`!!document.querySelector
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]')?.click()`); await sleep(300);
 await click('العقود'); await waitFor(`!!document.querySelector('[data-testid=contract-card]')`);
 CHECKS['admin card «يبي تعديل»'] = await ev(`document.querySelector('[data-testid=contract-card]').dataset.status === 'changes'`);
+// 2 Nov (his pick ٥): the red number = waiting on YOU, said in words on the board and on the card
+CHECKS['admin red number = the change request only (1)'] = (await text('[data-testid=contracts-badge]')).trim() === '1';
+CHECKS['…the board says it in words'] = (await text('[data-testid=contracts-waiting]')).includes('عقد واحد ينتظر ردّك');
+CHECKS['…the card says the step (client asked for changes)'] = await ev(`(()=>{const x=document.querySelector('[data-testid=contract-card] [data-testid=contract-step]');return !!x && x.dataset.step==='changes' && x.innerText.includes('طلب تعديلاً')})()`);
+// the Hamsha logo = home: back to the calendar from anywhere; the rail's red number opens «يحتاج تصرّف»
+await clickSel('[data-testid=home-logo]'); await sleep(300);
+CHECKS['logo → home (calendar, contracts closed)'] = await ev(`!!document.querySelector('[data-testid=cal-toolbar]') && !document.querySelector('[data-testid=contracts-board]')`);
+await clickSel('[data-testid=rail-contracts]'); await waitFor(`!!document.querySelector('[data-testid=contract-card]')`);
+CHECKS['rail number opens «يحتاج تصرّف»'] = await ev(`[...document.querySelectorAll('[data-testid=contracts-board] button')].some(b=>b.textContent.trim()==='يحتاج تصرّف' && b.className.includes('bg-card'))`);
 await ev(`document.querySelector('[data-testid=contract-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=contract-sheet]')`);
 CHECKS['admin reads the client note in the banner'] = (await text('[data-testid=contract-decision-note]')).includes('قللوا المدة إلى 6 أشهر');
 await clickSel('[data-testid=edit-contract]'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`);
 CHECKS['editor starts from version 1 values'] = (await ev(`document.querySelector('[data-testid=pricing-months]').value`)) === '12';
 await setT('pricing-months', '6'); await sleep(200);
+await sleep(600);   // the local draft is written
+await clickSel('[data-testid=home-logo]'); await sleep(300);
+CHECKS['logo while editing: asks first (edits kept as a draft)'] = await ev(`!!document.querySelector('[data-testid=leave-dialog]')`);
+await clickSel('[data-testid=leave-stay]'); await sleep(200);
+CHECKS['…«كمّل الكتابة» keeps the editor and the edit'] = await ev(`!!document.querySelector('[data-testid=contract-editor]') && document.querySelector('[data-testid=pricing-months]').value==='6'`);
 CHECKS['arithmetic updates: 24,000'] = (await text('[data-testid=pricing-total]')).includes('(24,000) أربعة وعشرون ألف');
 await clickSel('[data-testid=sign-send]');
 CHECKS['re-sign + re-send (v2)'] = await signFlow();

@@ -466,9 +466,37 @@ export function visibleContractVersions(s: Snapshot, user: User, contractId: str
   return s.contractVersions.filter((v) => v.contractId === contractId && (user.role === 'admin' || !!v.sentAt)).sort((a, b) => b.number - a.number)
 }
 /** What needs this role's hand right now (badge on the «العقود» switch). */
+/** The RED number = waiting on YOUR decision (2 Nov, his pick ٥: «ما أعرف ايش سببها»): the team → the other side asked
+ *  for changes; a client / creative → a contract sent to them. Ready drafts and signed contracts are steps, not alarms:
+ *  each card says its step (contractStep) and old ready drafts come back as a reminder (staleDrafts). */
 export function contractsNeedingAction(cs: Contract[], role: User['role']): number {
-  if (role === 'admin') return cs.filter((c) => c.status === 'changes' || c.status === 'signed' || (c.status === 'draft' && c.currentVersion > 0)).length
+  if (role === 'admin') return cs.filter((c) => c.status === 'changes').length
   return cs.filter((c) => c.status === 'sent' || c.status === 'opened').length
+}
+
+export type ContractStepKey = 'changes' | 'ready' | 'signed' | 'waiting' | 'yourTurn'
+/** The one next step a card shows, in plain words (the same voice as the alerts). null = nothing to do. */
+export function contractStep(c: Contract, role: User['role']): { key: ContractStepKey; tone: 'red' | 'grey' | 'green' | 'muted' } | null {
+  if (role === 'admin') {
+    if (c.status === 'changes') return { key: 'changes', tone: 'red' }
+    if (c.status === 'draft' && c.currentVersion > 0) return { key: 'ready', tone: 'grey' }
+    if (c.status === 'signed') return { key: 'signed', tone: 'green' }
+    if (c.status === 'sent' || c.status === 'opened') return { key: 'waiting', tone: 'muted' }
+    return null
+  }
+  return c.status === 'sent' || c.status === 'opened' ? { key: 'yourTurn', tone: 'red' } : null
+}
+
+export const STALE_DRAFT_DAYS = 3
+/** Ready drafts nobody sent for 3+ days → a gentle reminder in التنبيهات (so dropping drafts from the red number never
+ *  means forgetting them). Team only. */
+export function staleDrafts(cs: Contract[], role: User['role'], now = Date.now()): Array<{ c: Contract; days: number }> {
+  if (role !== 'admin') return []
+  return cs
+    .filter((c) => c.status === 'draft' && c.currentVersion > 0)
+    .map((c) => ({ c, days: Math.floor((now - Date.parse(c.updatedAt)) / 86_400_000) }))
+    .filter((x) => x.days >= STALE_DRAFT_DAYS)
+    .sort((a, b) => b.days - a.days)
 }
 /** A client whose admin set the block and whose latest contract is not signed sees the banner. */
 export function clientBlocked(s: Snapshot, user: User): boolean {
