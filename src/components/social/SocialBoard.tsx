@@ -29,7 +29,8 @@ export function SocialBoard() {
   const team = me.role !== 'client'
   const action = postsNeedingAction(posts, me.role)
   const list = posts
-    .filter((p) => (filter === 'all' ? true : filter === 'archive' ? p.status === 'published' : me.role === 'client' ? p.status === 'sent' : p.status !== 'published' && (me.role === 'admin' ? p.status !== 'sent' : p.status === 'changes')))
+    // 2 Nov (Yousef: «ليش الكل والأرشيف نفس الشيء؟»): «الحالية» = everything NOT yet published, «الأرشيف» = published
+    .filter((p) => (filter === 'all' ? p.status !== 'published' : filter === 'archive' ? p.status === 'published' : me.role === 'client' ? p.status === 'sent' : p.status !== 'published' && (me.role === 'admin' ? p.status !== 'sent' : p.status === 'changes')))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   // admin: any client · creative: only when they work with at least one client (the DB refuses the rest)
   const canCreate = me.role === 'admin' ? s.clients.length > 0 : me.role === 'creative' && s.tasks.some((x) => x.ownerId === me.id || s.parts.some((p) => p.taskId === x.id && p.assigneeId === me.id))
@@ -46,8 +47,8 @@ export function SocialBoard() {
           value={filter}
           options={[
             { value: 'action', label: me.role === 'client' ? t('awaitingYou') : t('filterAction') },
-            { value: 'all', label: t('filterAll') },
-            { value: 'archive', label: t('filterArchive') },
+            { value: 'all', label: t('filterCurrent') },
+            { value: 'archive', label: t('filterPublished') },
             { value: 'grid', label: t('filterGrid') },
           ]}
           onChange={setFilter}

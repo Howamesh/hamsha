@@ -1,7 +1,7 @@
 import { createContext, useContext, useLayoutEffect, useMemo, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { deepLatin } from '@/lib/latinDigits'
-import { SHORT_FOOTNOTE, agreementDateLine, contractTotal, currencyShort, fillText, fmtAmount, signDate } from '@/lib/contracts'
+import { SHORT_FOOTNOTE, agreementDateLine, contractTotal, currencyShort, fillText, fmtAmount, secKey, signDate } from '@/lib/contracts'
 import type { ContractContent, ContractPartyInfo, ContractVersion } from '@/types'
 
 /**
@@ -69,11 +69,26 @@ const Box = ({ c, text, className }: { c: ContractContent; text: string; classNa
     ))}
   </div>
 )
+/** A clause of the full template: numbered bar + grey box; the pricing clause (key 04) opens the pricing editor. */
+const FullClause = ({ c, s }: { c: ContractContent; s: ContractContent['sections'][number] }) => (
+  <Pick id={secKey(s) === '04' ? 'pricing' : `sec:${secKey(s)}`}><Bar num={s.num} title={s.title} /><Box c={c} text={s.body} /></Pick>
+)
+/** Short contract / offer: the clauses the team added, on their own pages (3 per page) before the signatures. */
+const ExtraClauses = ({ c }: { c: ContractContent }) => (
+  <>
+    {chunk(c.sections, Array(40).fill(3)).map((group, i) => (
+      <Page key={`extra-${i}`} c={c}>
+        {i === 0 && <Bar title="بنود إضافية" sub="Additional clauses" />}
+        {group.map((s) => <FullClause key={secKey(s)} c={c} s={s} />)}
+      </Page>
+    ))}
+  </>
+)
 /** «عقد عمل» clauses: one grey box, «1. طبيعة العمل» bold heads (the Figma look), each tappable on the big paper */
 const Clauses = ({ c, list }: { c: ContractContent; list: ContractContent['sections'] }) => (
   <div className="paper-box paper-clauses">
     {list.map((s) => (
-      <Pick key={s.num} id={`sec:${s.num}`}>
+      <Pick key={secKey(s)} id={`sec:${secKey(s)}`}>
         <div className="paper-clause">
           <p className="paper-clause-title">{s.num}. {s.title}</p>
           {fillText(s.body, c).split('\n').map((line, i) => <p key={i}>{line}</p>)}
@@ -232,6 +247,7 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
               </Pick>
             ))}
           </Page>
+          <ExtraClauses c={c} />
           <Page c={c}>
             <Bar title={draftLabel} />
             <div className="paper-row paper-row-split"><span>الشريك</span><span dir="auto">{c.counterparty.name || '…'}</span></div>
@@ -261,18 +277,26 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
               <Party p={second} title="الطرف الثاني" full />
             </div>
             </Pick>
-            {c.sections.slice(0, 1).map((s) => (
-              <Pick key={s.num} id={s.num === '04' ? 'pricing' : `sec:${s.num}`}><Bar num={s.num} title={s.title} /><Box c={c} text={s.body} /></Pick>
-            ))}
+            {c.sections.slice(0, 1).map((s) => <FullClause key={secKey(s)} c={c} s={s} />)}
           </Page>
-          {chunk(c.sections.slice(1), [2, 3, 2, 3, 2, 1]).map((group, i) => (
-            <Page key={i} c={c}>
-              {group.map((s) => (
-                <Pick key={s.num} id={s.num === '04' ? 'pricing' : `sec:${s.num}`}><Bar num={s.num} title={s.title} /><Box c={c} text={s.body} /></Pick>
-              ))}
-              {i === 5 && <SignBlock c={c} first={first} second={second} firstSig={firstSig} secondSig={secondSig} firstSigner={firstSigner} secondSigner={secondSigner} hawamishIsFirst={hawamishIsFirst} stamp={stamp} />}
-            </Page>
-          ))}
+          {/* the manager's page rhythm for the 14 template clauses; clauses the team adds continue 2 per page and the
+              signatures always close the LAST page (alone on a new page when that page already holds 2 clauses) */}
+          {(() => {
+            const groups = chunk(c.sections.slice(1), [2, 3, 2, 3, 2, 1, ...Array(40).fill(2)])
+            const signAlone = groups.length > 0 && groups[groups.length - 1].length > 1
+            const sign = <SignBlock c={c} first={first} second={second} firstSig={firstSig} secondSig={secondSig} firstSigner={firstSigner} secondSigner={secondSigner} hawamishIsFirst={hawamishIsFirst} stamp={stamp} />
+            return (
+              <>
+                {groups.map((group, i) => (
+                  <Page key={i} c={c}>
+                    {group.map((s) => <FullClause key={secKey(s)} c={c} s={s} />)}
+                    {i === groups.length - 1 && !signAlone && sign}
+                  </Page>
+                ))}
+                {(signAlone || groups.length === 0) && <Page c={c}>{sign}</Page>}
+              </>
+            )
+          })()}
         </>
       )}
 
@@ -312,10 +336,13 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
             <Bar title="بنود العقد" sub="Contract Clauses" />
             <Clauses c={c} list={c.sections.slice(0, 3)} />
           </Page>
-          <Page c={c}>
-            <Bar title="بنود العقد" sub="Contract Clauses" />
-            <Clauses c={c} list={c.sections.slice(3)} />
-          </Page>
+          {/* clauses 4–8 on page 2 like the Figma; clauses the team adds continue 5 per page */}
+          {chunk(c.sections.slice(3), [5, ...Array(40).fill(5)]).map((group, i) => (
+            <Page key={`emp-${i}`} c={c}>
+              <Bar title="بنود العقد" sub="Contract Clauses" />
+              <Clauses c={c} list={group} />
+            </Page>
+          ))}
           <Page c={c}>
             <div className="paper-row paper-row-center paper-row-light">{draftLabel}</div>
             <div className="paper-row paper-row-split paper-row-dark"><span>الموظف</span><span dir="auto">{c.counterparty.name || '…'}</span></div>
@@ -367,6 +394,7 @@ export function ContractPaper({ content, version, number, stamp: stampProp, clas
               </>
             )}
           </Page>
+          <ExtraClauses c={c} />
           <Page c={c}>
             <SignBlock c={c} first={first} second={second} firstSig={firstSig} secondSig={secondSig} firstSigner={firstSigner} secondSigner={secondSigner} hawamishIsFirst={hawamishIsFirst} stamp={stamp} />
           </Page>
@@ -396,7 +424,12 @@ function chunk<T>(items: T[], sizes: number[]): T[][] {
     out.push(items.slice(i, i + n))
     i += n
   }
-  if (i < items.length) out.push(items.slice(i))
+  // past the given sizes, keep the LAST size (council 2 Nov: never pile the rest onto one page)
+  const last = sizes[sizes.length - 1] || items.length
+  while (i < items.length) {
+    out.push(items.slice(i, i + last))
+    i += last
+  }
   return out
 }
 

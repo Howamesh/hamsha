@@ -33,7 +33,8 @@ export function ContractsBoard() {
   const admin = me.role === 'admin'
   const action = contractsNeedingAction(contracts, me.role)
   const list = contracts
-    .filter((c) => (filter === 'all' ? true : filter === 'archive' ? c.status === 'completed' || c.status === 'rejected' : admin ? c.status === 'changes' || c.status === 'signed' || (c.status === 'draft' && c.currentVersion > 0) : c.status === 'sent' || c.status === 'opened'))
+    // «الحالية» = everything not yet in the archive (completed / rejected), so the two tabs never repeat (2 Nov)
+    .filter((c) => (filter === 'all' ? c.status !== 'completed' && c.status !== 'rejected' : filter === 'archive' ? c.status === 'completed' || c.status === 'rejected' : admin ? c.status === 'changes' || c.status === 'signed' || (c.status === 'draft' && c.currentVersion > 0) : c.status === 'sent' || c.status === 'opened'))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 
   return (
@@ -47,7 +48,7 @@ export function ContractsBoard() {
           value={filter}
           options={[
             { value: 'action', label: admin ? t('filterAction') : t('awaitingYou') },
-            { value: 'all', label: t('filterAll') },
+            { value: 'all', label: t('filterCurrent') },
             { value: 'archive', label: t('filterArchive') },
           ]}
           onChange={setFilter}

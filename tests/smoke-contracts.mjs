@@ -318,6 +318,29 @@ CHECKS['employment: the job is asked, with suggestions'] = await ev(`!!document.
 CHECKS['employment: the missing bar asks for the job first'] = (await text('[data-testid=missing-values]')).includes('الوظيفة');
 await ev(`document.querySelector('[data-testid=job-chip]').click()`); await sleep(200);
 CHECKS['employment: a suggestion fills the job'] = await ev(`document.querySelector('[data-testid=contract-job]').value === 'مصمم جرافيك'`);
+// 2 Nov (Yousef: «أبي أقدر أضيف بنود»): add at the end, insert after a clause (renumbers the paper), move, delete
+const paperT = () => text('[data-testid=contract-paper]');
+await clickSel('[data-testid=section-add]'); await sleep(400);
+const K1 = await ev(`[...document.querySelectorAll('[data-testid=section-editor][data-custom]')].pop()?.dataset.anchor?.slice(4)`);
+CHECKS['clauses: a new clause is added and its title is focused'] = !!K1 && (await ev(`document.activeElement?.dataset?.testid`)) === `section-title-${K1}`;
+await setT(`section-title-${K1}`, 'بند إضافي للاختبار'); await setT(`section-body-${K1}`, 'نص البند الإضافي.'); await sleep(300);
+if (process.env.SHOT_DIR) { const r = await ev(`(()=>{const e=[...document.querySelectorAll('[data-testid=section-editor][data-custom]')].pop();e.scrollIntoView({block:'center'});const b=e.parentElement.getBoundingClientRect();return {x:b.x,y:b.y-60,w:b.width,h:b.height+120}})()`); await sleep(300); const img = await send('Page.captureScreenshot', { format: 'png', clip: { x: r.x, y: r.y, width: r.w, height: r.h, scale: 2 } }); (await import('node:fs')).writeFileSync(`${process.env.SHOT_DIR}/clause-editor.png`, Buffer.from(img.result.data, 'base64')); }
+CHECKS['clauses: it prints as clause 9 after the 8 template clauses'] = (await paperT()).includes('9. بند إضافي للاختبار');
+// Codex check 2 Nov: a {word} with no field in this template ({التصاميم} in a «عقد عمل») is listed as a gap
+await setT(`section-body-${K1}`, 'عدد التصاميم {التصاميم} شهرياً.'); await sleep(300);
+await clickSel('[data-testid=sign-send]'); await sleep(400);
+CHECKS['clauses: an unfilled {word} inside a clause is listed in the sign window'] = (await text('[data-testid=sign-gaps]')).includes('{التصاميم} في البند 9');
+await ev(`document.querySelector('[data-testid=sign-dialog] button[aria-label="إلغاء"]')?.click()`); await sleep(300);
+await setT(`section-body-${K1}`, 'نص البند الإضافي.'); await sleep(300);
+await clickSel('[data-testid=section-add-after-2]'); await sleep(400);
+const K2 = await ev(`[...document.querySelectorAll('[data-testid=section-editor][data-custom]')].map(x=>x.dataset.anchor.slice(4)).find(k=>k!==${JSON.stringify(K1)})`);
+CHECKS['clauses: inserting after clause 2 renumbers the paper (old 3 → 4)'] = !!K2 && (await paperT()).includes('4. آلية احتساب المستحقات') && (await paperT()).includes('3. بند جديد');
+await clickSel(`[data-testid=section-delete-${K2}]`); await sleep(150); await clickSel(`[data-testid=section-delete-confirm-${K2}]`); await sleep(300);
+CHECKS['clauses: deleting asks once, then numbers come back'] = (await paperT()).includes('3. آلية احتساب المستحقات') && !(await paperT()).includes('بند جديد');
+await clickSel(`[data-testid=section-up-${K1}]`); await sleep(300);
+CHECKS['clauses: moving up swaps the numbers'] = (await paperT()).includes('8. بند إضافي للاختبار') && (await paperT()).includes('9. الموافقة');
+await clickSel(`[data-testid=section-down-${K1}]`); await sleep(300);
+CHECKS['clauses: template clauses cannot be deleted or moved'] = await ev(`!document.querySelector('[data-testid=section-delete-1]') && !document.querySelector('[data-testid=section-up-1]')`);
 // 2 Nov: «وقّع وأرسل» opens even with empty fields — the sign window lists them and each one takes you to its field
 CHECKS['editor: sign window opens with empty fields and lists them'] = await (async () => {
   await clickSel('[data-testid=sign-send]'); await sleep(400);
@@ -353,6 +376,11 @@ await clickSel('[data-testid=new-contract]'); await waitFor(`!!document.querySel
 await ev(`document.querySelector('[data-testid=contract-kind] [data-kind=short]').click()`); await sleep(100);
 await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`, 20000);
 await setT('track-0-monthly', '3000'); await sleep(200);
+// 2 Nov: the short contract gets «بنود إضافية» on their own page before the signatures
+await clickSel('[data-testid=section-add]'); await sleep(400);
+const KS = await ev(`[...document.querySelectorAll('[data-testid=section-editor][data-custom]')].pop()?.dataset.anchor?.slice(4)`);
+await setT(`section-title-${KS}`, 'بند الملكية'); await setT(`section-body-${KS}`, 'تؤول ملكية التصاميم للعميل بعد السداد.'); await sleep(400);
+CHECKS['short contract: «بنود إضافية» page before the signatures'] = (await text('[data-testid=contract-paper]')).includes('بنود إضافية') && (await text('[data-testid=contract-paper]')).includes('بند الملكية') && await ev(`(()=>{const ps=[...document.querySelectorAll('[data-testid=contract-paper] .paper-page')];const i=ps.findIndex(p=>p.innerText.includes('بند الملكية'));return i>0 && i<ps.length-1 && !!ps[ps.length-1].querySelector('[data-testid=paper-signatures]')})()`);
 // Codex check 2 Nov: save WITH gaps → panel → «وقّع عن هوامش» → the window lists the gaps → a tap opens the editor ON it
 await clickSel('[data-testid=save-version]'); await toastHas('انحفظت'); await closeToast();
 await ev(`document.querySelector('[data-testid=contract-editor] button[aria-label="إلغاء"]')?.click()`); await sleep(700);
@@ -370,6 +398,12 @@ await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label
 await clickSel('[data-testid=new-contract]'); await waitFor(`!!document.querySelector('[role=dialog][aria-label="عقد جديد"]')`);
 await click('إنشاء'); await waitFor(`!!document.querySelector('[data-testid=contract-editor]')`, 20000);
 CHECKS['a NEW contract starts blank (no memory from other contracts)'] = (await ev(`document.querySelectorAll('[data-testid=recall]').length`)) === 0;
+// 2 Nov: a 15th clause on the full template — numbered «15», signatures still close the LAST page, nothing overflows
+await clickSel('[data-testid=section-add]'); await sleep(400);
+const K15 = await ev(`[...document.querySelectorAll('[data-testid=section-editor][data-custom]')].pop()?.dataset.anchor?.slice(4)`);
+await setT(`section-title-${K15}`, 'بند الضمان الإضافي'); await setT(`section-body-${K15}`, 'نص بند الضمان.'); await sleep(400);
+CHECKS['full template: added clause prints as 15 and the signatures stay on the last page'] = (await text('[data-testid=contract-paper]')).includes('بند الضمان الإضافي') && await ev(`(()=>{const ps=[...document.querySelectorAll('[data-testid=contract-paper] .paper-page')];return !!ps[ps.length-1].querySelector('[data-testid=paper-signatures]') && ps.slice(0,-1).every(p=>!p.querySelector('[data-testid=paper-signatures]')) && !ps.some(p=>p.hasAttribute('data-overflow'))})()`) && await ev(`[...document.querySelectorAll('[data-testid=contract-paper] .paper-num')].some(x=>x.textContent.trim()==='15')`);
+await clickSel(`[data-testid=section-delete-${K15}]`); await sleep(150); await clickSel(`[data-testid=section-delete-confirm-${K15}]`); await sleep(300);
 // council 1 Nov: a version whose text runs past a page can be SAVED but never signed or sent — editor AND sheet
 await setT('pricing-monthly', '3000'); await setT('pricing-months', '3'); await sleep(200);
 await ev(`document.querySelector('[data-anchor="sec:05"] button[title]').click()`); await sleep(150);
@@ -388,7 +422,7 @@ CHECKS['sheet: empty fields are named and say you can still sign'] = await ev(`!
 // 1 Nov: «احظر العميل حتى التوقيع» removed at Yousef's request
 CHECKS['no «block the client» option anymore'] = !(await ev(`!!document.querySelector('[data-testid=contract-block]')`));
 await ev(`document.querySelector('[data-testid=contract-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
-CHECKS['admin sees 4 cards'] = (await ev(`document.querySelectorAll('[data-testid=contract-card]').length`)) === 4;
+CHECKS['admin: «الحالية» 3 cards, the completed one only in «الأرشيف» (no repeat)'] = (await ev(`document.querySelectorAll('[data-testid=contract-card]').length`)) === 3 && await (async () => { await click('الأرشيف'); await sleep(300); const n = await ev(`document.querySelectorAll('[data-testid=contract-card]').length`); await click('الحالية'); await sleep(200); return n === 1 })();
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=social-board]')`);
 await click('الشبكة'); await sleep(300);
 CHECKS['social grid tab'] = (await text('[data-testid=social-board]')).includes('ما فيه شيء معتمد أو منشور بعد');
@@ -407,6 +441,7 @@ await click('تسجيل الخروج'); await sleep(700);
 await click('ادخل كعميل'); await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='العقود')`, 20000); await sleep(400);
 CHECKS['client is never blocked'] = !(await ev(`!!document.querySelector('[data-testid=contract-blocked]')`));
 await click('العقود'); await waitFor(`!!document.querySelector('[data-testid=contracts-board]')`);
+await click('الأرشيف'); await sleep(300); // the client's contract is completed → «الأرشيف» (2 Nov: «الحالية» never repeats it)
 CHECKS['client never sees the unsent draft'] = (await ev(`document.querySelectorAll('[data-testid=contract-card]').length`)) === 1;
 // 1 Nov (his phone): every bottom tab opens ITS own section, labelled, with no second tab bar inside the panel
 await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:2,mobile:true}); await sleep(700);
@@ -425,7 +460,7 @@ await ev(`document.querySelector('[data-testid=nav-main]').click()`); await slee
 await send('Emulation.setDeviceMetricsOverride',{width:1500,height:950,deviceScaleFactor:1,mobile:false}); await sleep(600);
 // reload: persisted
 await send('Page.reload'); await sleep(1500); await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='العقود')`, 20000);
-await click('العقود'); await waitFor(`!!document.querySelector('[data-testid=contract-card]')`);
+await click('العقود'); await sleep(300); await click('الأرشيف'); await waitFor(`!!document.querySelector('[data-testid=contract-card]')`);
 CHECKS['persisted after reload'] = await ev(`document.querySelector('[data-testid=contract-card]').dataset.status === 'completed'`);
 
 CHECKS['no console errors'] = errors.length === 0;

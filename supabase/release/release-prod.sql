@@ -1305,6 +1305,7 @@ declare k text := coalesce(c ->> 'kind', '');
   txt text;
   side text; who text;
   i int;
+  body text; w text; wempty boolean;
 begin
   if c is null then return array['المحتوى']; end if;
   if _c_empty(c, '{title}') then g := array_append(g, 'عنوان العقد'); end if;
@@ -1325,11 +1326,9 @@ begin
     if _c_empty(c, '{bank,iban}') then g := array_append(g, 'آيبان الموظف'); end if;
   else
     -- the words the contract TEXT uses must be filled (unused counts stay optional), like the editor's bar
-    if k = 'full' then
-      select coalesce(string_agg(x ->> 'body', E'\n'), '') into txt from jsonb_array_elements(coalesce(c -> 'sections', '[]'::jsonb)) x;
-    else
-      txt := coalesce(c ->> 'scope', '');
-    end if;
+    -- the scope (short / offer) + EVERY clause, incl. the ones the team added (2 Nov)
+    select coalesce(case when k = 'full' then '' else c ->> 'scope' end, '') || E'\n' || coalesce(string_agg(x ->> 'body', E'\n'), '')
+      into txt from jsonb_array_elements(coalesce(c -> 'sections', '[]'::jsonb)) x;
     if position('{الهدف}' in txt) > 0 and _c_empty(c, '{project}') then g := array_append(g, 'المشروع'); end if;
     foreach side in array array['counterparty', 'hawamish'] loop
       who := case side when 'counterparty' then 'الطرف الآخر' else 'هوامش' end;
@@ -1367,6 +1366,28 @@ begin
     end if;
     if _c_empty(c, '{bank,iban}') then g := array_append(g, 'الآيبان (الحساب البنكي)'); end if;
   end if;
+  -- a clause with no title / no text (the full template's pricing clause 04 is generated, never empty)
+  for i in 0 .. jsonb_array_length(coalesce(c -> 'sections', '[]'::jsonb)) - 1 loop
+    if _c_empty(c, array['sections', i::text, 'title']) then
+      g := array_append(g, 'عنوان البند ' || coalesce(c #>> array['sections', i::text, 'num'], (i + 1)::text));
+    elsif not (k = 'full' and coalesce(c #>> array['sections', i::text, 'key'], c #>> array['sections', i::text, 'num']) = '04')
+          and _c_empty(c, array['sections', i::text, 'body']) then
+      g := array_append(g, 'نص البند ' || coalesce(c #>> array['sections', i::text, 'num'], (i + 1)::text));
+    end if;
+    -- a {word} this template has no field for, left empty (e.g. {التصاميم} typed into a «عقد عمل») — mirrors clauseGaps()
+    body := coalesce(c #>> array['sections', i::text, 'body'], '');
+    foreach w in array array['الهدف', 'المنصات', 'المنشورات', 'التصاميم', 'الفيديوهات', 'الوظيفة'] loop
+      -- (computed apart: a plpgsql IF condition ends at its first THEN, so no CASE inside it)
+      wempty := case w when 'الهدف' then _c_empty(c, '{project}') when 'المنصات' then _c_empty(c, '{vars,platforms}')
+                       when 'المنشورات' then not _c_pos(c, '{vars,posts}') when 'التصاميم' then not _c_pos(c, '{vars,designs}')
+                       when 'الفيديوهات' then not _c_pos(c, '{vars,videos}') else _c_empty(c, '{jobTitle}') end;
+      if position('{' || w || '}' in body) > 0
+         and ((k = 'employment' and w <> 'الوظيفة') or (k <> 'employment' and w = 'الوظيفة'))
+         and wempty then
+        g := array_append(g, '{' || w || '} في البند ' || coalesce(c #>> array['sections', i::text, 'num'], (i + 1)::text));
+      end if;
+    end loop;
+  end loop;
   if _c_empty(c, '{signers,hawamish,name}') then g := array_append(g, 'اسم موقّع هوامش'); end if;
   return g;
 end $$;

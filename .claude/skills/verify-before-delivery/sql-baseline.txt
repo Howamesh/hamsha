@@ -1,11 +1,11 @@
 # 3f2bb17397167b914831904d1e2523a3158dda32  supabase/tests/00_local_shim.sql
 # 6c258b8ca646eec00684fc3581d151a95cde21c4  supabase/tests/10_seed.sql
 # 93243ace9eb331abcc63c105d0406c48d8ce19b4  supabase/tests/20_harness.sql
-# 08dd4b3d1ddb2da8c418226cc7aa6a47cd00df23  supabase/tests/rls.sql
+# 7f99ad0314943f903d1648c595b5b1377f7a2740  supabase/tests/rls.sql
 # be29f13300c05cd5bab788e28c478de9c52387fd  supabase/tests/run-ci.sh
 # 9cc4dea2c523159b3999365275536fd937accebf  supabase/tests/run-local.sh
 # 76860ee1877a8ba425fa8f6de4fe6adb5f59d578  tests/smoke-client-summary.mjs
-# 341335134c6bf6e1719620761c3c68f4f280770f  tests/smoke-contracts.mjs
+# 478d7af946eaeef38c2d2837c392ebe0b2f279e7  tests/smoke-contracts.mjs
 # 6b92a0e9d14b3e09f151773154053d8103327eb2  tests/smoke-drag.mjs
 # 29c8210f77960737b21d999c65d611a78cfb2a23  tests/smoke-hours.mjs
 # fb70595951d3a354e190b073c29b3f99a2fba4e4  tests/smoke-invite.mjs
@@ -13,7 +13,7 @@
 # 8a62000db9cd9cb8f0458a07d5a2221f6f9b90af  tests/smoke-regressions.mjs
 # 31a3194b2b75cd7f937bbbb80b88496e962ace8f  tests/smoke-review3.mjs
 # 86bf876a63cf91de5e32d38a718a8f35653c56bf  tests/smoke-roles.mjs
-# a73b038d6bf975c7877f9645a37c9695fa5443a4  tests/smoke-social.mjs
+# cbd3812bd849dfd2f12967aa8a639a1aead63e56  tests/smoke-social.mjs
 # 72e3e4b649ac988b901ef5294c876339a43d12d0  tests/unit-validate.mjs
 # 87b6f961b40028aa7a993dc0363ac6edea6e5f0b  package.json:scripts
 admin reads all tasks
@@ -297,6 +297,8 @@ anon reads nothing from profiles
 [int] (setup) a contract complete EXCEPT the monthly amount
 [int] …missing only the amount: Hawamish MAY sign anyway (a warning — Yousef 2 Nov)
 [int] …and the trail records which fields were empty
+[int] an added clause left empty is listed as a gap (warning)
+[int] a {word} the template has no field for (employment + {التصاميم}) is a gap
 [int] the CORE (names, signer, date) still blocks sending in the database
 [int] …and it can never be SENT while incomplete
 [int] (setup) a complete contract is signed and sent

@@ -235,6 +235,11 @@ export interface ContractSection {
   body: string
   /** part of the fixed core («الدستور»): shown locked in the editor */
   fixed?: boolean
+  /** stable identity (2 Nov, «أضيف بنود»): a template clause keeps its original number here while `num` is the printed
+   *  number that follows its position; a clause the team added gets «c…». Older contracts have none → num. */
+  key?: string
+  /** added by the team (not in the manager's template): can be moved and deleted */
+  custom?: boolean
 }
 export interface ContractTrack {
   name: string

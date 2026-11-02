@@ -124,8 +124,8 @@ await click('تسجيل الخروج'); await sleep(700);
 await click('ادخل كعميل'); await waitFor(`!!document.querySelector('[data-testid=social-badge]')`, 20000);
 CHECKS['client badge = 1'] = (await text('[data-testid=social-badge]')).trim() === '1';
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=post-card]')`);
-await click('الكل'); await sleep(300);
-CHECKS['client never sees the unsent draft (even under «الكل»)'] = (await ev(`[...document.querySelectorAll('[data-testid=post-card]')].map(c=>c.innerText).join('|')`)).includes('تهنئة اليوم الوطني') && !(await ev(`[...document.querySelectorAll('[data-testid=post-card]')].some(c=>c.innerText.includes('مسودة سرية'))`));
+await click('الحالية'); await sleep(300);
+CHECKS['client never sees the unsent draft (even under «الحالية»)'] = (await ev(`[...document.querySelectorAll('[data-testid=post-card]')].map(c=>c.innerText).join('|')`)).includes('تهنئة اليوم الوطني') && !(await ev(`[...document.querySelectorAll('[data-testid=post-card]')].some(c=>c.innerText.includes('مسودة سرية'))`));
 CHECKS['client card shows the real handle'] = await ev(`[...document.querySelectorAll('[data-testid=post-card]')].some(c=>c.innerText.includes('@sana.sa'))`);
 CHECKS['client has no «منشور جديد»'] = !(await ev(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim().includes('منشور جديد'))`));
 await ev(`document.querySelector('[data-testid=post-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=client-decision]')`);
@@ -216,14 +216,14 @@ CHECKS['no new version after publish'] = !(await ev(`[...document.querySelectorA
 await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);
 // reload: everything persisted
 await send('Page.reload'); await sleep(1500); await waitFor(`!!document.querySelector('[data-testid=social-board]') || [...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='السوشل')`, 20000);
-await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=post-card]')`);
+await click('السوشل'); await sleep(300); await click('نُشرت'); await waitFor(`!!document.querySelector('[data-testid=post-card]')`);
 CHECKS['persisted after reload'] = await ev(`[...document.querySelectorAll('[data-testid=post-card]')].some(c=>c.dataset.status === 'published')`);
 await click('تسجيل الخروج'); await sleep(700);
 
 // ---------- client archive + creative isolation ----------
 await click('ادخل كعميل'); await sleep(1200);
 await click('السوشل'); await waitFor(`!!document.querySelector('[data-testid=social-board]')`);
-await click('الأرشيف'); await sleep(300);
+await click('نُشرت'); await sleep(300);
 CHECKS['client archive keeps the published post with its link'] = await ev(`document.querySelector('[data-testid=post-card]')?.dataset.status === 'published'`);
 CHECKS['client archive has exactly one card (the draft never leaked)'] = (await ev(`document.querySelectorAll('[data-testid=post-card]').length`)) === 1;
 // 1 Nov: «الشبكة» = the client's profile like the app (real picture/handle/name, true post count, 3:4 tiles)
@@ -232,7 +232,7 @@ CHECKS['grid: profile head with the real handle + post count'] = await ev(`(()=>
 CHECKS['grid: no invented followers'] = !/متابع|followers/i.test(await text('[data-testid=feed-grid]'));
 CHECKS['grid: a tapped post opens ALONE (no phone)'] = await (async () => { await ev(`document.querySelector('[data-testid=grid-cell]').click()`); await sleep(400); const ok = await ev(`!!document.querySelector('[data-testid=design-viewer] [data-testid=design-box]') && !document.querySelector('[data-testid=design-viewer] [data-testid=feed-preview]')`); await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await sleep(300); return ok })();
 await shotEl('[data-testid=feed-grid]', 'grid');
-await click('الأرشيف'); await sleep(300);
+await click('نُشرت'); await sleep(300);
 await ev(`document.querySelector('[data-testid=post-card]').click()`); await waitFor(`!!document.querySelector('[data-testid=post-sheet]')`);
 CHECKS['client opens the live link'] = await ev(`[...document.querySelectorAll('[data-testid=post-sheet] a')].some(a=>a.href==='https://www.instagram.com/p/abc123/')`);
 await ev(`document.querySelector('[data-testid=post-sheet] button[aria-label="إلغاء"]').click()`); await sleep(300);

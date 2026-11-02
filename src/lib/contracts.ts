@@ -200,8 +200,42 @@ export const EMPLOYMENT_SECTIONS: ContractSection[] = [
 export const JOB_TITLES = ['مصمم جرافيك', 'مصمم موشن جرافيك', 'مونتير فيديو', 'كاتب محتوى', 'مدير حسابات التواصل', 'مصور', 'مطور واجهات', 'مبرمج تطبيقات']
 export const TERMS = ['غير محدد', 'حسب المشروع', '12 شهر']
 
+// ---------- clauses the team adds (2 Nov, Yousef: «أبي أقدر أضيف بنود») ----------
+/** A clause's stable identity (anchors, locks, the «معدّل» compare, the pricing clause) — never its printed number. */
+export const secKey = (s: ContractSection): string => s.key ?? s.num
+/** The printed number for position i: the full template prints «01», the others «1». */
+export const secNumber = (kind: ContractKind, i: number): string => (kind === 'full' ? String(i + 1).padStart(2, '0') : String(i + 1))
+/** Freeze every clause's identity, then renumber by position (what the paper prints). */
+export function renumberSections(kind: ContractKind, list: ContractSection[]): ContractSection[] {
+  return list.map((s, i) => ({ ...s, key: secKey(s), num: secNumber(kind, i) }))
+}
+/** A new empty clause inserted at `at` (default: the end); the list is renumbered. */
+export function addSection(kind: ContractKind, list: ContractSection[], at = list.length): { list: ContractSection[]; key: string } {
+  const key = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+  const fresh: ContractSection = { num: '', title: 'بند جديد', body: '', key, custom: true }
+  const next: ContractSection[] = list.map((s) => ({ ...s, key: secKey(s) }))
+  next.splice(Math.max(0, Math.min(at, next.length)), 0, fresh)
+  return { list: renumberSections(kind, next), key }
+}
+/** Move a clause the team added one step up / down (template clauses keep their order). */
+export function moveSection(kind: ContractKind, list: ContractSection[], key: string, dir: -1 | 1): ContractSection[] {
+  const i = list.findIndex((s) => secKey(s) === key)
+  const j = i + dir
+  if (i < 0 || !list[i].custom || j < 0 || j >= list.length) return list
+  const next = [...list]
+  ;[next[i], next[j]] = [next[j], next[i]]
+  return renumberSections(kind, next)
+}
+/** Remove a clause the team added (template clauses cannot be removed). */
+export function removeSection(kind: ContractKind, list: ContractSection[], key: string): ContractSection[] {
+  const i = list.findIndex((s) => secKey(s) === key)
+  if (i < 0 || !list[i].custom) return list
+  return renumberSections(kind, list.filter((_, j) => j !== i))
+}
+
 export function originalIfChanged(sec: ContractSection): ContractSection | null {
-  const o = [...FULL_SECTIONS, ...EMPLOYMENT_SECTIONS].find((x) => x.num === sec.num)
+  if (sec.custom) return null
+  const o = [...FULL_SECTIONS, ...EMPLOYMENT_SECTIONS].find((x) => x.num === secKey(sec))
   if (!o) return null
   return o.title.trim() !== sec.title.trim() || o.body.trim() !== sec.body.trim() ? o : null
 }
@@ -217,7 +251,7 @@ export function emptyContent(kind: ContractKind, counterparty: ContractPartyInfo
     hawamish: { ...EMPTY_LEGAL.party, ...legal.party },
     counterparty,
     scope: kind === 'short' ? SHORT_SCOPE : kind === 'offer' ? OFFER_INTRO : '',
-    sections: kind === 'full' ? FULL_SECTIONS.map((s) => ({ ...s })) : kind === 'employment' ? EMPLOYMENT_SECTIONS.map((s) => ({ ...s })) : [],
+    sections: kind === 'full' ? FULL_SECTIONS.map((s) => ({ ...s, key: s.num })) : kind === 'employment' ? EMPLOYMENT_SECTIONS.map((s) => ({ ...s, key: s.num })) : [],
     pricing: { mode: 'monthly', currency: 'SAR', monthly: 0, months: 12, projectTotal: 0, installments: [], lateDays: 7, supportMonths: 0 },
     tracks: kind === 'short' ? [{ name: 'المسار التقني وتطوير المنتج', nameEn: 'Technical & UX/UI Track', months: 12, monthly: 0, quarters: ['', '', '', ''] }] : [],
     packages: kind === 'offer' ? [1, 2, 3].map((i) => ({ name: `الباقة ${['الأولى', 'الثانية', 'الثالثة'][i - 1]}`, subtitle: '', price: 0, per: 'month' as const, items: [] })) : [],
@@ -262,7 +296,8 @@ export function missingFields(c: ContractContent): MissingField[] {
   if (c.kind === 'employment') return [...out, ...missingEmployment(c)]
   // 1 Nov («ليش بس على الفلوس؟» + «ليش بيانات الطرف الآخر ما تطلع ناقص؟»): whatever the PAPER prints must be filled,
   // in the order of the form. Unused counts (a word the text never uses) stay optional.
-  const text = [...(c.kind === 'full' ? c.sections.map((x) => x.body) : [c.scope]), c.kind === 'short' ? SHORT_FOOTNOTE : ''].join('\n')
+  // the text = the scope (short / offer) + EVERY clause, incl. the ones the team added (2 Nov)
+  const text = [c.kind === 'full' ? '' : c.scope, ...c.sections.map((x) => x.body), c.kind === 'short' ? SHORT_FOOTNOTE : ''].join('\n')
   const uses = (w: string) => text.includes(`{${w}}`)
   const full = c.kind !== 'short'
   if (uses('الهدف') && !c.project.trim()) out.push({ label: 'المشروع', field: 'contract-project' })
@@ -301,8 +336,38 @@ export function missingFields(c: ContractContent): MissingField[] {
     const k = c.pricing.installments.findIndex((i) => !(i.amount > 0))
     if (k >= 0) out.push({ label: 'مبالغ الدفعات', field: `installment-${k}` })
   }
+  out.push(...clauseGaps(c))
   if (!c.bank.iban.trim()) out.push({ label: 'الآيبان (الحساب البنكي)', field: 'bank-iban' })
   if (!c.signers.hawamish.name.trim()) out.push({ label: 'اسم موقّع هوامش', field: 'signer-hawamish-name' })
+  return out
+}
+/** A clause with no title or no text prints as an empty heading — a gap like any other (2 Nov). A {word} used in a
+ *  clause whose value this template has NO field for (e.g. {التصاميم} typed into a «عقد عمل») prints «…» — a gap that
+ *  points at that clause's text (Codex check 2 Nov). Words WITH a field are already listed by the form checks. */
+const WORD_EMPTY: Record<string, (c: ContractContent) => boolean> = {
+  'الهدف': (c) => !c.project.trim(),
+  'المنصات': (c) => !c.vars.platforms.trim(),
+  'المنشورات': (c) => !(c.vars.posts > 0),
+  'التصاميم': (c) => !(c.vars.designs > 0),
+  'الفيديوهات': (c) => !(c.vars.videos > 0),
+  'الوظيفة': (c) => !(c.jobTitle ?? '').trim(),
+}
+const WORDS_WITH_FIELD: Record<ContractKind, string[]> = {
+  full: ['الهدف', 'المنصات', 'المنشورات', 'التصاميم', 'الفيديوهات'],
+  short: ['الهدف', 'المنصات', 'المنشورات', 'التصاميم', 'الفيديوهات'],
+  offer: ['الهدف', 'المنصات', 'المنشورات', 'التصاميم', 'الفيديوهات'],
+  employment: ['الوظيفة'],
+}
+function clauseGaps(c: ContractContent): MissingField[] {
+  const out: MissingField[] = []
+  for (const s of c.sections) {
+    const key = secKey(s)
+    if (!s.title.trim()) out.push({ label: `عنوان البند ${s.num}`, field: `section-title-${key}` })
+    else if (!(c.kind === 'full' && key === '04') && !s.body.trim()) out.push({ label: `نص البند ${s.num}`, field: `section-body-${key}` })
+    for (const w of Object.keys(WORD_EMPTY)) {
+      if (s.body.includes(`{${w}}`) && !WORDS_WITH_FIELD[c.kind].includes(w) && WORD_EMPTY[w](c)) out.push({ label: `{${w}} في البند ${s.num}`, field: `section-body-${key}` })
+    }
+  }
   return out
 }
 /** «عقد عمل»: what its three pages print — the employee is a person (ID, no CR / city / representative). */
@@ -323,6 +388,7 @@ function missingEmployment(c: ContractContent): MissingField[] {
   if (!c.bank.owner.trim()) out.push({ label: 'صاحب الحساب (الموظف)', field: 'bank-owner' })
   if (!c.bank.account.trim()) out.push({ label: 'رقم الحساب (الموظف)', field: 'bank-account' })
   if (!c.bank.iban.trim()) out.push({ label: 'الآيبان (الموظف)', field: 'bank-iban' })
+  out.push(...clauseGaps(c))
   if (!c.signers.hawamish.name.trim()) out.push({ label: 'اسم موقّع هوامش', field: 'signer-hawamish-name' })
   return out
 }

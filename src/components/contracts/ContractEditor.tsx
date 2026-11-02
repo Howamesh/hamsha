@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Lock, Maximize2, Minimize2, Minus, Plus, Save, Send, Trash2, Unlock, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Lock, Maximize2, Minimize2, Minus, Plus, Save, Send, Trash2, Unlock, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fmtTime, useNarrow, useStr } from '@/lib/useStr'
 import { useData, useSession } from '@/store/session'
 import { useUi } from '@/store/ui'
 import type { Contract, ContractContent, ContractPartyInfo, ContractVersion } from '@/types'
-import { CURRENCIES, EMPTY_LEGAL, JOB_TITLES, TERMS, coreMissing, amountWords, contractTotal, currencyWord, emptyContent, fmtAmount, missingFields, originalIfChanged, partyFromClient, partyFromCreative } from '@/lib/contracts'
+import { CURRENCIES, EMPTY_LEGAL, JOB_TITLES, TERMS, addSection, coreMissing, moveSection, removeSection, secKey, amountWords, contractTotal, currencyWord, emptyContent, fmtAmount, missingFields, originalIfChanged, partyFromClient, partyFromCreative } from '@/lib/contracts'
 import { deepLatin, toLatin } from '@/lib/latinDigits'
 import { clearDraft, loadDraft, saveDraft } from '@/lib/contractDraft'
 import { Button, Input, SectionTitle } from '../ui'
@@ -51,6 +51,20 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
   // the form as it was when «احفظ نسخة» was pressed: typing that continues while the save is in flight must survive it
   const sentFrom = useRef<string | null>(null)
   const [focusSec, setFocusSec] = useState<string | null>(null)
+  // a clause just added → scroll to it and put the cursor in its title; a delete asks once
+  const [justAdded, setJustAdded] = useState<string | null>(null)
+  const [confirmDel, setConfirmDel] = useState<string | null>(null)
+  useEffect(() => {
+    if (!justAdded) return
+    const id = setTimeout(() => {
+      const el = document.querySelector<HTMLInputElement>(`[data-testid="section-title-${justAdded}"]`)
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      el?.focus()
+      el?.select()
+      setJustAdded(null)
+    }, 60)
+    return () => clearTimeout(id)
+  }, [justAdded])
   // ⭐٥ (1 Nov): the paper at full size; tapping a part opens its editor in a panel beside it
   const [paperBig, setPaperBig] = useState(false)
   const [pick, setPick] = useState<string | null>(null)
@@ -163,7 +177,7 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
     else if (!typedSince) setC(JSON.parse(JSON.stringify(current.content))) // else: keep the newer typing, now a draft on top of this version
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id])
-  const overflowText = overflow.length ? t('overflowWarn', { pages: overflow.map((o) => (o.sections.length ? `${o.page} (${t('clause')} ${o.sections.join('، ')})` : String(o.page))).join(' · ') }) : ''
+  const overflowText = overflow.length ? t('overflowWarn', { pages: overflow.map((o) => (o.sections.length ? `${o.page} (${t('clause')} ${o.sections.map((k) => c.sections.find((x) => secKey(x) === k)?.num ?? k).join('، ')})` : String(o.page))).join(' · ') }) : ''
   const dirtyContent = !current || JSON.stringify(current.content) !== JSON.stringify(c)
   // every change is kept in this browser at once (no debounce: a refresh right after typing loses nothing)
   // (a note alone is not a draft: on its own it cannot be saved as a version)
@@ -435,35 +449,68 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
           </div>
         </Group>
       )
-  const blkSections = (c.kind === 'full' || emp) && (
-        <Group title={t('secSections')} note={t('sectionsNote')}>
+  // clauses: the template's + the ones the team adds (2 Nov, Yousef: «أبي أقدر أضيف بنود… بأفضل طريقة»). The short
+  // contract and the offer have no template clauses → the block is «بنود إضافية» with only what the team adds.
+  const withClauses = c.kind === 'full' || emp
+  const insertClause = (at?: number) => {
+    const r = addSection(c.kind, c.sections, at)
+    up({ sections: r.list })
+    setJustAdded(r.key)
+  }
+  const blkSections = (
+        <Group title={withClauses ? t('secSections') : t('secExtraClauses')} note={withClauses ? t('sectionsNote') : t('extraClausesNote')} anchor="clauses">
           {c.sections.map((sec, k) => {
-            const locked = !!sec.fixed && !unlocked.has(sec.num)
+            const key = secKey(sec)
+            const pricing = c.kind === 'full' && key === '04'
+            const locked = !!sec.fixed && !unlocked.has(key)
             return (
-              <div key={sec.num} className="rounded-md border border-border p-3 flex flex-col gap-2" data-testid="section-editor" data-anchor={sec.num === '04' ? undefined : `sec:${sec.num}`}>
+              <div key={key} className="flex flex-col gap-1.5">
+              <div className={cn('rounded-md border p-3 flex flex-col gap-2', sec.custom ? 'border-accent/40 bg-accent/[0.03]' : 'border-border')} data-testid="section-editor" data-custom={sec.custom ? '1' : undefined} data-anchor={pricing ? undefined : `sec:${key}`}>
                 <div className="flex items-center gap-2">
                   <span className="text-[12px] font-bold tabular-nums">{sec.num}</span>
-                  <Input value={sec.title} onChange={(e) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: e.target.value } : x)) })} dir="auto" className="py-1 text-[13px] flex-1" disabled={locked} />
+                  <Input value={sec.title} onChange={(e) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: e.target.value } : x)) })} placeholder={t('clauseTitlePh')} dir="auto" className="py-1 text-[13px] flex-1" disabled={locked} data-testid={`section-title-${key}`} />
                   {sec.fixed && (
-                    <Button size="sm" variant="ghost" onClick={() => toggleLock(sec.num)} title={locked ? t('fixedSection') : t('unlockSection')}>
+                    <Button size="sm" variant="ghost" onClick={() => toggleLock(key)} title={locked ? t('fixedSection') : t('unlockSection')}>
                       {locked ? <Lock size={14} /> : <Unlock size={14} />} <span className="text-[11px]">{locked ? t('fixedSection') : t('unlockSection')}</span>
                     </Button>
                   )}
-                  {sec.num !== '04' && (
-                    <Button size="icon" variant="ghost" onClick={() => setFocusSec(sec.num)} aria-label={t('expandSection')} title={t('expandSection')} data-testid={`section-expand-${sec.num}`}>
+                  {sec.custom && (
+                    <>
+                      <Button size="icon" variant="ghost" disabled={k === 0} onClick={() => up({ sections: moveSection(c.kind, c.sections, key, -1) })} aria-label={t('clauseUp')} title={t('clauseUp')} data-testid={`section-up-${key}`}><ArrowUp size={14} /></Button>
+                      <Button size="icon" variant="ghost" disabled={k === c.sections.length - 1} onClick={() => up({ sections: moveSection(c.kind, c.sections, key, 1) })} aria-label={t('clauseDown')} title={t('clauseDown')} data-testid={`section-down-${key}`}><ArrowDown size={14} /></Button>
+                      {confirmDel === key ? (
+                        <Button size="sm" variant="ghost" className="text-accent" onClick={() => { up({ sections: removeSection(c.kind, c.sections, key) }); setConfirmDel(null) }} data-testid={`section-delete-confirm-${key}`}>{t('clauseDeleteSure')}</Button>
+                      ) : (
+                        <Button size="icon" variant="ghost" onClick={() => setConfirmDel(key)} aria-label={t('clauseDelete')} title={t('clauseDelete')} data-testid={`section-delete-${key}`}><Trash2 size={14} /></Button>
+                      )}
+                    </>
+                  )}
+                  {!pricing && (
+                    <Button size="icon" variant="ghost" onClick={() => setFocusSec(key)} aria-label={t('expandSection')} title={t('expandSection')} data-testid={`section-expand-${key}`}>
                       <Maximize2 size={15} />
                     </Button>
                   )}
                 </div>
-                <ChangedNote original={originalIfChanged(sec)} onRestore={(o) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: o.title, body: o.body } : x)) })} testId={`changed-${sec.num}`} />
-                {sec.num === '04' ? (
+                {sec.custom && <div className="text-[11px] text-accent font-semibold -mt-1">{t('clauseAddedMark')}</div>}
+                <ChangedNote original={originalIfChanged(sec)} onRestore={(o) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: o.title, body: o.body } : x)) })} testId={`changed-${key}`} />
+                {pricing ? (
                   <div className="text-[11.5px] text-fg-secondary">{t('secPricing')} ← {t('secPricing')}</div>
                 ) : (
-                  <textarea value={sec.body} onChange={(e) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, body: e.target.value } : x)) })} rows={locked ? 3 : 7} dir="auto" disabled={locked} className={cn(field, 'resize-y leading-relaxed', locked && 'opacity-70')} />
+                  <textarea value={sec.body} onChange={(e) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, body: e.target.value } : x)) })} placeholder={t('clauseBodyPh')} rows={locked ? 3 : 7} dir="auto" disabled={locked} className={cn(field, 'resize-y leading-relaxed', locked && 'opacity-70')} data-testid={`section-body-${key}`} />
                 )}
+              </div>
+              {/* add a clause right AFTER this one (where it belongs), not only at the end */}
+              {k < c.sections.length - 1 && (
+                <button type="button" onClick={() => insertClause(k + 1)} className="self-center text-[11px] text-fg-muted hover:text-fg cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-full hover:bg-muted-bg" data-testid={`section-add-after-${key}`}>
+                  <Plus size={12} /> {t('clauseAddHere')}
+                </button>
+              )}
               </div>
             )
           })}
+          <Button size="sm" className="self-start" onClick={() => insertClause()} data-testid="section-add">
+            <Plus size={14} /> {t('clauseAdd')}
+          </Button>
         </Group>
       )
   const blkBank = (
@@ -498,14 +545,14 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
   )
   const pickLabel = (id: string) => {
     if (id.startsWith('sec:')) {
-      const sec = c.sections.find((x) => x.num === id.slice(4))
+      const sec = c.sections.find((x) => secKey(x) === id.slice(4))
       return sec ? `${sec.num} · ${sec.title}` : ''
     }
     return ({ salary: t('secSalary'), pricing: t('secPricing'), scope: c.kind === 'offer' ? 'تمهيد' : t('secScope'), tracks: t('secVars'), packages: t('secPackages'), parties: t('secParties'), bank: t('secBank'), signers: t('secSigners'), basics: t('secBasics') } as Record<string, string>)[id] ?? ''
   }
   const panelFor = (id: string) => {
     if (id.startsWith('sec:')) {
-      const k = c.sections.findIndex((x) => x.num === id.slice(4))
+      const k = c.sections.findIndex((x) => secKey(x) === id.slice(4))
       const sec = c.sections[k]
       if (!sec) return null
       return (
@@ -513,9 +560,9 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
           title={sec.title}
           body={sec.body}
           fixed={!!sec.fixed}
-          locked={!!sec.fixed && !unlocked.has(sec.num)}
-          onUnlock={() => toggleLock(sec.num)}
-          onExpand={() => setFocusSec(sec.num)}
+          locked={!!sec.fixed && !unlocked.has(secKey(sec))}
+          onUnlock={() => toggleLock(secKey(sec))}
+          onExpand={() => setFocusSec(secKey(sec))}
           changedNote={<ChangedNote original={originalIfChanged(sec)} onRestore={(o) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: o.title, body: o.body } : x)) })} testId={`panel-changed-${sec.num}`} />}
           onTitle={(v) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: v } : x)) })}
           onBody={(v) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, body: v } : x)) })}
@@ -642,7 +689,7 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
       )}
       {focusSec && (() => {
         if (focusSec === 'scope') return <SectionFocus num="" title={c.kind === 'offer' ? 'تمهيد' : t('secScope')} body={c.scope} locked={false} onBody={(v) => up({ scope: v })} onClose={() => setFocusSec(null)} />
-        const k = c.sections.findIndex((x) => x.num === focusSec)
+        const k = c.sections.findIndex((x) => secKey(x) === focusSec)
         const sec = c.sections[k]
         if (!sec) return null
         return (
@@ -650,8 +697,8 @@ export function ContractEditor({ contract, current, onClose, initialField, onJum
             num={sec.num}
             title={sec.title}
             body={sec.body}
-            locked={!!sec.fixed && !unlocked.has(sec.num)}
-            onUnlock={() => toggleLock(sec.num)}
+            locked={!!sec.fixed && !unlocked.has(secKey(sec))}
+            onUnlock={() => toggleLock(secKey(sec))}
             onTitle={(v) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, title: v } : x)) })}
             onBody={(v) => up({ sections: c.sections.map((x, j) => (j === k ? { ...x, body: v } : x)) })}
             onClose={() => setFocusSec(null)}
