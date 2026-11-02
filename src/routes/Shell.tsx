@@ -294,7 +294,8 @@ function RailButton({ icon, label, badge, active, onClick, testId, badgeTestId, 
       data-testid={testId}
       className={cn(
         'relative shrink-0 flex flex-col items-center justify-center gap-1 rounded-md py-2 px-0.5 cursor-pointer transition-colors',
-        active ? 'bg-muted-bg text-fg' : 'text-fg-secondary hover:bg-muted-bg/60 hover:text-fg',
+        // 2 Nov (his pick ٢): only the PAGE you are on is a pressed square; an open panel section shows nothing
+        active && !toggle ? 'bg-muted-bg text-fg' : 'text-fg-secondary hover:bg-muted-bg/60 hover:text-fg',
       )}
     >
       {icon}
