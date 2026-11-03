@@ -206,10 +206,17 @@ export function createSupabaseRepo(): Repo {
     // a database without 0016 yet (staging/production before the release): the app keeps working the old way —
     // inbox computed from the loaded messages, no chat permissions — instead of refusing to open
     const missing = (e: { code?: string } | null) => !!e && ['PGRST202', 'PGRST205', '42883', '42P01'].includes(e.code ?? '')
-    if (!missing(inbox.error)) fail(inbox.error, 'inbox_summary')
-    if (!missing(members.error)) fail(members.error, 'client_chat_members')
-    if (!missing(people.error)) fail(people.error, 'chat_people')
-    const has0016 = !missing(inbox.error)
+    // 3 Nov (staging went blank: «permission denied for table client_chat_members» — a new table without grants): the
+    // inbox extras are OPTIONAL — a refusal there is logged and the app opens without them, never a blank screen
+    const optional = (e: { code?: string; message: string } | null, what: string) => {
+      if (!e || missing(e)) return
+      if (e.code === '42501') { console.warn(`hamsha: ${what} refused (grants?) — opening without it`, e.message); return }
+      fail(e, what)
+    }
+    optional(inbox.error, 'inbox_summary')
+    optional(members.error, 'client_chat_members')
+    optional(people.error, 'chat_people')
+    const has0016 = !inbox.error
     for (const [r, what] of [[users, 'profiles'], [settings, 'settings'], [clients, 'clients'], [projects, 'projects'], [tasks, 'tasks'], [parts, 'parts'], [messages, 'messages'], [posts, 'posts'], [versions, 'post_versions'], [accounts, 'client_accounts'], [contracts, 'contracts'], [cversions, 'contract_versions'], [cevents, 'contract_events'], [legal, 'org_legal']] as const) fail(r.error, what)
     const presence: Record<string, Presence> = {}
     for (const u of users.data ?? []) presence[u.id] = u.presence
